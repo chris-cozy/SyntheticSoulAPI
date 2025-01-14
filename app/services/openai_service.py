@@ -24,16 +24,14 @@ async def get_structured_query_response(messages, schema):
             response_format = schema
         )
 
-        # Log raw response for debugging
-        print("---------------")
-        print(response)
-        print("---------------")
-
         # Parse and validate the response
         content_json = response.choices[0].message.content
         parsed_content = json.loads(content_json)
-        
+
+        print("---------------")
         print(parsed_content)
+        print("---------------")
+        
         return parsed_content
     except Exception as error:
         print(f"System Error: {error}")

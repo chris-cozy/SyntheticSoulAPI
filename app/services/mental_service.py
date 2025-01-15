@@ -281,9 +281,6 @@ async def process_message(request: MessageRequest):
 
             conversation["messages"].append(incoming_message)
 
-            print('######################')
-            print(conversation["messages"])
-
             db["conversations"].update_one({"user_id": user["user_id"]}, { "$set": {"messages": conversation["messages"] }})
 
 
@@ -301,6 +298,7 @@ async def process_message(request: MessageRequest):
                 conversation["messages"].append(bot_response_message)
                 db["conversations"].update_one({"user_id": user["user_id"]}, { "$set": {"messages": conversation["messages"] }})
 
+                print(response_content["message"])
                 return MessageResponse(response = response_content["message"])
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:

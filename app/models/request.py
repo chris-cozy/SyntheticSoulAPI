@@ -1,12 +1,8 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
-from uuid import UUID
-from datetime import datetime
+from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
     message: str
-    user_id: str
-    user_name: str
+    username: str
 
 class MessageResponse(BaseModel):
     response: str

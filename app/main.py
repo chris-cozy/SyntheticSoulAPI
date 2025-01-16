@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
-import os
 from fastapi import FastAPI, HTTPException
 from app.constants.schemas import get_thought_schema
 from app.models.request import MessageRequest, MessageResponse
-from app.services.mental_service import process_message
+from app.services.mental_service import send_message
 from app.services.openai_service import get_structured_query_response
-from app.services.data_service import grab_self, init_db, db_client
+from app.services.data_service import get_all_agents, grab_self, init_db, db_client
+from bson.json_util import dumps
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,7 +36,18 @@ async def root():
 @app.post("/messages/submit", response_model=MessageResponse)
 async def submit_message(request: MessageRequest):
     try:
-        response = await process_message(request)
+        response = await send_message(request)
         return response
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/agents")
+async def get_agents():
+    try:
+        response = await get_all_agents()
+        serialized_response = dumps(response)  # Serialize the response
+        print(serialized_response)
+        return {'agents': serialized_response}
+    except Exception as e:
+        print(f"Error in agents endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

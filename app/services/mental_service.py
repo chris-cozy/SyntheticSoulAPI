@@ -8,7 +8,7 @@ from app.constants.schemas_lite import get_emotion_status_schema_lite, get_perso
 from app.models.request import MessageRequest, MessageResponse
 from app.services.openai_service import get_structured_query_response 
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import grab_user, grab_self, get_conversation, get_database
 from dotenv import load_dotenv
@@ -70,7 +70,7 @@ async def process_message(request: MessageRequest):
             initial_emotion_query = {
                 "role": "user",
                 "content": (
-                    f"{self_context} This is what {self[AGENT_NAME_PROPERTY]} has learned about {user[USER_NAME_PROPERTY]}: {user['summary']}. {intrinsic_relationship} {extrinsic_relationship} {ongoing_conversation_string} It is {received_date}. {user[USER_NAME_PROPERTY]} just sent a message to {self[AGENT_NAME_PROPERTY]}: {request.message}. How would this alter {self[AGENT_NAME_PROPERTY]}'s emotional state? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale:{MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)"
+                    f"{self_context} This is what {self[AGENT_NAME_PROPERTY]} has learned about {user[USER_NAME_PROPERTY]}: {user['summary']}. {intrinsic_relationship} {extrinsic_relationship} {ongoing_conversation_string} It is {received_date}. {user[USER_NAME_PROPERTY]} just sent a message to {self[AGENT_NAME_PROPERTY]}: {request.message}. How would this alter {self[AGENT_NAME_PROPERTY]}'s emotional state? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale:{MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                 ),
             }
 
@@ -85,7 +85,9 @@ async def process_message(request: MessageRequest):
                 "content": json.dumps(initial_emotion_response)
                 })
             
-            db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], initial_emotion_response) }})
+            current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
+
+            db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             # Step 6: Analyze the purpose and tone of the user's message: CLEAR
             message_queries = [{
@@ -144,7 +146,7 @@ async def process_message(request: MessageRequest):
                 final_emotion_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"{self[AGENT_NAME_PROPERTY]} responded with this message: ({response_content}). What is {self[AGENT_NAME_PROPERTY]}'s emotional state after sending their response? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased) and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                        f"{self[AGENT_NAME_PROPERTY]} responded with this message: ({response_content}). What is {self[AGENT_NAME_PROPERTY]}'s emotional state after sending their response? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased) and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                     ),
                 }
 
@@ -161,14 +163,16 @@ async def process_message(request: MessageRequest):
                 })
 
             
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], final_emotion_response) }})
+                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+
+                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
                 # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
                 final_emotion_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"What is {self[AGENT_NAME_PROPERTY]}'s emotional state after ignoring the message? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                        f"What is {self[AGENT_NAME_PROPERTY]}'s emotional state after ignoring the message? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                     ),
                 }
 
@@ -184,13 +188,14 @@ async def process_message(request: MessageRequest):
                     "content": json.dumps(final_emotion_response),
                 })
 
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], final_emotion_response) }})
+                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             # Step 10: Sentiment Reflection: CLEAR
             sentiment_query = {
                 "role": USER_ROLE,
                 "content": (
-                    f"What are {self[AGENT_NAME_PROPERTY]}'s sentiments towards {user[USER_NAME_PROPERTY]} after this message exchange? Provide the new object (only the sentiments whose value properties have changed, whether increased or decreased), and the updated reason behind the current sentiment. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                    f"What are {self[AGENT_NAME_PROPERTY]}'s sentiments towards {user[USER_NAME_PROPERTY]} after this message exchange? Provide the new object (only the sentiments whose value properties have changed, whether increased or decreased), and the updated reason behind the current sentiment. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new sentiments."
                 ),
             }
 
@@ -206,7 +211,9 @@ async def process_message(request: MessageRequest):
                 "content": json.dumps(sentiment_response),
             })
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": sentiment_response }})
+            current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
+
+            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": current_sentiments }})
 
             #Step 11:  Summary Reflection: CLEAR
             summary_query = {
@@ -303,14 +310,16 @@ async def process_message(request: MessageRequest):
                 conversation["messages"].append(bot_response_message)
                 db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY], "agent_name": self[AGENT_NAME_PROPERTY]}, { "$set": {"messages": conversation["messages"] }})
 
+                db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
+
                 return MessageResponse(response = response_content["message"])
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
+
+                db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
+
                 return MessageResponse({"response": f"System: {self[AGENT_NAME_PROPERTY]} has chosen to ignore your message."})
-
-            # Update user and conversation in database
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
-
+            
         except Exception as e:
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -324,18 +333,14 @@ async def process_message_lite(request: MessageRequest):
         """
         try:
             db = get_database()
-            print('STEP 0')
 
             # Step 1: Fetch user and self objects: CLEAR
-            self = await grab_self(os.getenv("BOT_NAME"), True)
-            
+            self = await grab_self(os.getenv("BOT_NAME"), True)  
             user = await grab_user(request.username, True)
-            print(user)
+
             conversation = await get_conversation(user[USER_NAME_PROPERTY], self[AGENT_NAME_PROPERTY])
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             received_date = datetime.now() 
-
-            print('STEP 1')
 
             # Step 2: Prepare ongoing conversation context: CLEAR
             ongoing_conversation_string = (
@@ -364,7 +369,7 @@ async def process_message_lite(request: MessageRequest):
             initial_emotion_query = {
                 "role": "user",
                 "content": (
-                    f"{self_context} This is what {self[AGENT_NAME_PROPERTY]} has learned about {user[USER_NAME_PROPERTY]}: {user['summary']}. {intrinsic_relationship} {extrinsic_relationship} {ongoing_conversation_string} It is {received_date}. {user[USER_NAME_PROPERTY]} just sent a message to {self[AGENT_NAME_PROPERTY]}: {request.message}. How would this alter {self[AGENT_NAME_PROPERTY]}'s emotional state? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale:{MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)"
+                    f"{self_context} This is what {self[AGENT_NAME_PROPERTY]} has learned about {user[USER_NAME_PROPERTY]}: {user['summary']}. {intrinsic_relationship} {extrinsic_relationship} {ongoing_conversation_string} It is {received_date}. {user[USER_NAME_PROPERTY]} just sent a message to {self[AGENT_NAME_PROPERTY]}: {request.message}. How would this alter {self[AGENT_NAME_PROPERTY]}'s emotional state? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale:{MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                 ),
             }
 
@@ -378,8 +383,12 @@ async def process_message_lite(request: MessageRequest):
                 "role": BOT_ROLE,
                 "content": json.dumps(initial_emotion_response)
                 })
-            
-            db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], initial_emotion_response) }})
+
+            current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
+
+
+            db[AGENT_LITE_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
+
 
             # Step 6: Analyze the purpose and tone of the user's message: CLEAR
             message_queries = [{
@@ -438,7 +447,7 @@ async def process_message_lite(request: MessageRequest):
                 final_emotion_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"{self[AGENT_NAME_PROPERTY]} responded with this message: ({response_content}). What is {self[AGENT_NAME_PROPERTY]}'s emotional state after sending their response? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased) and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                        f"{self[AGENT_NAME_PROPERTY]} responded with this message: ({response_content}). What is {self[AGENT_NAME_PROPERTY]}'s emotional state after sending their response? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased) and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                     ),
                 }
 
@@ -454,15 +463,16 @@ async def process_message_lite(request: MessageRequest):
                     "content": json.dumps(final_emotion_response),
                 })
 
-            
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], final_emotion_response) }})
+                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+
+                db[AGENT_LITE_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
                 # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
                 final_emotion_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"What is {self[AGENT_NAME_PROPERTY]}'s emotional state after ignoring the message? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                        f"What is {self[AGENT_NAME_PROPERTY]}'s emotional state after ignoring the message? Provide the new object (only the emotions whose value properties have changed, whether increased or decreased), and the reason behind the current emotional state. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new emotions."
                     ),
                 }
 
@@ -478,13 +488,14 @@ async def process_message_lite(request: MessageRequest):
                     "content": json.dumps(final_emotion_response),
                 })
 
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": deep_merge(self["emotional_status"], final_emotion_response) }})
+                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+                db[AGENT_LITE_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             # Step 10: Sentiment Reflection: CLEAR
             sentiment_query = {
                 "role": USER_ROLE,
                 "content": (
-                    f"What are {self[AGENT_NAME_PROPERTY]}'s sentiments towards {user[USER_NAME_PROPERTY]} after this message exchange? Provide the new object (only the sentiments whose value properties have changed, whether increased or decreased), and the updated reason behind the current sentiment. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity)."
+                    f"What are {self[AGENT_NAME_PROPERTY]}'s sentiments towards {user[USER_NAME_PROPERTY]} after this message exchange? Provide the new object (only the sentiments whose value properties have changed, whether increased or decreased), and the updated reason behind the current sentiment. Scale: {MIN_SENTIMENT_VALUE} (lowest intensity) to {MAX_SENTIMENT_VALUE} (highest intensity). Do not add new sentiments."
                 ),
             }
 
@@ -499,8 +510,8 @@ async def process_message_lite(request: MessageRequest):
                 "role": BOT_ROLE,
                 "content": json.dumps(sentiment_response),
             })
-
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": sentiment_response }})
+            current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
+            db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": current_sentiments }}, bypass_document_validation=True)
 
             #Step 11:  Summary Reflection: CLEAR
             summary_query = {
@@ -522,7 +533,7 @@ async def process_message_lite(request: MessageRequest):
                 "content": json.dumps(summary_response),
             })
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"summary": summary_response["summary"] }})
+            db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"summary": summary_response["summary"] }}, bypass_document_validation=True)
 
             #Step 12: Extrinsic Relationship Reflection: CLEAR
             extrinsic_relationship_query = {
@@ -544,7 +555,7 @@ async def process_message_lite(request: MessageRequest):
                 "content": json.dumps(extrinsic_relationship_response),
             })
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"] }})
+            db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"] }}, bypass_document_validation=True)
 
             #Step 13: Self-Identity Reflection: CLEAR
             identity_query = {
@@ -566,7 +577,7 @@ async def process_message_lite(request: MessageRequest):
                 "content": json.dumps(identity_response),
             })
 
-            db[AGENT_COLLECTION].update_one({AGENT_NAME_PROPERTY: self[AGENT_NAME_PROPERTY]}, { "$set": {"identity": identity_response["identity"] }})
+            db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: self[AGENT_NAME_PROPERTY]}, { "$set": {"identity": identity_response["identity"] }})
 
         
             # Update and Save Conversation
@@ -597,14 +608,15 @@ async def process_message_lite(request: MessageRequest):
                 conversation["messages"].append(bot_response_message)
                 db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY], "agent_name": self[AGENT_NAME_PROPERTY]}, { "$set": {"messages": conversation["messages"] }})
 
+                db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }}, bypass_document_validation=True)
+
                 return MessageResponse(response = response_content["message"])
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
+                db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }}, bypass_document_validation=True)
+
                 return MessageResponse({"response": f"System: {self[AGENT_NAME_PROPERTY]} has chosen to ignore your message."})
-
-            # Update user and conversation in database
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
-
+            
         except Exception as e:
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -655,10 +667,16 @@ def deep_merge(target: Dict[str, Any], source: Dict[str, Any], average: bool = F
     :return: Updated target object
     """
     for key, value in source.items():
-        if isinstance(value, dict) and key in target:
-            target[key] = deep_merge(target[key], value, average)
+        if isinstance(value, dict):
+            # If the value is a dictionary and exists in the target, recurse
+            if key in target and isinstance(target[key], dict):
+                target[key] = deep_merge(target[key], value, average)
+            else:
+                # Otherwise, directly set the value
+                target[key] = value
         else:
-            if average and key in target:
+            # Handle averaging or direct overwrite for non-dict values
+            if average and key in target and isinstance(target[key], (int, float)) and isinstance(value, (int, float)):
                 target[key] = (target[key] + value) / 2
             else:
                 target[key] = value

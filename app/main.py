@@ -7,6 +7,9 @@ from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_all_agents, grab_self, init_db, db_client
 from bson.json_util import dumps
 from dotenv import load_dotenv
+import asyncio
+
+from app.services.util_service import start_emotion_decay
 
 load_dotenv()
 
@@ -14,12 +17,16 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     print("Initializing database...")
     await init_db()
+    print('Starting emotional decay...')
+    decay_task = asyncio.create_task(start_emotion_decay())
     try:
         yield
     finally:
         if db_client:
             db_client.close()
             print("Database connection closed.")
+        decay_task.cancel()
+        print("Emotion decay loop stopped.")
 
 app = FastAPI(lifespan=lifespan)
 

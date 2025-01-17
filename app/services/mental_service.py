@@ -5,35 +5,44 @@ from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, implicitly_addressed_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
-from app.models.request import ImplicitlyAddressedRequest, ImplicitlyAddressedResponse, MessageRequest, MessageResponse
+from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.openai_service import get_structured_query_response 
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
 from app.services.openai_service import get_structured_query_response
-from app.services.data_service import grab_user, grab_self, get_conversation, get_database
+from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory
 from dotenv import load_dotenv
 
 load_dotenv()
 
-async def check_implicit_addressing(request: ImplicitlyAddressedRequest):
-    
-    self = await grab_self(os.getenv("BOT_NAME"), True) 
+async def check_implicit_addressing(request: MessageRequest):
+    agent_name = os.getenv("BOT_NAME")
 
-    recent_messages = request.message_list
-    
-    # Construct the GPT query
-    query = {
-        "role": "user",
-        "content": (
-            f"Analyze the conversation history ({recent_messages}) and determine if the most recent message ({recent_messages[-1]}) implicitly addresses {self["name"]}. Provide your output in this JSON structure:{{\"implicitly_addressed\": 'yes' or 'no'}}"
-        )
-    }
+    message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
 
-    result = await get_structured_query_response([query], implicitly_addressed_schema())
-    if not result:
-        raise HTTPException(status_code=500, detail="Error processing implicit addressing check")
-    
-    return ImplicitlyAddressedResponse(implicitly_addressed=result["implicitly_addressed"])
+    new_message_request = {
+            "message": request.message,
+            "sender": request.username,
+            "timestamp": datetime.now()
+            }
+            
+    await insert_message_to_memory(agent_name, new_message_request)
+
+    try:
+        query = {
+            "role": "user",
+            "content": (
+                f"Analyze the conversation history ({message_memory}) and determine if the most recent message ({request}) implicitly addresses {agent_name}. Provide your output in this JSON structure:{{\"implicitly_addressed\": 'yes' or 'no'}}"
+            )
+        }
+
+        result = await get_structured_query_response([query], implicitly_addressed_schema())
+        if not result:
+            raise HTTPException(status_code=500, detail="Error processing implicit addressing check")
+        
+        return ImplicitlyAddressedResponse(implicitly_addressed=result["implicitly_addressed"])
+    except Exception as e:
+        print(e)
 
 async def send_message(request: MessageRequest):
     lite_mode = True
@@ -352,10 +361,13 @@ async def process_message_lite(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
+            agent_name = os.getenv("BOT_NAME")
+            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+
             db = get_database()
 
             # Step 1: Fetch user and self objects: CLEAR
-            self = await grab_self(os.getenv("BOT_NAME"), True)  
+            self = await grab_self(agent_name, True)  
             user = await grab_user(request.username, True)
 
             conversation = await get_conversation(user[USER_NAME_PROPERTY], self[AGENT_NAME_PROPERTY])
@@ -364,10 +376,12 @@ async def process_message_lite(request: MessageRequest):
 
             # Step 2: Prepare ongoing conversation context: CLEAR
             ongoing_conversation_string = (
-                f"This is what {self[AGENT_NAME_PROPERTY]} remembers of the conversation between them and {user[USER_NAME_PROPERTY]}: ({recent_messages})."
+                f"This is what {self[AGENT_NAME_PROPERTY]} remembers of the conversation between them and {user[USER_NAME_PROPERTY]}: ({recent_messages}). These are the past ten messages {self[AGENT_NAME_PROPERTY]} remembers in general: ({recent_all_messages})"
                 if recent_messages
-                else f"This is {self[AGENT_NAME_PROPERTY]}'s and {user[USER_NAME_PROPERTY]}'s first time talking."
+                else f"This is {self[AGENT_NAME_PROPERTY]}'s and {user[USER_NAME_PROPERTY]}'s first time talking. These are the past ten messages {self[AGENT_NAME_PROPERTY]} remembers in general: ({recent_all_messages})"
             )
+
+            print(ongoing_conversation_string)
 
             # Step 3: Define relationship context
             intrinsic_relationship = (
@@ -629,6 +643,15 @@ async def process_message_lite(request: MessageRequest):
                 db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY], "agent_name": self[AGENT_NAME_PROPERTY]}, { "$set": {"messages": conversation["messages"] }})
 
                 db[USER_LITE_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }}, bypass_document_validation=True)
+
+                # Add to message collection
+                new_message_response = {
+                "message": response_content["message"],
+                "sender": agent_name,
+                "timestamp": datetime.now()
+                }
+
+                await insert_message_to_memory(agent_name, new_message_response)
 
                 return MessageResponse(response = response_content["message"])
 

@@ -3,13 +3,14 @@ import json
 import os
 
 import bson
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, BASE_THOUGHT, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, USER_COLLECTION, USER_LITE_COLLECTION
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.models.agent import AGENT_VALIDATOR
 from app.models.agent_lite import AGENT_LITE_VALIDATOR
 from app.models.conversations import CONVERSATION_VALIDATOR
+from app.models.message import MESSAGE_MEMORY_VALIDATOR
 from app.models.user import USER_VALIDATOR
 from app.models.user_lite import USER_LITE_VALIDATOR
 
@@ -61,6 +62,12 @@ async def initialize_collections():
     # User
     try:
         await db.create_collection(USER_COLLECTION, validator=USER_VALIDATOR, validationLevel='strict')
+    except Exception as e:
+        print(e)
+
+    # Message
+    try:
+        await db.create_collection(MESSAGE_MEMORY_COLLECTION, validator=MESSAGE_MEMORY_VALIDATOR, validationLevel='strict')
     except Exception as e:
         print(e)
 
@@ -227,3 +234,49 @@ async def get_all_agents():
     all_lite_agents = await cursor.to_list(length=None)  # Convert the cursor to a 
 
     return {"normal": all_agents, "lite": all_lite_agents}
+
+async def get_message_memory(agent_name, count):
+    """
+    Grab the count of past messages in general
+
+    :return: List of messages
+    """
+    try:
+        db = get_database()
+        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
+        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
+
+        if not message_memory:
+                # Create a new message memory object if one doesn't exist
+                new_message_memory = {
+                    "agent_name": agent_name,
+                    "messages": [],
+                }
+                result = await message_memory_collection.insert_one(new_message_memory)
+                message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+
+
+        latest_messages = message_memory["messages"][-count:]
+        return latest_messages
+    except Exception as e:
+        print(e)
+
+async def insert_message_to_memory(agent_name, message_request):
+    try:
+        db = get_database()
+        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
+        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
+
+        if not message_memory:
+            # Create a new message memory object if one doesn't exist
+            new_message_memory = {
+                "agent_name": agent_name,
+                "messages": [],
+            }
+            result = await message_memory_collection.insert_one(new_message_memory)
+            message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+
+        message_memory["messages"].append(message_request)
+        message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
+    except Exception as e:
+        print(e)

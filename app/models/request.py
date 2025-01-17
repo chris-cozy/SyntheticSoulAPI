@@ -15,6 +15,3 @@ class ExtendedMessageRequest(BaseModel):
     message: str
     sender: str
     timestamp: datetime
-    
-class ImplicitlyAddressedRequest(BaseModel):
-    message_list: list[object]

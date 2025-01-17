@@ -17,22 +17,16 @@ async def get_structured_query_response(messages, schema):
     :return: Parsed response as a Python dictionary, or None on error
     """
     try:
-        # Query OpenAI API
         response = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",  # Adjust to your model name
+            model= os.getenv('GPT_MODEL'),
             messages=messages,
             response_format = schema
         )
 
-        # Parse and validate the response
         content_json = response.choices[0].message.content
         parsed_content = json.loads(content_json)
-
-        #print("---------------")
-        #print(parsed_content)
-        #print("---------------")
         
         return parsed_content
     except Exception as error:
-        print(f"System Error: {error}")
+        print(f"Error - get_structured_query_response: {error}")
         return None

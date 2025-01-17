@@ -16,6 +16,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 async def check_implicit_addressing(request: MessageRequest):
+    """Checks if the agent is being implicitly addressed
+
+    Args:
+        request (MessageRequest): message request
+
+    Raises:
+        HTTPException: Error - check_implicit_addressing
+
+    Returns:
+        ImplicitlyAddressedResponse: Whether the bot has been implicitly addressed
+    """
     agent_name = os.getenv("BOT_NAME")
 
     message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
@@ -38,13 +49,19 @@ async def check_implicit_addressing(request: MessageRequest):
 
         result = await get_structured_query_response([query], implicitly_addressed_schema())
         if not result:
-            raise HTTPException(status_code=500, detail="Error processing implicit addressing check")
+            raise HTTPException(status_code=500, detail="Error - check_implicit_addressing")
         
         return ImplicitlyAddressedResponse(implicitly_addressed=result["implicitly_addressed"])
     except Exception as e:
         print(e)
 
 async def send_message(request: MessageRequest):
+    """
+    Selects whether to process the message in lite mode or not
+
+    Args:
+        request (MessageRequest): message request
+    """
     lite_mode = True
 
     if(lite_mode):

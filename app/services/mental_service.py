@@ -3,9 +3,9 @@ from fastapi import HTTPException
 from typing import Dict, Any
 from typing import Dict, Any
 from datetime import datetime
-from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema
+from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, implicitly_addressed_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
-from app.models.request import MessageRequest, MessageResponse
+from app.models.request import ImplicitlyAddressedRequest, ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.openai_service import get_structured_query_response 
 import json
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
@@ -14,6 +14,26 @@ from app.services.data_service import grab_user, grab_self, get_conversation, ge
 from dotenv import load_dotenv
 
 load_dotenv()
+
+async def check_implicit_addressing(request: ImplicitlyAddressedRequest):
+    
+    self = await grab_self(os.getenv("BOT_NAME"), True) 
+
+    recent_messages = request.message_list
+    
+    # Construct the GPT query
+    query = {
+        "role": "user",
+        "content": (
+            f"Analyze the conversation history ({recent_messages}) and determine if the most recent message ({recent_messages[-1]}) implicitly addresses {self["name"]}. Provide your output in this JSON structure:{{\"implicitly_addressed\": 'yes' or 'no'}}"
+        )
+    }
+
+    result = await get_structured_query_response([query], implicitly_addressed_schema())
+    if not result:
+        raise HTTPException(status_code=500, detail="Error processing implicit addressing check")
+    
+    return ImplicitlyAddressedResponse(implicitly_addressed=result["implicitly_addressed"])
 
 async def send_message(request: MessageRequest):
     lite_mode = True

@@ -1505,3 +1505,21 @@ def get_is_action_schema():
             },
         },
     }
+
+def implicitly_addressed_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "implicitly_addressed",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "implicitly_addressed": {
+                        "description": "Whether or not they were implicitly addressed",
+                        "type": "string",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+    }

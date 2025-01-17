@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from app.constants.schemas import get_thought_schema
-from app.models.request import ImplicitlyAddressedRequest, ImplicitlyAddressedResponse, MessageRequest, MessageResponse
+from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.mental_service import check_implicit_addressing, send_message
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_all_agents, grab_self, init_db, db_client
@@ -49,7 +49,7 @@ async def submit_message(request: MessageRequest):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/messages/implicit-addressing", response_model=ImplicitlyAddressedResponse)
-async def implicit_addressing(request: ImplicitlyAddressedRequest):
+async def implicit_addressing(request: MessageRequest):
     try:
         response = await check_implicit_addressing(request)
         return response

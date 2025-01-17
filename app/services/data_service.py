@@ -1,37 +1,52 @@
 from datetime import datetime
-import json
 import os
-
-import bson
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, BASE_THOUGHT, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, USER_COLLECTION, USER_LITE_COLLECTION
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.models.agent import AGENT_VALIDATOR
 from app.models.agent_lite import AGENT_LITE_VALIDATOR
 from app.models.conversations import CONVERSATION_VALIDATOR
+from app.models.message import MESSAGE_MEMORY_VALIDATOR
 from app.models.user import USER_VALIDATOR
 from app.models.user_lite import USER_LITE_VALIDATOR
 
 load_dotenv()
 
 db_client = None
+
 async def init_db():
+    """Initializes the database
+
+    Raises:
+        RuntimeError: Error - init_db: MONGO_CONNECTION environment variable is not set.
+    """
     global db_client
     mongo_uri = os.getenv('MONGO_CONNECTION')
+    
     if not mongo_uri:
-        raise RuntimeError("MONGO_CONNECTION environment variable is not set.")
+        raise RuntimeError("Error - init_db: MONGO_CONNECTION environment variable is not set.")
+    
     db_client = AsyncIOMotorClient(mongo_uri)
     print(f"Connected to MongoDB at {mongo_uri}")
     await initialize_collections()
-    print(f"Initialized connections")
 
 def get_database():
+    """Grabs the database
+
+    Raises:
+        RuntimeError: Error - get_database: db_client is not initialized. Call `init_db()` first.
+
+    Returns:
+        AsyncIOMotorDatabase: The database
+    """
     if db_client is None:
-        raise RuntimeError("Database client is not initialized. Call `init_db()` first.")
+        raise RuntimeError("Error - get_database: db_client is not initialized. Call `init_db()` first.")
     return db_client.get_database(os.getenv("DATABASE_NAME"))
 
 async def initialize_collections():
+    """Initializes the collections if they don't already exist
+    """
     db = get_database()
 
     # Conversation
@@ -63,6 +78,14 @@ async def initialize_collections():
         await db.create_collection(USER_COLLECTION, validator=USER_VALIDATOR, validationLevel='strict')
     except Exception as e:
         print(e)
+
+    # Message
+    try:
+        await db.create_collection(MESSAGE_MEMORY_COLLECTION, validator=MESSAGE_MEMORY_VALIDATOR, validationLevel='strict')
+    except Exception as e:
+        print(e)
+        
+    print(f"Initialized connections")
 
 async def grab_user(username, lite_mode):
     """
@@ -227,3 +250,55 @@ async def get_all_agents():
     all_lite_agents = await cursor.to_list(length=None)  # Convert the cursor to a 
 
     return {"normal": all_agents, "lite": all_lite_agents}
+
+async def get_message_memory(agent_name, count):
+    """
+    Grab the count of past messages in general
+
+    :return: List of messages
+    """
+    try:
+        db = get_database()
+        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
+        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
+
+        if not message_memory:
+                # Create a new message memory object if one doesn't exist
+                new_message_memory = {
+                    "agent_name": agent_name,
+                    "messages": [],
+                }
+                result = await message_memory_collection.insert_one(new_message_memory)
+                message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+
+
+        latest_messages = message_memory["messages"][-count:]
+        return latest_messages
+    except Exception as e:
+        print(e)
+
+async def insert_message_to_memory(agent_name, message_request):
+    """Inserts a new message into the agent's message memory
+
+    Args:
+        agent_name (string): The agent's name
+        message_request (MessageRequest): The message to insert
+    """
+    try:
+        db = get_database()
+        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
+        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
+
+        if not message_memory:
+            # Create a new message memory object if one doesn't exist
+            new_message_memory = {
+                "agent_name": agent_name,
+                "messages": [],
+            }
+            result = await message_memory_collection.insert_one(new_message_memory)
+            message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+
+        message_memory["messages"].append(message_request)
+        message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
+    except Exception as e:
+        print(e)

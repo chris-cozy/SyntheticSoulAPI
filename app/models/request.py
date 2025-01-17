@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
@@ -6,3 +7,14 @@ class MessageRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     response: str
+
+class ImplicitlyAddressedResponse(BaseModel):
+    implicitly_addressed: str
+
+class ExtendedMessageRequest(BaseModel):
+    message: str
+    sender: str
+    timestamp: datetime
+    
+class ImplicitlyAddressedRequest(BaseModel):
+    message_list: list[object]

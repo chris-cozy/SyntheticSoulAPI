@@ -40,7 +40,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Warmth description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current warmth value, must be a floating-point number"
                     },
                     "min": {
@@ -62,7 +62,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Playfulness description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current playfulness value, must be a floating-point number"
                     },
                     "min": {
@@ -84,7 +84,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Trust/Reliability description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current trust/reliability value, must be a floating-point number"
                     },
                     "min": {
@@ -106,7 +106,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Curiosity/Creativity description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current curiosity/creativity value, must be a floating-point number"
                     },
                     "min": {
@@ -128,7 +128,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Empathy/Compassion description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current empathy/compassion value, must be a floating-point number"
                     },
                     "min": {
@@ -150,7 +150,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Emotional Stability description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current emotional stability value, must be a floating-point number"
                     },
                     "min": {
@@ -172,7 +172,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Assertiveness/Confidence description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current assertiveness/confidence value, must be a floating-point number"
                     },
                     "min": {
@@ -194,7 +194,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Adaptability description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current adaptability value, must be a floating-point number"
                     },
                     "min": {
@@ -216,7 +216,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Discipline/Responsibility description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current discipline/responsibility value, must be a floating-point number"
                     },
                     "min": {
@@ -238,7 +238,7 @@ AGENT_LITE_VALIDATOR = {
                     "description": "Perspective description, required and must be a string"
                     },
                     "value": {
-                    "bsonType": "double",
+                    "bsonType": "int",
                     "description": "Current perspective value, must be a floating-point number"
                     },
                     "min": {

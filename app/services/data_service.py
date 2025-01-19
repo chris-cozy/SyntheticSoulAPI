@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_PERSONALITY_LITE, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, REBEL_PERSONALITY_LITE, USER_COLLECTION, USER_LITE_COLLECTION
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -176,7 +176,7 @@ async def grab_self(agent_name, lite_mode):
             new_self = {
                 "name": agent_name,
                 "identity": "I am a prototype program, designed as a digital replication of the human mind.",
-                "personality": BASE_PERSONALITY_LITE,
+                "personality": BASE_PERSONALITIES_LITE[2]["traits"],
                 "memory_profile": [],
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": thought,

@@ -398,8 +398,6 @@ async def process_message_lite(request: MessageRequest):
                 else f"This is {self[AGENT_NAME_PROPERTY]}'s and {user[USER_NAME_PROPERTY]}'s first time talking. These are the past ten messages {self[AGENT_NAME_PROPERTY]} remembers in general: ({recent_all_messages})"
             )
 
-            print(ongoing_conversation_string)
-
             # Step 3: Define relationship context
             intrinsic_relationship = (
                 f"{user[USER_NAME_PROPERTY]} is {self[AGENT_NAME_PROPERTY]}'s {user['intrinsic_relationship']}."

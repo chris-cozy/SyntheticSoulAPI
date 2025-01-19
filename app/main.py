@@ -44,6 +44,7 @@ async def root():
 async def submit_message(request: MessageRequest):
     try:
         response = await send_message(request)
+        print(response)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -52,6 +53,7 @@ async def submit_message(request: MessageRequest):
 async def implicit_addressing(request: MessageRequest):
     try:
         response = await check_implicit_addressing(request)
+        print(response)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

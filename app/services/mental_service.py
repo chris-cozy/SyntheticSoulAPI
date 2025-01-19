@@ -8,7 +8,7 @@ from app.constants.schemas_lite import get_emotion_status_schema_lite, get_perso
 from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.openai_service import get_structured_query_response 
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory
 from dotenv import load_dotenv
@@ -422,7 +422,7 @@ async def process_message_lite(request: MessageRequest):
                 ),
             }
 
-            inner_dialogue = [initial_emotion_query]
+            inner_dialogue = [SYSTEM_MESSAGE, initial_emotion_query]
             initial_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
 
             if not initial_emotion_response:
@@ -440,7 +440,7 @@ async def process_message_lite(request: MessageRequest):
 
 
             # Step 6: Analyze the purpose and tone of the user's message: CLEAR
-            message_queries = [{
+            message_queries = [SYSTEM_MESSAGE, {
                 "role": "user",
                 "content": (
                     f"This is {self[AGENT_NAME_PROPERTY]}'s personality: ({altered_personality}). This is their current emotional state: ({self['emotional_status']}). This is what they think about {user[USER_NAME_PROPERTY]}: {user['summary']}. {intrinsic_relationship} {extrinsic_relationship}. This is the ongoing conversation between them: ({ongoing_conversation_string}). How would {self[AGENT_NAME_PROPERTY]} perceive the purpose and tone of {user[USER_NAME_PROPERTY]}'s new message: ({request.message})? Provide the message ({request.message}), purpose, and tone in a JSON object with the properties of message, purpose, and tone."
@@ -482,7 +482,7 @@ async def process_message_lite(request: MessageRequest):
                 response_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"The way {self[AGENT_NAME_PROPERTY]} communicates reflects their personality traits: ({altered_personality}), and current emotional status: ({self['emotional_status']}). How would {self[AGENT_NAME_PROPERTY]} respond back, and with what intended purpose and tone? Provide the response, intended purpose, and intended tone in a JSON object with the properties of message, purpose, and tone."
+                        f"The way {self[AGENT_NAME_PROPERTY]} communicates reflects their personality traits: ({altered_personality}), and current emotional status: ({self['emotional_status']}). How would {self[AGENT_NAME_PROPERTY]} respond back, and with what intended purpose and tone? Here is a personality language guide for reference: ({PERSONALITY_LANGUAGE_GUIDE}). Provide the response, intended purpose, and intended tone in a JSON object with the properties of message, purpose, and tone."
                     ),
                 }
 

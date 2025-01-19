@@ -25,7 +25,9 @@ async def get_structured_query_response(messages, schema):
 
         content_json = response.choices[0].message.content
         parsed_content = json.loads(content_json)
-        
+        print('############################################')
+        print(parsed_content) 
+               
         return parsed_content
     except Exception as error:
         print(f"Error - get_structured_query_response: {error}")

@@ -1,8 +1,8 @@
-# Synthetic Soul : A Humanlike Mind Simulation Chatbot
+# Synthetic Soul : A Humanlike Mind Simulation
 
 ## Project Overview
 
-Synthetic Soul is an experimental artificial intelligence agent designed to simulate humanlike emotions, thinking patterns, and relationship dynamics. The goal of the project is to create a digital mind that not only responds to user inputs but does so with an evolving personality that reflects emotional depth, biases, and individualized sentiments towards different users, as well as unique experiences. Inspired by concepts from artificial intelligence, psychology, and human relationships, this program aims to provide dynamic, humanlike interactions that adapt based on ongoing conversations and user behavior. The name of the chatbot is *Jasmine* (Just a Simulation Modeling Interactive Neural Engagement)
+Synthetic Soul is an experimental artificial intelligence agent designed to simulate humanlike emotions, thinking patterns, and relationship dynamics. The goal of the project is to create a digital mind that not only responds to user inputs but does so with an evolving personality that reflects emotional depth, biases, and individualized sentiments towards different users, as well as unique experiences. Inspired by concepts from artificial intelligence, psychology, and human relationships, this program aims to provide dynamic, humanlike interactions that adapt based on ongoing conversations and user behavior. The name of the AI is *Jasmine* (Just a Simulation Modeling Interactive Neural Engagement)
 
 ## Goals of the Project
 

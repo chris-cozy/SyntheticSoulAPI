@@ -499,7 +499,8 @@ async def process_message_lite(request: MessageRequest):
                 current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
                 '''
             elif response_choice["response_choice"] == IGNORE_CHOICE:
-                agent_response_message = "..."
+                response_content = {'message': "..."}
+                agent_response_message = response_content['message']
                 '''
                 # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
                 final_emotion_query = {

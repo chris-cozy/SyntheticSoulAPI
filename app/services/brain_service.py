@@ -4,17 +4,17 @@ from fastapi import HTTPException
 from typing import Dict, Any
 from typing import Dict, Any
 from datetime import datetime
-from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, implicitly_addressed_schema
+from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, get_thought_schema, implicitly_addressed_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.openai_service import get_structured_query_response 
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory
 from dotenv import load_dotenv
 
-from app.services.prompt_service import generate_extrinsic_relationship_prompt, generate_final_emotional_response_prompt, generate_identity_update_prompt, generate_initial_emotional_response_prompt, generate_message_perception_prompt, generate_personality_adjustment_prompt, generate_response_analysis_prompt, generate_response_choice_prompt, generate_sentiment_analysis_prompt, generate_summary_update_prompt
+from app.services.prompt_service import generate_extrinsic_relationship_prompt, generate_final_emotional_response_prompt, generate_identity_update_prompt, generate_initial_emotional_response_prompt, generate_message_perception_prompt, generate_personality_adjustment_prompt, generate_response_analysis_prompt, generate_response_choice_prompt, generate_sentiment_analysis_prompt, generate_summary_update_prompt, generate_thought_prompt
 
 agent_name = os.getenv("BOT_NAME")
 
@@ -382,9 +382,7 @@ async def process_message_lite(request: MessageRequest):
         :param request: Request containing user_id and message content
         :return: JSON response with the bot's reply
         """
-        try:
-            
-
+        try:        
             db = get_database()
             
             user_lite_collection = db[USER_LITE_COLLECTION]
@@ -406,7 +404,7 @@ async def process_message_lite(request: MessageRequest):
             # Step 5: Query ai service for emotional state changes: CLEAR
             initial_emotion_query = {
                 "role": "user",
-                "content": (generate_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE)),
+                "content": (generate_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
             }
 
             inner_dialogue.append(initial_emotion_query)
@@ -465,7 +463,7 @@ async def process_message_lite(request: MessageRequest):
                 response_query = {
                     "role": USER_ROLE,
                     "content": (
-                        generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE)
+                        generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1])
                     ),
                 }
 
@@ -538,139 +536,10 @@ async def process_message_lite(request: MessageRequest):
             
             return messageResponse
             
-            # Step 10: Sentiment Reflection: CLEAR
-            sentiment_query = {
-                "role": USER_ROLE,
-                "content": (
-                    generate_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
-                ),
-            }
-            message_queries.append(sentiment_query)
-
-            sentiment_response = await get_structured_query_response(message_queries, get_sentiment_status_schema_lite())
-
-            if not sentiment_response:
-                raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on sentiment")
-
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(sentiment_response),
-            })
-            
-            current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
-
-
-            #Step 11:  Summary Reflection: CLEAR
-            summary_query = {
-                "role": USER_ROLE,
-                "content": (
-                    generate_summary_update_prompt(agent_name, username, user['summary'] )
-                ),
-            }
-            
-            message_queries.append(summary_query)
-
-            summary_response = await get_structured_query_response(message_queries, get_summary_schema())
-
-            if not summary_response:
-                raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on summary")
-
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(summary_response),
-            })
-
-            
-
-            #Step 12: Extrinsic Relationship Reflection: CLEAR
-            extrinsic_relationship_query = {
-                "role": USER_ROLE,
-                "content": (
-                    generate_extrinsic_relationship_prompt(username, EXTRINSIC_RELATIONSHIPS)
-                ),
-            }
-
-            message_queries.append(extrinsic_relationship_query)
-
-            extrinsic_relationship_response = await get_structured_query_response(message_queries, get_extrinsic_relationship_schema())
-
-            if not extrinsic_relationship_response:
-                raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on extrinsic relationship")
-
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(extrinsic_relationship_response),
-            })
-
-            #Step 13: Self-Identity Reflection: CLEAR
-            identity_query = {
-                "role": USER_ROLE,
-                "content": (
-                    generate_identity_update_prompt(agent_name, self['identity'])
-                ),
-            }
-
-            message_queries.append(identity_query)
-
-            identity_response = await get_structured_query_response(message_queries, get_identity_schema())
-
-            if not identity_response:
-                raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on self-identity")            
-
-        
-            # Update and Save Conversation
-            incoming_message = {
-                "message": message_analysis["message"],
-                "purpose": message_analysis["purpose"],
-                "tone": message_analysis["tone"],
-                "timestamp": datetime.now(),
-                "sender": username,
-                "from_agent": False
-            }
-
-            conversation["messages"].append(incoming_message)
-
-
-            if response_choice["response_choice"] == RESPOND_CHOICE:
-                bot_response_message = {
-                    "message": response_content["message"],
-                    "purpose": response_content["purpose"],
-                    "tone": response_content["tone"],
-                    "timestamp": datetime.now(),
-                    "sender": agent_name,
-                    "from_agent": True
-                }
-            
-                conversation["messages"].append(bot_response_message)
-                
-
-                
-
-                # Add to message collection
-                new_message_response = {
-                "message": response_content["message"],
-                "sender": agent_name,
-                "timestamp": datetime.now()
-                }
-
-                await insert_message_to_memory(agent_name, new_message_response)
-                
-                messageResponse = MessageResponse(response = response_content["message"])
-
-            elif response_choice["response_choice"] == IGNORE_CHOICE:
-                messageResponse = MessageResponse(response= f"...")
-            
-            
-            db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"identity": identity_response["identity"], "emotional_status": current_emotions }})
-            db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: username, "agent_name": agent_name}, { "$set": {"messages": conversation["messages"] }})
-            user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": {"summary": summary_response["summary"], "sentiment_status": current_sentiments, "extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"], "last_interaction": datetime.now() }}, bypass_document_validation=True)
-            return messageResponse
-            
         except Exception as e:
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-            
-            
+                      
 async def process_remaining_steps(agent_name, username, db, user, self, conversation, altered_personality, 
                 current_emotions, message_analysis, response_choice, response_content, received_date, message_queries, user_lite_collection):
     # Step 10: Sentiment Reflection: CLEAR
@@ -749,6 +618,13 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     if not identity_response:
         raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on self-identity")
     
+    message_queries.append({
+        "role": BOT_ROLE,
+        "content": json.dumps(identity_response)
+    })
+    
+    # Check if exchange altered current thought
+    
     # Update and Save Conversation
     incoming_message = {
         "message": message_analysis["message"],
@@ -788,10 +664,7 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"identity": identity_response["identity"], "emotional_status": current_emotions }})
     db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: username, "agent_name": agent_name}, { "$set": {"messages": conversation["messages"] }})
     user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": {"summary": summary_response["summary"], "sentiment_status": current_sentiments, "extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"], "last_interaction": datetime.now() }}, bypass_document_validation=True)
-    
-    
-    
-        
+            
 async def alter_personality(self, user, lite_mode):
     """
     Alters the bot's personality based on the user's sentiment status and their extrinsic relationship.
@@ -848,3 +721,39 @@ def deep_merge(target: Dict[str, Any], source: Dict[str, Any], average: bool = F
             else:
                 target[key] = value
     return target
+
+async def generate_thought():
+    """
+    Generates a thought that the agent is having, and inputs it in the database
+    """
+    db = get_database()
+
+    # Step 1: Fetch self object
+    recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+    self = await grab_self(agent_name, True)
+    
+    inner_dialogue = [SYSTEM_MESSAGE]
+    inner_dialogue.append({
+        "role": USER_ROLE,
+        "content": (
+            generate_thought_prompt(self, recent_all_messages)
+        )
+    })
+    
+    current_thought = await get_structured_query_response(inner_dialogue, get_thought_schema())
+    
+    current_thought_object = {
+        "thought": current_thought['thought'],
+        "timestamp": datetime.now()
+    }
+    
+    self['thoughts'].append(current_thought_object)
+    db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"thoughts": self['thoughts']}})
+    
+async def periodic_thinking():
+    """
+    Starts the thinking process, for the assigned duration
+    """
+    while True:
+        await generate_thought()
+        await asyncio.sleep(THINKING_RATE)

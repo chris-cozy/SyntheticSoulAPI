@@ -301,7 +301,7 @@ def generate_personality_adjustment_prompt(agent_name, personality, sentiment, u
     prompt = (
         f"These are {agent_name}'s personality traits: {personality}. "
         f"This is {agent_name}'s sentiment towards {user_name}: {sentiment}. "
-        f"How would these sentiments and extrinsic relationship ({extrinsic_relationship}) alter "
+        f"How would these sentiments, and their extrinsic relationship ({extrinsic_relationship}) alter "
         f"{agent_name}'s personality towards {user_name}? Provide:\n" \
               f"1. An updated personality object (include only personality traits whose values have changed).\n" \
               f"2. Use the scale {min_personality_value} (lowest intensity) to {max_personality_value} (highest intensity). " \

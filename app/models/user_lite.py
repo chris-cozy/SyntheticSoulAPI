@@ -4,6 +4,7 @@ USER_LITE_VALIDATOR = {
     "bsonType": "object",
     "required": [
       "username",
+      "agent_perspective"
       "summary",
       "intrinsic_relationship",
       "extrinsic_relationship",
@@ -15,6 +16,10 @@ USER_LITE_VALIDATOR = {
       "username": {
         "bsonType": "string",
         "description": "The username of the user, required and must be a string."
+      },
+      "agent_perspective": {
+        "bsonType": "string",
+        "description": "The agent perceiving the user in this way."
       },
       "summary": {
         "bsonType": "string",

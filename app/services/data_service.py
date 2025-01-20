@@ -87,7 +87,7 @@ async def initialize_collections():
         
     print(f"Initialized connections")
 
-async def grab_user(username, lite_mode):
+async def grab_user(username, agent_name, lite_mode):
     """
     Grab user object based on their Discord ID.
     If the user doesn't exist, create a new one with default values.
@@ -100,7 +100,7 @@ async def grab_user(username, lite_mode):
     if (lite_mode):
         user_lite_collection = db[USER_LITE_COLLECTION]
 
-        user = await user_lite_collection.find_one({"username": username})
+        user = await user_lite_collection.find_one({"username": username, "agent_perspective": agent_name})
 
         if not user:
             intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
@@ -114,6 +114,7 @@ async def grab_user(username, lite_mode):
             # Create a new user if one doesn't exist
             new_lite_user = {
                 "username": username,
+                "agent_perspective": agent_name,
                 "summary": "I don't know anything about this person.",
                 "intrinsic_relationship": intrinsic_relationship,
                 "extrinsic_relationship": "stranger",

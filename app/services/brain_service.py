@@ -88,7 +88,7 @@ async def process_message(request: MessageRequest):
 
             # Step 1: Fetch user and self objects: CLEAR
             self = await grab_self(os.getenv("BOT_NAME"), False)
-            user = await grab_user(request.username, False)
+            user = await grab_user(request.username, os.getenv("BOT_NAME"), False)
 
             conversation = await get_conversation(user[USER_NAME_PROPERTY], self[AGENT_NAME_PROPERTY])
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
@@ -391,7 +391,7 @@ async def process_message_lite(request: MessageRequest):
             # Step 1: Fetch user and self objects: CLEAR
             recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             self = await grab_self(agent_name, True)  
-            user = await grab_user(username, True)
+            user = await grab_user(username, agent_name, True)
             conversation = await get_conversation(username, agent_name)
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             received_date = datetime.now() 

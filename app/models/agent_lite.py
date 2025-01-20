@@ -453,17 +453,21 @@ AGENT_LITE_VALIDATOR = {
 
         },
       "thoughts": {
-        "bsonType": "object",
-        "required": ["thought", "timestamp"],
-        "properties": {
-        "thought": {
-            "bsonType": "string",
-            "description": "The thought content, required and must be a string (can be empty)"
-        },
-        "timestamp": {
-            "bsonType": "date",
-            "description": "Timestamp of the thought, required and must be a valid date"
-        }
+        "bsonType": "array",
+        "description": "List of past thoughts, required and must be an array of objects",
+        "items": {
+            "bsonType": "object",
+            "required": ["thought", "timestamp"],
+            "properties": {
+            "thought": {
+                "bsonType": "string",
+                "description": "The thought content, required and must be a string (can be empty)"
+            },
+            "timestamp": {
+                "bsonType": "date",
+                "description": "Timestamp of the thought, required and must be a valid date"
+            }
+            }
         }
     },
     }

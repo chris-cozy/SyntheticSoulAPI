@@ -179,7 +179,7 @@ async def grab_self(agent_name, lite_mode):
                 "personality": BASE_PERSONALITIES_LITE[2]["traits"],
                 "memory_profile": [],
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
-                "thoughts": thought,
+                "thoughts": [thought],
             }
             result = await agent_lite_collection.insert_one(new_self)
             self = await agent_lite_collection.find_one({"_id": result.inserted_id})

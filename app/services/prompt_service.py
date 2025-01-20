@@ -1,9 +1,12 @@
 
 
+from datetime import datetime
+
+
 def generate_initial_emotional_response_prompt(agent_name, altered_personality, emotional_status, user_name, user_summary, 
                     intrinsic_relationship, extrinsic_relationship, recent_messages, 
                     recent_all_messages, received_date, user_message, min_emotional_value, 
-                    max_emotional_value):
+                    max_emotional_value, latest_thought):
     """
     Generates a dynamic prompt based on the input parameters for the interaction between
     the agent and the user.
@@ -38,6 +41,8 @@ def generate_initial_emotional_response_prompt(agent_name, altered_personality, 
     else:
         prompt += f"{agent_name} has no intrinsic relationship with {user_name}, " \
                   f"but their extrinsic relationship is: {extrinsic_relationship}.\n\n"
+                  
+    prompt += f"This is {agent_name}'s latest thought: {latest_thought}.\n"
     
     # Section: Conversation History
     if recent_messages:
@@ -137,7 +142,7 @@ def generate_response_choice_prompt(agent_name, user_name):
     return prompt
 
 
-def generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, personality_language_guide):
+def generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, personality_language_guide, latest_thought):
     """
     Generates a prompt to analyze how the AI agent should respond, with a focus on personality traits,
     emotional status, and intended communication purpose and tone.
@@ -154,6 +159,7 @@ def generate_response_analysis_prompt(agent_name, altered_personality, current_e
     prompt = (
         f"The way {agent_name} communicates reflects their personality traits: ({altered_personality}), "
         f"and current emotional status: ({current_emotions}). "
+        f"Their latest thought is: {latest_thought}."
         f"How would {agent_name} respond, using what intended purpose and tone? "
         f"Here is a personality language guide for reference: ({personality_language_guide}). "
         f"Provide the response, intended purpose, and intended tone in a JSON object with the properties "
@@ -309,3 +315,26 @@ def generate_personality_adjustment_prompt(agent_name, personality, sentiment, u
     )
     return prompt
 
+
+def generate_thought_prompt(self, recent_all_messages):
+    """
+    Generates a prompt to determine if the AI is thinking and if so, what their thought is.
+
+    Parameters:
+        self (object): The object of the AI agent.
+        recent_all_messages (array): The list of the last ten messages the AI read
+        
+    Returns:
+        str: A dynamically generated prompt.
+    """
+    prompt = (
+        f"{self["name"]}'s personality traits are: ({self["personality"]}).\n\n "
+        f"{self["name"]}'s emotional state is: ({self["emotional_status"]}).\n\n "
+        f"{self["name"]}'s identity is: ({self["identity"]}).\n\n "
+        f"The time is currently: ({datetime.now()}).\n\n "
+        f"The last ten remembered messages they read are: ({recent_all_messages}). "
+        f"Considering all of this, is {self["name"]} thinking right now? If yes, respond with the specific thought they are having. If no, respond with '...'"
+        f"Provide:\n" \
+              f"1. A json object with a single property 'thought'.\n" \
+    )
+    return prompt

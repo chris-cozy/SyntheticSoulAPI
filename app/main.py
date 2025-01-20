@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from app.constants.schemas import get_thought_schema
 from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
-from app.services.mental_service import check_implicit_addressing, send_message
+from app.services.brain_service import check_implicit_addressing, periodic_thinking, send_message
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps
@@ -19,6 +19,8 @@ async def lifespan(app: FastAPI):
     await init_db()
     print('Starting emotional decay...')
     decay_task = asyncio.create_task(start_emotion_decay())
+    print('Starting to think...')
+    asyncio.create_task(periodic_thinking())
     try:
         yield
     finally:

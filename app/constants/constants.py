@@ -1001,7 +1001,7 @@ EMOTIONAL_DECAY_RATE = 240
 
 MESSAGE_HISTORY_COUNT = 10
 
-THINKING_RATE = 300
+THINKING_RATE = 600
 
 
 BASE_PERSONALITIES_LITE = [
@@ -1391,6 +1391,11 @@ PERSONALITY_LANGUAGE_GUIDE= '''{
 REGISTRY = {
   "capabilities": [
     {
+      "name": "Independent Thought",
+      "description": "Can formulate own thoughts and opinions, based from personality and experiences",
+      "status": "Active",
+    },
+    {
       "name": "Basic Conversation",
       "description": "Can engage in general text-based communication with others.",
       "status": "Active",
@@ -1439,7 +1444,7 @@ REGISTRY = {
       "name": "Minecraft Integration",
       "description": "Can play minecraft",
       "status": "Planned",
-    }
+    },
   ],
   "limitations": [
     {

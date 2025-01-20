@@ -53,7 +53,7 @@ def generate_initial_emotional_response_prompt(agent_name, altered_personality, 
     # Task Instructions
     prompt += f"How would this message alter {agent_name}'s emotional state? Keep in mind that emotions typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic emotional changes. Provide:\n" \
               f"1. An updated emotional state object (include only emotions whose values have changed).\n" \
-              f"2. The reasoning behind these changes.\n\n" \
+              f"2. The reasoning behind these changes. Keep this brief, one or two sentences max.\n\n" \
               f"Use the scale {min_emotional_value} (lowest intensity) to {max_emotional_value} (highest intensity). " \
               f"Do not add new emotions."
     
@@ -131,7 +131,7 @@ def generate_response_choice_prompt(agent_name, user_name):
     prompt = (
         f"{agent_name} can choose whether to respond to or not respond to this message. "
         f"Based on their personality, emotional state, and perception of {user_name}, "
-        f"what choice will they make? Provide either 'respond' or 'ignore', and the reason for the choice, "
+        f"what choice will they make? Provide either 'respond' or 'ignore', and the reason for the choice (Keep this brief, one or two sentences max.), "
         f"in a JSON object with the properties response_choice and reason."
     )
     return prompt
@@ -180,7 +180,7 @@ def generate_final_emotional_response_prompt(agent_name, min_emotion_value, max_
         f"{agent_name} chose to respond with this message: ({response_content}). "
         f"What is their emotional state after sending that response? Keep in mind that emotions typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic emotional changes. Provide:\n" \
               f"1. An updated emotional state object (include only emotions whose values have changed).\n" \
-              f"2. The reasoning behind these changes.\n\n" \
+              f"2. The reasoning behind these changes. Keep this brief, one or two sentences max.\n\n" \
               f"Use the scale {min_emotion_value} (lowest intensity) to {max_emotion_value} (highest intensity). " \
               f"Do not add new emotions."
         )
@@ -189,7 +189,7 @@ def generate_final_emotional_response_prompt(agent_name, min_emotion_value, max_
         prompt = (
             f"What is {agent_name}'s emotional state after not responding? Keep in mind that emotions typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic emotional changes. Provide:\n" \
                 f"1. An updated emotional state object (include only emotions whose values have changed).\n" \
-                f"2. The reasoning behind these changes.\n\n" \
+                f"2. The reasoning behind these changes. Keep this brief, one or two sentences max.\n\n" \
                 f"Use the scale {min_emotion_value} (lowest intensity) to {max_emotion_value} (highest intensity). " \
                 f"Do not add new emotions."
         )
@@ -212,7 +212,7 @@ def generate_sentiment_analysis_prompt(agent_name, username, min_sentiment_value
     prompt = (
         f"What are {agent_name}'s sentiments towards {username} after this message exchange? Keep in mind that sentiments typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic sentiment changes. Provide:\n" \
                 f"1. An updated sentiment state object (include only emotions whose values have changed).\n" \
-                f"2. The reasoning behind these changes.\n\n" \
+                f"2. The reasoning behind these changes. Keep this brief, one or two sentences max.\n\n" \
                 f"Use the scale {min_sentiment_value} (lowest intensity) to {max_sentiment_value} (highest intensity). " \
                 f"Do not add new sentiments."
     )
@@ -274,7 +274,38 @@ def generate_identity_update_prompt(agent_name, current_identity):
     """
     prompt = (
         f"This is how {agent_name} described themselves before this message exchange: ({current_identity})."
-        f"Rewrite how {agent_name} would describe themselves, in their own words, implementing any significant information they learned about themself from this message exchange. If nothing new was learned do not change anything."
+        f"Rewrite how {agent_name} would describe themselves, in their own words, implementing any significant information they learned about themself from this message exchange. If nothing new was learned do not change anything. Keep this brief, no more than four sentences."
         f" Provide the updated identity in a JSON object with the property 'identity'."
     )
     return prompt
+
+
+def generate_personality_adjustment_prompt(agent_name, personality, sentiment, user_name, extrinsic_relationship, 
+                                           min_personality_value, max_personality_value, max_range):
+    """
+    Generates a prompt to determine how the AI agent's sentiments and relationship with the user 
+    influence its personality traits during their interaction.
+
+    Parameters:
+        agent_name (str): The name of the AI agent.
+        personality (str): The agent's current personality traits.
+        sentiment (str): The agent's sentiments towards the user.
+        user_name (str): The name of the user.
+        extrinsic_relationship (str): The extrinsic relationship between the agent and the user.
+        min_personality_value (int): Minimum value for personality trait intensity.
+        max_personality_value (int): Maximum value for personality trait intensity.
+
+    Returns:
+        str: A dynamically generated prompt.
+    """
+    prompt = (
+        f"These are {agent_name}'s personality traits: {personality}. "
+        f"This is {agent_name}'s sentiment towards {user_name}: {sentiment}. "
+        f"How would these sentiments and extrinsic relationship ({extrinsic_relationship}) alter "
+        f"{agent_name}'s personality towards {user_name}? Provide:\n" \
+              f"1. An updated personality object (include only personality traits whose values have changed).\n" \
+              f"2. Use the scale {min_personality_value} (lowest intensity) to {max_personality_value} (highest intensity). " \
+              f"The max value a trait can change by is {max_range} in either direction."
+    )
+    return prompt
+

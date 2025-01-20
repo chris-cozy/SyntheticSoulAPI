@@ -4,7 +4,7 @@ from app.constants.schemas import get_thought_schema
 from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
 from app.services.mental_service import check_implicit_addressing, send_message
 from app.services.openai_service import get_structured_query_response
-from app.services.data_service import get_all_agents, grab_self, init_db, db_client
+from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps
 from dotenv import load_dotenv
 import asyncio

@@ -177,7 +177,7 @@ async def grab_self(agent_name, lite_mode):
             new_self = {
                 "name": agent_name,
                 "identity": "I am a prototype program, designed as a digital replication of the human mind.",
-                "personality": BASE_PERSONALITIES_LITE[2]["traits"],
+                "personality": BASE_PERSONALITIES_LITE[1]["traits"],
                 "memory_profile": [],
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": [thought],

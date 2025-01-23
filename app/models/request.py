@@ -1,15 +1,14 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
     message: str
     username: str
+    type: str
 
 class MessageResponse(BaseModel):
-    response: str
-
-class ImplicitlyAddressedResponse(BaseModel):
-    implicitly_addressed: str
+    response: Optional[str]
 
 class ExtendedMessageRequest(BaseModel):
     message: str

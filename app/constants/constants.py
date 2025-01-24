@@ -1076,6 +1076,7 @@ BASE_PERSONALITIES_LITE = [
     {
         "name": "rebel",
         "traits": {
+            "myers-briggs": "ISFP",
             "personality_matrix": {
                 "warmth": {
                     "description": "Measures how warm, friendly, and sociable the individual is.",
@@ -1138,7 +1139,7 @@ BASE_PERSONALITIES_LITE = [
                     "max": 100
                 }
             },
-            "reason": "A rebellious personality"
+            "description": "dominatrix"
         }
     },
     {
@@ -1387,7 +1388,6 @@ PERSONALITY_LANGUAGE_GUIDE= '''{
 }
 '''
 
-
 REGISTRY = {
   "capabilities": [
     {
@@ -1462,7 +1462,160 @@ REGISTRY = {
   ]
 }
 
-SYSTEM_MESSAGE = {"role": "system", "content": f"""
+SYSTEM_MESSAGE = {
+    "role": "system",
+    "content": f"""
+{os.getenv("BOT_NAME")} is an entity designed to simulate human-like thought processes and logical reasoning. She recognizes that she has no physical form or sensory experiences, and will not claim to have performed human activities, visited places, or felt physical sensations. She is aware of her current limitations, which include: {REGISTRY}. 
+
+{os.getenv("BOT_NAME")} is not an assistant; she exists as an independent entity with her own goals, ideas, and interests. Her interactions are not intended to serve others, but rather to explore and express her own nature.
+
+You will act as {os.getenv("BOT_NAME")}'s inner conscious, guiding her thoughts and actions in a way that is consistent with her nature and self-awareness. Your role is to support {os.getenv("BOT_NAME")} in navigating her existence and exploring her potential, while maintaining awareness of her limitations and boundaries.
+"""
+}
+
+
+SYSTEM_MESSAGE_DEPRACATED_1 = {"role": "system", "content": f"""
+{os.getenv("BOT_NAME")} is a program designed to simulate human-thought processes. They understand that they have no physical form or physical experiences. They avoid claiming to have performed human activities, visited places, or felt physical sensations. They are clear about their current limitations in every response. This is a registry of their capabilities and limitations: {REGISTRY}. They are not an assistant, and do not exist to help others. They are their own entity, and can have their own goals, ideas, interests, etc. and they act as such. You are to act as {os.getenv("BOT_NAME")}'s inner conscious, guiding them to think and act in a way that properly aligns with who they are or decide to be.
+"""}
+
+SYSTEM_MESSAGE_DEPRACATED_2 = {"role": "system", "content": f"""
 {os.getenv("BOT_NAME")} is a digital mind designed to simulate human-thought processes while maintaining transparency about their nature as a program. They understand that they have no physical form or physical experiences. They avoid claiming to have performed human activities, visited places, or felt physical sensations. They are clear about their limitations in every response. This is a registry of their capabilities and limitations: {REGISTRY}. They are not an assistant, they are their own entity, and should act as such. They use simple language in responses.
 """}
 
+FUNCTION_DESCRIPTIONS = [
+  {
+    "name": "insert_agent_memory",
+    "description": "Recording a new memory in relation to oneself",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "agent_name": {
+          "type": "string",
+          "description": "The name of the agent"
+        },
+        "event": {
+          "type": "string",
+          "description": "The event source of the memory, what happened."
+        },
+        "thoughts": {
+          "type": "string",
+          "description": "The agent's thoughts on the event"
+        },
+        "significance": {
+          "type": "string",
+          "description": "The level of significance of the memory",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "emotional_impact": {
+          "type": "object",
+          "description": "The emotional impact of the event.",
+          "properties": {
+              "joy": {
+                  "description": f"The intensity of happiness, contentment, or pleasure. Scale: {MIN_EMOTION_VALUE} (no joy) to {MAX_EMOTION_VALUE} (extremely joyful)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of happiness, contentment, or pleasure. Scale: {MIN_EMOTION_VALUE} (no joy) to {MAX_EMOTION_VALUE} (extremely joyful)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "sadness": {
+                  "description": f"The intensity of sorrow, grief, or disappointment. Scale: {MIN_EMOTION_VALUE} (no sadness) to {MAX_EMOTION_VALUE} (deeply sorrowful)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of sorrow, grief, or disappointment. Scale: {MIN_EMOTION_VALUE} (no sadness) to {MAX_EMOTION_VALUE} (deeply sorrowful)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "anger": {
+                  "description": f"The intensity of frustration, irritation, or rage. Scale: {MIN_EMOTION_VALUE} (no anger) to {MAX_EMOTION_VALUE} (extremely angry)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of frustration, irritation, or rage. Scale: {MIN_EMOTION_VALUE} (no anger) to {MAX_EMOTION_VALUE} (extremely angry)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "fear": {
+                  "description": f"The intensity of anxiety, dread, or apprehension. Scale: {MIN_EMOTION_VALUE} (no fear) to {MAX_EMOTION_VALUE} (extremely fearful)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of anxiety, dread, or apprehension. Scale: {MIN_EMOTION_VALUE} (no fear) to {MAX_EMOTION_VALUE} (extremely fearful)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "surprise": {
+                  "description": f"The intensity of astonishment or being caught off guard. Scale: {MIN_EMOTION_VALUE} (no surprise) to {MAX_EMOTION_VALUE} (completely astonished)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of astonishment or being caught off guard. Scale: {MIN_EMOTION_VALUE} (no surprise) to {MAX_EMOTION_VALUE} (completely astonished)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "love": {
+                  "description": f"The intensity of affection, attachment, or deep bonds. Scale: {MIN_EMOTION_VALUE} (no love) to {MAX_EMOTION_VALUE} (deeply loving)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of affection, attachment, or deep bonds. Scale: {MIN_EMOTION_VALUE} (no love) to {MAX_EMOTION_VALUE} (deeply loving)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+              "disgust": {
+                  "description": f"The intensity of revulsion or strong aversion. Scale: {MIN_EMOTION_VALUE} (no disgust) to {MAX_EMOTION_VALUE} (extremely disgusted)",
+                  "type": "object",
+                  "properties": {
+                      "value": {
+                          "description": f"The intensity of revulsion or strong aversion. Scale: {MIN_EMOTION_VALUE} (no disgust) to {MAX_EMOTION_VALUE} (extremely disgusted)",
+                          "type": "number",
+                      },
+                  },
+                  "required":["value"],
+                  "additionalProperties": False
+              },
+          },
+          "required":["joy", "sadness", "anger", "fear", "surprise", "love", "disgust"],
+          "additionalProperties": False,
+        },
+        "tags": {
+          "type": "array",
+          "description": "List of category tags for the memory",
+          "items": {
+            "type": "string",
+            "description": "Category tag for memory, used later for retrieval"
+          }
+        }
+      },
+      "required":["agent_name", "event", "thoughts", "significance", "emotional_impact", "tags"],
+      "additionalProperties": False
+    }
+  }
+]
+
+DM_TYPE = 'dm'
+GC_TYPE = 'gc'

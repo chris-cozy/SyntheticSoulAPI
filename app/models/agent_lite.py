@@ -14,8 +14,30 @@ AGENT_LITE_VALIDATOR = {
       },
       "personality": {
             "bsonType": "object",
-            "required": ["personality_matrix", "reason"],
+            "required": ["myers-briggs", "personality_matrix", "description"],
             "properties": {
+                "myers-briggs": {
+                    "bsonType": "string",
+                    "enum": [
+                        "ISTJ",
+                        "ISFJ",
+                        "INFJ",
+                        "INTJ",
+                        "ISTP",
+                        "ISFP",
+                        "INFP",
+                        "INTP",
+                        "ESTP",
+                        "ESFP",
+                        "ENFP",
+                        "ENFJ",
+                        "ENTP",
+                        "ESTJ",
+                        "ESFJ",
+                        "ENFJ",
+                    ],
+                    "description": "Myers-briggs personality type"
+                },
                 "personality_matrix" : {
             "bsonType": "object",
             "required": [
@@ -253,220 +275,228 @@ AGENT_LITE_VALIDATOR = {
             }
             }
                 },
-                "reason": {
+                "description": {
                     "bsonType": "string",
-                    "description": "The summary of their personality, the reason behind their traits, must be a string"
+                    "description": "Adjective summary of their personality"
                 }
             }
         },
       "memory_profile": {
-        "bsonType": "array",
-        "description": "List of memory entries, required and must be an array of objects",
-        "items": {
-          "bsonType": "object",
-          "required": ["event", "thoughts", "significance", "emotional_impact", "tags", "timestamp"],
-          "properties": {
-            "event": {
-              "bsonType": "string",
-              "description": "Description of the event, required and must be a string"
+        "bsonType": "object",
+        "required": ["all_tags", "memories"],
+        "properties":{
+            "all_tags": {
+                "bsonType": "array",
+                "description": "List of all memory tags that the agent has, for memory retrieval",
+                "items": {
+                    "bsonType": "string",
+                    "description": "Category tags to sort the memory"
+                }
             },
-            "thoughts": {
-              "bsonType": "string",
-              "description": "Thoughts related to the memory, required and must be a string"
-            },
-            "significance": {
-              "bsonType": "string",
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                ],
-              "description": "Thoughts related to the memory, required and must be a string"
-            },
-            "emotional_impact": {
+            "memories": {
+                "bsonType": "array",
+                "description": "List of memory entries, required and must be an array of objects",
+                "items": {
                 "bsonType": "object",
-                "required": [],
+                "required": ["event", "thoughts", "significance", "emotional_impact", "tags", "timestamp"],
                 "properties": {
-                    "emotions": {
-                    "bsonType": "object",
-                    "required": ["joy", "sadness", "anger", "fear", "surprise", "love", "disgust"],
-                    "properties": {
-                        "joy": {
+                    "event": {
+                        "bsonType": "string",
+                        "description": "Description of the event, required and must be a string"
+                    },
+                    "thoughts": {
+                        "bsonType": "string",
+                        "description": "Thoughts related to the memory, required and must be a string"
+                    },
+                    "significance": {
+                        "bsonType": "string",
+                        "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            ],
+                        "description": "Thoughts related to the memory, required and must be a string"
+                    },
+                    "emotional_impact": {
+                        "bsonType": "object",
+                        "required": [],
+                        "properties": {
                             "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
+                            "required": ["joy", "sadness", "anger", "fear", "surprise", "love", "disgust"],
                             "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Joy description, required and must be a string"
+                                "joy": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Joy description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current joy value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum joy value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum joy value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current joy value, must be an integer"
+                                "sadness": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Sadness description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current sadness value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum sadness value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum sadness value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum joy value, must be an integer"
+                                "anger": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Anger description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current anger value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum anger value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum anger value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum joy value, must be an integer"
-                                }
-                            }
-                        },
-                        "sadness": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Sadness description, required and must be a string"
+                                "fear": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Fear description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current fear value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum fear value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum fear value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current sadness value, must be an integer"
+                                "surprise": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Surprise description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current surprise value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum surprise value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum surprise value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum sadness value, must be an integer"
+                                "love": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Love description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current love value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum love value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum love value, must be an integer"
+                                        }
+                                    }
                                 },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum sadness value, must be an integer"
-                                }
-                            }
-                        },
-                        "anger": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Anger description, required and must be a string"
-                                },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current anger value, must be an integer"
-                                },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum anger value, must be an integer"
-                                },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum anger value, must be an integer"
-                                }
-                            }
-                        },
-                        "fear": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Fear description, required and must be a string"
-                                },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current fear value, must be an integer"
-                                },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum fear value, must be an integer"
-                                },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum fear value, must be an integer"
-                                }
-                            }
-                        },
-                        "surprise": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Surprise description, required and must be a string"
-                                },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current surprise value, must be an integer"
-                                },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum surprise value, must be an integer"
-                                },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum surprise value, must be an integer"
-                                }
-                            }
-                        },
-                        "love": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Love description, required and must be a string"
-                                },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current love value, must be an integer"
-                                },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum love value, must be an integer"
-                                },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum love value, must be an integer"
-                                }
-                            }
-                        },
-                        "disgust": {
-                            "bsonType": "object",
-                            "required": ["description", "value", "min", "max"],
-                            "properties": {
-                                "description": {
-                                "bsonType": "string",
-                                "description": "Disgust description, required and must be a string"
-                                },
-                                "value": {
-                                "bsonType": "int",
-                                "description": "Current disgust value, must be an integer"
-                                },
-                                "min": {
-                                "bsonType": "int",
-                                "description": "Minimum disgust value, must be an integer"
-                                },
-                                "max": {
-                                "bsonType": "int",
-                                "description": "Maximum disgust value, must be an integer"
+                                "disgust": {
+                                    "bsonType": "object",
+                                    "required": ["description", "value", "min", "max"],
+                                    "properties": {
+                                        "description": {
+                                        "bsonType": "string",
+                                        "description": "Disgust description, required and must be a string"
+                                        },
+                                        "value": {
+                                        "bsonType": "int",
+                                        "description": "Current disgust value, must be an integer"
+                                        },
+                                        "min": {
+                                        "bsonType": "int",
+                                        "description": "Minimum disgust value, must be an integer"
+                                        },
+                                        "max": {
+                                        "bsonType": "int",
+                                        "description": "Maximum disgust value, must be an integer"
+                                        }
+                                    }
                                 }
                             }
                         }
+                    },
+                    "tags": {
+                        "bsonType": "array",
+                        "description": "A list of tags that act as memory categories, which the agent can use to remember relevant memories",
+                        "items": {
+                            "bsonType": "string",
+                            "description": "The category of memory"
+                        }
+                    },
+                    "timestamp": {
+                        "bsonType": "date",
+                        "description": "Timestamp of the memory, required and must be a valid date"
                     }
-                },
-                "reason": {
-                    "bsonType": "string",
-                    "description": "Reason for the emotion status, must be a string"
                 }
                 }
-            },
-            "tags": {
-                "bsonType": "array",
-                "description": "A list of tags that act as memory categories, which the agent can use to remember relevant memories",
-                "items": {
-                    "bsonType": "string",
-                    "description": "The category of memory"
-                }
-            },
-            "timestamp": {
-              "bsonType": "date",
-              "description": "Timestamp of the memory, required and must be a valid date"
             }
-          }
-        }
+        }  
       },
       "emotional_status": {
             "bsonType": "object",
@@ -660,3 +690,22 @@ AGENT_LITE_VALIDATOR = {
     }
   }
 }
+
+MYERS_BRIGGS_LIST = [
+                        "ISTJ",
+                        "ISFJ",
+                        "INFJ",
+                        "INTJ",
+                        "ISTP",
+                        "ISFP",
+                        "INFP",
+                        "INTP",
+                        "ESTP",
+                        "ESFP",
+                        "ENFP",
+                        "ENFJ",
+                        "ENTP",
+                        "ESTJ",
+                        "ESFJ",
+                        "ENFJ",
+                    ]

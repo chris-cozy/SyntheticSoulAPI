@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from app.constants.schemas import get_thought_schema
-from app.models.request import ImplicitlyAddressedResponse, MessageRequest, MessageResponse
-from app.services.brain_service import check_implicit_addressing, periodic_thinking, send_message
+from app.models.request import MessageRequest, MessageResponse
+from app.services.brain_service import periodic_thinking, handle_message
 from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps
@@ -41,20 +41,10 @@ async def root():
         print(f"Error in root endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-
 @app.post("/messages/submit", response_model=MessageResponse)
 async def submit_message(request: MessageRequest):
     try:
-        response = await send_message(request)
-        print(response)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/messages/implicit-addressing", response_model=ImplicitlyAddressedResponse)
-async def implicit_addressing(request: MessageRequest):
-    try:
-        response = await check_implicit_addressing(request)
+        response = await handle_message(request)
         print(response)
         return response
     except Exception as e:

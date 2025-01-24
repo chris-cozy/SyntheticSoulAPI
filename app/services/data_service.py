@@ -87,7 +87,7 @@ async def initialize_collections():
         
     print(f"Initialized connections")
 
-async def grab_user(username, agent_name, lite_mode):
+async def grab_user(username, agent_name, lite_mode=True):
     """
     Grab user object based on their Discord ID.
     If the user doesn't exist, create a new one with default values.
@@ -154,7 +154,7 @@ async def grab_user(username, agent_name, lite_mode):
 
     return user
 
-async def grab_self(agent_name, lite_mode):
+async def grab_self(agent_name, lite_mode=True):
     """
     Grab self object based on the agent name.
     If the agent doesn't exist, create one with default values.
@@ -178,7 +178,7 @@ async def grab_self(agent_name, lite_mode):
                 "name": agent_name,
                 "identity": "I am a prototype program, designed as a digital replication of the human mind.",
                 "personality": BASE_PERSONALITIES_LITE[1]["traits"],
-                "memory_profile": [],
+                "memory_profile": {"all_tags": [], "memories": []},
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": [thought],
             }
@@ -303,3 +303,74 @@ async def insert_message_to_memory(agent_name, message_request):
         message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
     except Exception as e:
         print(e)
+        
+async def insert_agent_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
+    """Inserts a new general memory
+
+    Args:
+        agent_name (string): The agent's name
+        event (string): The message to insert
+        thoughts (string): The agent's name
+        significance (string): The significance of the memory. enum (Low, Medium, High)
+        emotional_impact (object): The affect this had on the agent's emotions
+        tags (array): Array of string tags
+    """
+    try:
+        db = get_database()
+        if(lite_mode):
+            agent_lite_collection = db[AGENT_LITE_COLLECTION]
+
+            self = await agent_lite_collection.find_one({"name": agent_name})
+            
+            all_tags = self['memory_profile']['all_tags']
+            memories = self['memory_profile']['memories']
+            
+            print(tags)
+            for tag in tags:
+                if tag not in all_tags:
+                    all_tags.append(tag)
+            
+            print(all_tags)
+            new_memory = {
+                "event": event,
+                "thoughts": thoughts,
+                "significance": significance,
+                "emotional_impact": emotional_impact,
+                "tags": tags,
+                "timestamp": datetime.now()
+            }
+            
+            memories.append(new_memory)
+            
+            updated_memory_profile = {
+                "all_tags": all_tags,
+                "memories": memories
+            }
+            agent_lite_collection.update_one({'name': agent_name}, {"$set": {"memory_profile": updated_memory_profile}})
+    except Exception as e:
+        print(e)
+        
+async def update_summary_identity_relationship(agent_name, username, summary, extrinsic_relationship, identity, lite_mode=True):
+    """Updates the user summary, agent identity, and user extrinsic relationship
+
+    Args:
+        agent_name (string): The agent's name
+        username (string): The user's name
+        summary (string): The updated summary
+        extrinsic_relationship (string): The updated extrinsic relationship
+        identity (string): The updated identity
+    """
+    try:
+        db = get_database()
+        if(lite_mode):
+            agent_lite_collection = db[AGENT_LITE_COLLECTION]
+            user_lite_collection = db[USER_LITE_COLLECTION]
+
+            agent_lite_collection.update_one({'name': agent_name}, {"$set": {"identity": identity}})
+            user_lite_collection.update_one({"username": username, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
+    except Exception as e:
+        print(e)
+    
+            
+        
+        

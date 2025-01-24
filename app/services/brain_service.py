@@ -15,7 +15,8 @@ from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory, insert_agent_memory, update_summary_identity_relationship
 from dotenv import load_dotenv
 
-from app.services.prompt_service import  generate_final_emotional_response_prompt, generate_initial_emotional_response_prompt, generate_is_memory_prompt, generate_memory_prompt, generate_message_perception_prompt, generate_personality_adjustment_prompt, generate_post_response_processing_prompt, generate_response_analysis_prompt, generate_response_choice_prompt, generate_sentiment_analysis_prompt, generate_thought_prompt
+from app.services.prompt_service import  generate_final_emotional_response_prompt, generate_implicit_addressing_prompt, generate_initial_emotional_response_prompt, generate_is_memory_prompt, generate_memory_prompt, generate_message_perception_prompt, generate_personality_adjustment_prompt, generate_post_response_processing_prompt, generate_response_analysis_prompt, generate_response_choice_prompt, generate_sentiment_analysis_prompt, generate_thought_prompt
+from app.services.util_service import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 
@@ -351,15 +352,15 @@ async def process_message_lite(request: MessageRequest):
             "sender": request.username,
             "timestamp": datetime.now()
             }
-            # log incoming message 
+
             await insert_message_to_memory(agent_name, new_message_request)
             
             if (request.type == GC_TYPE):
-                # check implicit addressing
+
                 implicit_addressing_query = {
                     "role": USER_ROLE,
                     "content": (
-                        f"Analyze the conversation history ({message_memory}) and determine if the most recent message ({new_message_request}) implicitly addresses {agent_name}. Provide your output in this JSON structure:{{\"implicitly_addressed\": 'yes' or 'no'}}"
+                        generate_implicit_addressing_prompt(agent_name, message_memory, new_message_request)
                     )
                 }
 
@@ -445,10 +446,11 @@ async def process_message_lite(request: MessageRequest):
             
             if response_choice["response_choice"] == RESPOND_CHOICE:
                 #Step 8: Generate a response: CLEAR
+                memory = get_random_memories(self)
                 response_query = {
                     "role": USER_ROLE,
                     "content": (
-                        generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages)
+                        generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
                     ),
                 }
 
@@ -695,15 +697,13 @@ async def generate_thought():
     self = await grab_self(agent_name, True)
     
     # Fetch chosen memory
-    significances = ['high', 'medium', 'low']
-    weights = [0.7, 0.2, 0.1]
-    chosen_significance = random.choices(significances, weights=weights, k=1)
+    memories = get_random_memories(self)
     
     inner_dialogue = [SYSTEM_MESSAGE]
     inner_dialogue.append({
         "role": USER_ROLE,
         "content": (
-            generate_thought_prompt(self, recent_all_messages, chosen_significance[0])
+            generate_thought_prompt(self, recent_all_messages, memories)
         )
     })
     

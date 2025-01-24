@@ -139,7 +139,7 @@ def generate_response_choice_prompt(agent_name, user_name):
     return prompt
 
 
-def generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, personality_language_guide, latest_thought, user_name, recent_messages, recent_all_messages):
+def generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, personality_language_guide, latest_thought, user_name, recent_messages, recent_all_messages, memory):
     """
     Generates a prompt to analyze how the AI agent should respond, with a focus on personality traits,
     emotional status, and intended communication purpose and tone.
@@ -162,6 +162,7 @@ def generate_response_analysis_prompt(agent_name, altered_personality, current_e
         - {agent_name}'s latest thought is: {latest_thought}.
         - The last messages between {agent_name} and {user_name} (if applicable): {recent_messages}.
         - The last messages {agent_name} has seen in general: {recent_all_messages}.
+        - {agent_name}'s current memory(s): {memory}
 
         Considering all of this, how would {agent_name} respond to the new message, considering their intended purpose and tone? Do not always ask questions, as that may be unrealistic given the context.
         
@@ -334,7 +335,7 @@ def generate_personality_adjustment_prompt(agent_name, personality, sentiment, u
     return prompt
 
 
-def generate_thought_prompt(self, recent_all_messages, significance):
+def generate_thought_prompt(self, recent_all_messages, memory):
     """
     Generates a prompt to determine if the AI is thinking and if so, what their thought is.
 
@@ -346,26 +347,6 @@ def generate_thought_prompt(self, recent_all_messages, significance):
         str: A dynamically generated prompt.
     """
     agent_name = self["name"]
-    filtered_memories = []
-    selected_memories = []
-    for memory in self['memory_profile']['memories']:
-        if memory['significance'] == significance:
-            filtered_memories.append(memory)
-            
-    if (len(filtered_memories) > 0):
-        all_tags = set()
-        
-        for memory in filtered_memories:
-            all_tags.update(memory["tags"])
-            
-        random_tag = random.choice(list(all_tags))
-        
-        matching_memories = [memory for memory in filtered_memories if random_tag in memory["tags"]]
-        
-        selected_memories = matching_memories
-        
-        if len(matching_memories) >= 2:
-            selected_memories = random.sample(matching_memories, 2)
 
     prompt = (
         f"""
@@ -376,7 +357,7 @@ def generate_thought_prompt(self, recent_all_messages, significance):
         - {agent_name}'s identity: {self["identity"]}
         - The last ten messages in their conversations: {recent_all_messages}
         - The current datetime: ({datetime.now()}).
-        - Their chosen memories (if exists): {selected_memories}
+        - Their chosen memories (if exists): {memory}
         
         Considering all of this, is {agent_name} thinking right now?  Use relaxed language, and favor simple responses avoid overly structured responses. 
 
@@ -424,6 +405,29 @@ def generate_memory_prompt(agent_name, tags):
         Apply any existing categorical tags ({tags}). You can create new tags if needed.
 
         Use relaxed language, and favor simple responses avoid overly structured responses.
+        """
+    )
+    
+    return prompt
+
+def generate_implicit_addressing_prompt(agent_name, message_memory, new_message_request):
+    """
+    Generates a prompt to extract a memory from the interaction.
+        
+    Returns:
+        str: A dynamically generated prompt.
+    """
+    prompt = (
+        f"""
+        Here are the key details:
+        
+        - Recent conversation history: {message_memory}
+        - New message: {new_message_request}
+        
+        Considering this, does the new message implicitly addresses {agent_name}?
+        
+        Please respond with the following JSON object:
+        {{\"implicitly_addressed\": 'yes' or 'no'}}
         """
     )
     

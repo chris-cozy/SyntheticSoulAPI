@@ -104,7 +104,6 @@ async def grab_user(username, agent_name, lite_mode=True):
 
         if not user:
             intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-            print(intrinsic_relationship)
 
             if username == os.getenv("DEVELOPER_ID"):
                 intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
@@ -135,7 +134,7 @@ async def grab_user(username, agent_name, lite_mode=True):
             if username == os.getenv("DEVELOPER_ID"):
                 intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
             else:
-                intrinsic_relationship = NO_INTRINSIC_RELATIONSHIP
+                intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
             
             now = datetime.now()
             # Create a new user if one doesn't exist
@@ -171,16 +170,17 @@ async def grab_self(agent_name, lite_mode=True):
         if not self:
             # Create a new self object if one doesn't exist
             thought = {
-                "thought": "I think, therefore I am",
+                "thought": "I think, therefore I am.",
                 "timestamp": datetime.now()
             }
             new_self = {
                 "name": agent_name,
-                "identity": "I am a prototype program, designed as a digital replication of the human mind.",
+                "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
                 "personality": BASE_PERSONALITIES_LITE[1]["traits"],
                 "memory_profile": {"all_tags": [], "memories": []},
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": [thought],
+                "birthdate": datetime.now()
             }
             result = await agent_lite_collection.insert_one(new_self)
             self = await agent_lite_collection.find_one({"_id": result.inserted_id})

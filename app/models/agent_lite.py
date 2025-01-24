@@ -686,7 +686,11 @@ AGENT_LITE_VALIDATOR = {
             }
             }
         }
-    },
+        },
+      "birthdate": {
+          "bsonType": "date",
+          "description": "Timestamp of birth"
+      }
     }
   }
 }

@@ -1523,3 +1523,48 @@ def implicitly_addressed_schema():
             },
         },
     }
+    
+def is_memory_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "is_memory",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "is_memory": {
+                        "description": "Whether or not a memory is being formed from this interaction",
+                        "type": "string",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+    }
+    
+def update_summary_identity_relationship_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "update_summary_identity_relationship",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                    "type": "string",
+                    "description": "The updated description of the user"
+                    },
+                    "extrinsic_relationship": {
+                    "type": "string",
+                    "description": "The updated relationship between the user and the agent"
+                    },
+                    "identity": {
+                    "type": "string",
+                    "description": "The updated identity of the agent"
+                    },
+                },
+                "required":["summary", "extrinsic_relationship", "identity"],
+                "additionalProperties": False
+            },
+        },
+    }

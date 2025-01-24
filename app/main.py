@@ -41,7 +41,6 @@ async def root():
         print(f"Error in root endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-
 @app.post("/messages/submit", response_model=MessageResponse)
 async def submit_message(request: MessageRequest):
     try:

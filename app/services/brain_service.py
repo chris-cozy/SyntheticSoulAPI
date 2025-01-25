@@ -355,6 +355,28 @@ async def process_message_lite(request: MessageRequest):
 
             await insert_message_to_memory(agent_name, new_message_request)
             
+            
+            db = get_database()
+            
+            user_lite_collection = db[USER_LITE_COLLECTION]
+            username = request.username
+
+            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+            
+    
+            self = await grab_self(agent_name)  
+            user = await grab_user(username, agent_name)
+            conversation = await get_conversation(username, agent_name)
+            recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
+            
+            recent_messages_formatted = []
+            for message in recent_messages:
+                recent_messages_formatted.append({'message': message['message'], 'sender': message['sender'], 'timestamp': message['timestamp']})
+                
+            recent_messages = recent_messages_formatted
+            print(recent_messages)
+            received_date = datetime.now() 
+            
             if (request.type == GC_TYPE):
 
                 implicit_addressing_query = {
@@ -367,28 +389,95 @@ async def process_message_lite(request: MessageRequest):
                 implicit_addressing_result = await get_structured_query_response([implicit_addressing_query], implicitly_addressed_schema())
                 if not implicit_addressing_result:
                     raise HTTPException(status_code=500, detail="Error - check_implicit_addressing")
-
+                
                 # TODO If not implicitly addressed check if they want to respond anyway
+                # TODO Identify different group chats with an identifier sent from the client, so that group chat memory can be implemented
                 if (implicit_addressing_result["implicitly_addressed"] == 'no'):
-                    return MessageResponse(response=None)
+                    initial_emotion_query = {
+                        "role": "user",
+                        "content": (generate_initial_emotional_response_prompt(agent_name, self['personality'], self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
+                    }
+
+                    initial_emotion_response = await get_structured_query_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+
+                    if not initial_emotion_response:
+                        raise HTTPException(status_code=500, detail="Error - process_message_lite: Processing initial emotional reaction")
+
+                    current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
+
+                    # Step 6: Analyze the purpose and tone of the user's message: CLEAR
+                    message_queries = [SYSTEM_MESSAGE, {
+                        "role": "user",
+                        "content": (
+                            generate_message_perception_prompt(agent_name, self['personality'], current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+                        ),
+                    }]
+                    
+                    message_analysis = await get_structured_query_response(message_queries, get_message_schema())
+
+                    if not message_analysis:
+                        raise HTTPException(status_code=500, detail="Error - process_message_lite: analyzing user message")
+                    
+                    message_queries.append({
+                        "role": BOT_ROLE,
+                        "content": json.dumps(message_analysis)
+                        })
+                
+                    # Step 7: Determine whether to respond: CLEAR
+                    response_choice_query = {
+                        "role": "user",
+                        "content": (
+                            generate_response_choice_prompt(agent_name, username, False)
+                        ),
+                    }
+                    
+                    message_queries.append(response_choice_query)
+
+                    response_choice = await get_structured_query_response(message_queries, get_response_choice_schema())
+
+                    if not response_choice:
+                        raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response choice")
+                    
+                    message_queries.append({
+                        "role": BOT_ROLE,
+                        "content": json.dumps(response_choice)
+                        })
+                    
+                    if response_choice["response_choice"] == RESPOND_CHOICE:
+                        #Step 8: Generate a response: CLEAR
+                        memory = get_random_memories(self)
+                        response_query = {
+                            "role": USER_ROLE,
+                            "content": (
+                                generate_response_analysis_prompt(agent_name, self['personality'], current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+                            ),
+                        }
+
+                        message_queries.append(response_query)
+                        response_content = await get_structured_query_response(message_queries, get_message_schema())
+
+                        if not response_content:
+                            raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response")
+                        
+                        agent_response_message = response_content['message']
+                    elif response_choice["response_choice"] == IGNORE_CHOICE:
+                        response_content = None
+                        agent_response_message = None
+                        
+                    asyncio.create_task(
+                process_remaining_steps(
+                agent_name, username, db, user, self, conversation, self['personality'], 
+                current_emotions, message_analysis, response_choice, received_date, message_queries, user_lite_collection, response_content
+                )
+            )
+                        
+                        
+                    return MessageResponse(response=agent_response_message)
                 
                 # TODO If they don't want to respond, send None
                  
                 # TODO Asyncronously extract any memory or identity/summary update    
-            
-            
-            db = get_database()
-            
-            user_lite_collection = db[USER_LITE_COLLECTION]
-            username = request.username
-
-            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
-    
-            self = await grab_self(agent_name)  
-            user = await grab_user(username, agent_name)
-            conversation = await get_conversation(username, agent_name)
-            recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
-            received_date = datetime.now() 
+                
 
             # Step 4: Update personality based on relationships: CLEAR
             altered_personality = await alter_personality(self, user, True)
@@ -486,6 +575,7 @@ async def process_message_lite(request: MessageRequest):
                 current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
                 '''
             elif response_choice["response_choice"] == IGNORE_CHOICE:
+                response_content = None
                 agent_response_message = None
                 '''
                 # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR

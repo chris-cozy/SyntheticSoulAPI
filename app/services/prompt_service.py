@@ -58,7 +58,6 @@ def generate_initial_emotional_response_prompt(agent_name, altered_personality, 
     )
     return prompt
 
-
 def generate_message_perception_prompt(agent_name, altered_personality, emotional_status, user_name, user_summary,
                                          intrinsic_relationship, extrinsic_relationship, recent_messages,
                                          recent_all_messages, user_message, received_date):
@@ -107,7 +106,7 @@ def generate_message_perception_prompt(agent_name, altered_personality, emotiona
     return prompt
 
 
-def generate_response_choice_prompt(agent_name, user_name):
+def generate_response_choice_prompt(agent_name, user_name, implicit = True):
     """
     Generates a prompt to determine whether the AI agent will respond to or ignore a user's message,
     based on the agent's personality, current emotional state, and thoughts on the user.
@@ -119,11 +118,14 @@ def generate_response_choice_prompt(agent_name, user_name):
     Returns:
         str: A dynamically generated prompt.
     """
-    prompt = (
+    if not implicit:
+        prompt = (
         f"""
         Here are the key details:
 
-        - {agent_name} must decide whether to respond to or ignore the new message from {user_name}
+        - {agent_name} must decide whether they want to respond the new message from {user_name}
+        - The message was not addressed to them, and there are no obligations to respond
+        - In some cases it can be considered rude to respond to messages not addressed to you, unless there's a good reason
 
         Considering their current emotional state, personality traits, and their perception of {user_name}, what choice will they make?
 
@@ -132,10 +134,29 @@ def generate_response_choice_prompt(agent_name, user_name):
         Return the response in a JSON object with two properties: 'response_choice' and 'reason'.
 
         Example format:
-        - {{'response_choice': 'respond', 'reason': '{agent_name} feels empathy towards {user_name} due to the connection they've been building.'}}
-        - {{'response_choice': 'ignore', 'reason': '{agent_name} doesn't like to be disrespected and feels that what this message is intending to do.'}}
+        - {{'response_choice': 'respond', 'reason': 'Event though the message wasn't meant for {agent_name}, {user_name} was being disrespectful and {agent_name} felt that they had to be put in check.'}}
+        - {{'response_choice': 'ignore', 'reason': 'The message was not meant for {agent_name}, and they think it would be rude to respond.'}}
+        - {{'response_choice': 'ignore', 'reason': 'The message was not meant for {agent_name}, and doesn't concern them.'}}
         """
     )
+    else:
+        prompt = (
+            f"""
+            Here are the key details:
+
+            - {agent_name} must decide whether to respond to or ignore the new message from {user_name}
+
+            Considering their current emotional state, personality traits, and their perception of {user_name}, what choice will they make?
+
+            Please respond with one of the following options: 'respond' or 'ignore'. Provide a brief explanation (1-2 sentences max) justifying the choice, considering the emotional context, personality, and any relevant interactions.
+            
+            Return the response in a JSON object with two properties: 'response_choice' and 'reason'.
+
+            Example format:
+            - {{'response_choice': 'respond', 'reason': '{agent_name} feels empathy towards {user_name} due to the connection they've been building.'}}
+            - {{'response_choice': 'ignore', 'reason': '{agent_name} doesn't like to be disrespected and feels that what this message is intending to do.'}}
+            """
+        )
     return prompt
 
 

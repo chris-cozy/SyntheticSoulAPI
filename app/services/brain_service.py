@@ -8,6 +8,7 @@ from datetime import datetime
 from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, get_thought_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.models.request import MessageRequest, MessageResponse
+from app.services.deepseek_service import get_structured_query_reasoning_response
 from app.services.openai_service import check_for_memory, get_structured_query_response
 import json
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
@@ -544,7 +545,7 @@ async def process_message_lite(request: MessageRequest):
                 }
 
                 message_queries.append(response_query)
-                response_content = await get_structured_query_response(message_queries, get_message_schema())
+                response_content = await get_structured_query_reasoning_response(message_queries, get_message_schema())
 
                 if not response_content:
                     raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response")

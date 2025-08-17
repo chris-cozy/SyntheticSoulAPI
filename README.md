@@ -111,8 +111,8 @@ Due to the current technological limitations of the project, the primary focus o
 
 ## Installation and Use
 1. Download the code base.
-2. Open a terminal in the main directory, inside a python virtual environment. Then download the dependencies using the command `pip install -r requirements.txt`
-3. Run the command: `uvicorn app.main:app --reload` to start the api locally
+2. Open a terminal in the main directory, inside a python virtual environment `venv\Scripts\activate`. Then download the dependencies using the command `pip install -r requirements.txt`
+3. Run the command: `python -m uvicorn app.main:app --reload` to start the api locally
 4. Using postman or cURL, interact with the endpoints at 'http://127.0.0.1:8000/'
 ## Contributing
 Issue Tracker: [SyntheticSoulAPI/issues](https://github.com/chris-cozy/SyntheticSoulAPI/issues")

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from app.constants.schemas import get_thought_schema
 from app.models.request import MessageRequest, MessageResponse
 from app.services.brain_service import periodic_thinking, handle_message
@@ -7,6 +8,7 @@ from app.services.openai_service import get_structured_query_response
 from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps
 from dotenv import load_dotenv
+import os
 import asyncio
 
 from app.services.util_service import start_emotion_decay
@@ -31,6 +33,21 @@ async def lifespan(app: FastAPI):
         print("Emotion decay loop stopped.")
 
 app = FastAPI(lifespan=lifespan)
+
+# --- CORS config ---
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    os.getenv('WEB_UI_DOMAIN'),
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,           # do NOT use "*" if you send cookies/Authorization
+    allow_credentials=True,                  # set to True only if you send cookies/Authorization
+    allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    allow_headers=["Content-Type","Authorization"],  # add any custom headers you use
+    expose_headers=[],                       # optional
+)
 
 @app.get("/")
 async def root():

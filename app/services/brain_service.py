@@ -545,7 +545,7 @@ async def process_message_lite(request: MessageRequest):
                 }
 
                 message_queries.append(response_query)
-                response_content = await get_structured_query_reasoning_response(message_queries, get_message_schema())
+                response_content = await get_structured_query_response(message_queries, get_message_schema())
 
                 if not response_content:
                     raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response")

@@ -9,14 +9,14 @@ from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relat
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.models.request import MessageRequest, MessageResponse
 from app.services.deepseek_service import get_structured_query_reasoning_response
-from app.services.openai_service import check_for_memory, get_structured_query_response
+from app.services.openai_service import check_for_memory, get_structured_response
 import json
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
-from app.services.openai_service import get_structured_query_response
+from app.services.openai_service import get_structured_response
 from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory, insert_agent_memory, update_summary_identity_relationship
 from dotenv import load_dotenv
 
-from app.services.prompt_service import  generate_final_emotional_response_prompt, generate_implicit_addressing_prompt, generate_initial_emotional_response_prompt, generate_is_memory_prompt, generate_memory_prompt, generate_message_perception_prompt, generate_personality_adjustment_prompt, generate_post_response_processing_prompt, generate_response_analysis_prompt, generate_response_choice_prompt, generate_sentiment_analysis_prompt, generate_thought_prompt
+from app.services.prompt_service import  build_final_emotional_response_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt, build_thought_prompt
 from app.services.util_service import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
@@ -89,7 +89,7 @@ async def process_message(request: MessageRequest):
             }
 
             inner_dialogue = [initial_emotion_query]
-            initial_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema())
+            initial_emotion_response = await get_structured_response(inner_dialogue, get_emotion_status_schema())
 
             if not initial_emotion_response:
                 raise HTTPException(status_code=500, detail="Error processing emotional reaction")
@@ -111,7 +111,7 @@ async def process_message(request: MessageRequest):
                 ),
             }]
 
-            message_analysis = await get_structured_query_response(message_queries, get_message_schema())
+            message_analysis = await get_structured_response(message_queries, get_message_schema())
 
             if not message_analysis:
                 raise HTTPException(status_code=500, detail="Error analyzing user message")
@@ -131,7 +131,7 @@ async def process_message(request: MessageRequest):
 
             message_queries.append(response_choice_query)
 
-            response_choice = await get_structured_query_response(message_queries, get_response_choice_schema())
+            response_choice = await get_structured_response(message_queries, get_response_choice_schema())
 
             if not response_choice:
                 raise HTTPException(status_code=500, detail="Error generating response choice")
@@ -151,7 +151,7 @@ async def process_message(request: MessageRequest):
                 }
 
                 message_queries.append(response_query)
-                response_content = await get_structured_query_response(message_queries, get_message_schema())
+                response_content = await get_structured_response(message_queries, get_message_schema())
 
                 if not response_content:
                     raise HTTPException(status_code=500, detail="Error generating response")
@@ -166,7 +166,7 @@ async def process_message(request: MessageRequest):
 
                 inner_dialogue.append(final_emotion_query)
 
-                final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema())
+                final_emotion_response = await get_structured_response(inner_dialogue, get_emotion_status_schema())
 
                 if not final_emotion_response:
                     raise HTTPException(status_code=500, detail="Error reflecting on emotion")
@@ -192,7 +192,7 @@ async def process_message(request: MessageRequest):
 
                 inner_dialogue.append(final_emotion_query)
 
-                final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema())
+                final_emotion_response = await get_structured_response(inner_dialogue, get_emotion_status_schema())
 
                 if not final_emotion_response:
                     raise HTTPException(status_code=500, detail="Error reflecting on emotion")
@@ -215,7 +215,7 @@ async def process_message(request: MessageRequest):
 
             inner_dialogue.append(sentiment_query)
 
-            sentiment_response = await get_structured_query_response(inner_dialogue, get_sentiment_status_schema())
+            sentiment_response = await get_structured_response(inner_dialogue, get_sentiment_status_schema())
 
             if not sentiment_response:
                 raise HTTPException(status_code=500, detail="Error reflecting on sentiment")
@@ -239,7 +239,7 @@ async def process_message(request: MessageRequest):
 
             inner_dialogue.append(summary_query)
 
-            summary_response = await get_structured_query_response(inner_dialogue, get_summary_schema())
+            summary_response = await get_structured_response(inner_dialogue, get_summary_schema())
 
             if not summary_response:
                 raise HTTPException(status_code=500, detail="Error reflecting on summary")
@@ -261,7 +261,7 @@ async def process_message(request: MessageRequest):
 
             inner_dialogue.append(extrinsic_relationship_query)
 
-            extrinsic_relationship_response = await get_structured_query_response(inner_dialogue, get_extrinsic_relationship_schema())
+            extrinsic_relationship_response = await get_structured_response(inner_dialogue, get_extrinsic_relationship_schema())
 
             if not extrinsic_relationship_response:
                 raise HTTPException(status_code=500, detail="Error reflecting on extrinsic relationship")
@@ -283,7 +283,7 @@ async def process_message(request: MessageRequest):
 
             inner_dialogue.append(identity_query)
 
-            identity_response = await get_structured_query_response(inner_dialogue, get_identity_schema())
+            identity_response = await get_structured_response(inner_dialogue, get_identity_schema())
 
             if not identity_response:
                 raise HTTPException(status_code=500, detail="Error reflecting on self-identity")
@@ -346,14 +346,17 @@ async def process_message_lite(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
+            # Retrieve past messages received from anyone
             message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             
+            # Build new message request
             new_message_request = {
             "message": request.message,
             "sender": request.username,
             "timestamp": datetime.now()
             }
 
+            # Add message request to all messages received list
             await insert_message_to_memory(agent_name, new_message_request)
             
             
@@ -362,32 +365,36 @@ async def process_message_lite(request: MessageRequest):
             user_lite_collection = db[USER_LITE_COLLECTION]
             username = request.username
 
+            # Re-getting the message memory??
             recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             
-    
+            # Retrieve user, agent, and conversation between the two
             self = await grab_self(agent_name)  
             user = await grab_user(username, agent_name)
             conversation = await get_conversation(username, agent_name)
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
+            # Rewrite messages in concise format
             recent_messages_formatted = []
             for message in recent_messages:
                 recent_messages_formatted.append({'message': message['message'], 'sender': message['sender'], 'timestamp': message['timestamp']})
-                
             recent_messages = recent_messages_formatted
             print(recent_messages)
+            
+            # Set current datetime
             received_date = datetime.now() 
             
+            # If multi-user conversation
             if (request.type == GC_TYPE):
 
                 implicit_addressing_query = {
                     "role": USER_ROLE,
                     "content": (
-                        generate_implicit_addressing_prompt(agent_name, message_memory, new_message_request)
+                        build_implicit_addressing_prompt(agent_name, message_memory, new_message_request)
                     )
                 }
 
-                implicit_addressing_result = await get_structured_query_response([implicit_addressing_query], implicitly_addressed_schema())
+                implicit_addressing_result = await get_structured_response([implicit_addressing_query], implicitly_addressed_schema())
                 if not implicit_addressing_result:
                     raise HTTPException(status_code=500, detail="Error - check_implicit_addressing")
                 
@@ -396,10 +403,10 @@ async def process_message_lite(request: MessageRequest):
                 if (implicit_addressing_result["implicitly_addressed"] == 'no'):
                     initial_emotion_query = {
                         "role": "user",
-                        "content": (generate_initial_emotional_response_prompt(agent_name, self['personality'], self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
+                        "content": (build_initial_emotional_response_prompt(agent_name, self['personality'], self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
                     }
 
-                    initial_emotion_response = await get_structured_query_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+                    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
 
                     if not initial_emotion_response:
                         raise HTTPException(status_code=500, detail="Error - process_message_lite: Processing initial emotional reaction")
@@ -410,11 +417,11 @@ async def process_message_lite(request: MessageRequest):
                     message_queries = [SYSTEM_MESSAGE, {
                         "role": "user",
                         "content": (
-                            generate_message_perception_prompt(agent_name, self['personality'], current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+                            build_message_perception_prompt(agent_name, self['personality'], current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
                         ),
                     }]
                     
-                    message_analysis = await get_structured_query_response(message_queries, get_message_schema())
+                    message_analysis = await get_structured_response(message_queries, get_message_schema())
 
                     if not message_analysis:
                         raise HTTPException(status_code=500, detail="Error - process_message_lite: analyzing user message")
@@ -428,13 +435,13 @@ async def process_message_lite(request: MessageRequest):
                     response_choice_query = {
                         "role": "user",
                         "content": (
-                            generate_response_choice_prompt(agent_name, username, False)
+                            build_response_choice_prompt(agent_name, username, False)
                         ),
                     }
                     
                     message_queries.append(response_choice_query)
 
-                    response_choice = await get_structured_query_response(message_queries, get_response_choice_schema())
+                    response_choice = await get_structured_response(message_queries, get_response_choice_schema())
 
                     if not response_choice:
                         raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response choice")
@@ -450,12 +457,12 @@ async def process_message_lite(request: MessageRequest):
                         response_query = {
                             "role": USER_ROLE,
                             "content": (
-                                generate_response_analysis_prompt(agent_name, self['personality'], current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+                                build_response_analysis_prompt(agent_name, self['personality'], current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
                             ),
                         }
 
                         message_queries.append(response_query)
-                        response_content = await get_structured_query_response(message_queries, get_message_schema())
+                        response_content = await get_structured_response(message_queries, get_message_schema())
 
                         if not response_content:
                             raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response")
@@ -480,16 +487,15 @@ async def process_message_lite(request: MessageRequest):
                 # TODO Asyncronously extract any memory or identity/summary update    
                 
 
-            # Step 4: Update personality based on relationships: CLEAR
+            # Alter personality based on user relationship
             altered_personality = await alter_personality(self, user, True)
             
-            # Step 5: Query  for emotional state changes: CLEAR
+            # Assess emotional response upon first viewing message
             initial_emotion_query = {
                 "role": "user",
-                "content": (generate_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
+                "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
             }
-
-            initial_emotion_response = await get_structured_query_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+            initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
 
             if not initial_emotion_response:
                 raise HTTPException(status_code=500, detail="Error - process_message_lite: Processing initial emotional reaction")
@@ -500,11 +506,11 @@ async def process_message_lite(request: MessageRequest):
             message_queries = [SYSTEM_MESSAGE, {
                 "role": "user",
                 "content": (
-                    generate_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+                    build_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
                 ),
             }]
             
-            message_analysis = await get_structured_query_response(message_queries, get_message_schema())
+            message_analysis = await get_structured_response(message_queries, get_message_schema())
 
             if not message_analysis:
                 raise HTTPException(status_code=500, detail="Error - process_message_lite: analyzing user message")
@@ -518,13 +524,13 @@ async def process_message_lite(request: MessageRequest):
             response_choice_query = {
                 "role": "user",
                 "content": (
-                    generate_response_choice_prompt(agent_name, username)
+                    build_response_choice_prompt(agent_name, username)
                 ),
             }
             
             message_queries.append(response_choice_query)
 
-            response_choice = await get_structured_query_response(message_queries, get_response_choice_schema())
+            response_choice = await get_structured_response(message_queries, get_response_choice_schema())
 
             if not response_choice:
                 raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response choice")
@@ -540,12 +546,12 @@ async def process_message_lite(request: MessageRequest):
                 response_query = {
                     "role": USER_ROLE,
                     "content": (
-                        generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+                        build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
                     ),
                 }
 
                 message_queries.append(response_query)
-                response_content = await get_structured_query_response(message_queries, get_message_schema())
+                response_content = await get_structured_response(message_queries, get_message_schema())
 
                 if not response_content:
                     raise HTTPException(status_code=500, detail="Error - process_message_lite: generating response")
@@ -624,12 +630,12 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     sentiment_query = {
                 "role": USER_ROLE,
                 "content": (
-                    generate_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
+                    build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
                 ),
             }
     message_queries.append(sentiment_query)
     
-    sentiment_response = await get_structured_query_response(message_queries, get_sentiment_status_schema_lite())
+    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
 
     if not sentiment_response:
         raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on sentiment")
@@ -643,12 +649,12 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
 
     post_response_processing_query = {
         "role": USER_ROLE,
-        "content": (generate_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
+        "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
     }
     
     message_queries.append(post_response_processing_query)
     
-    post_response_processing_response = await get_structured_query_response(message_queries, update_summary_identity_relationship_schema())
+    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
     
     await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
@@ -657,11 +663,11 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     
     is_memory_query = {
         "role": USER_ROLE,
-        "content": (generate_is_memory_prompt(agent_name))
+        "content": (build_memory_worthiness_prompt(agent_name))
     }
     message_queries.append(is_memory_query)
     
-    is_memory_response = await get_structured_query_response(message_queries, is_memory_schema())
+    is_memory_response = await get_structured_response(message_queries, is_memory_schema())
     
     if not is_memory_response:
         raise HTTPException(status_code=500, detail="Error - process_message_lite: determining if memory will be extracted")
@@ -672,7 +678,7 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     })
     
     if (is_memory_response["is_memory"] == "yes"):
-        message_queries.append({"role": USER_ROLE, "content": generate_memory_prompt(agent_name, self['memory_profile']['all_tags'])})
+        message_queries.append({"role": USER_ROLE, "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])})
         check_for_memory_response = await check_for_memory(message_queries)
         function = eval(check_for_memory_response.function_call.name)
         params = json.loads(check_for_memory_response.function_call.arguments)
@@ -737,15 +743,15 @@ async def alter_personality(self, user, lite_mode):
         {
         "role": "user",
         "content": (
-            generate_personality_adjustment_prompt(agent_name, personality, sentiment, user[USER_NAME_PROPERTY], extrinsic_relationship, 
+            build_personality_adjustment_prompt(agent_name, personality, sentiment, user[USER_NAME_PROPERTY], extrinsic_relationship, 
                                            MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, 15)
             ),
         }
     ]    
     if (lite_mode):
-        alter_query_response = await get_structured_query_response(alter_query, get_personality_status_schema_lite())
+        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema_lite())
     else:
-        alter_query_response = await get_structured_query_response(alter_query, get_personality_status_schema())
+        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema())
 
     # Merge the response with the original personality matrix
     altered_personality = deep_merge(personality, alter_query_response)
@@ -794,11 +800,11 @@ async def generate_thought():
     inner_dialogue.append({
         "role": USER_ROLE,
         "content": (
-            generate_thought_prompt(self, recent_all_messages, memories)
+            build_thought_prompt(self, recent_all_messages, memories)
         )
     })
     
-    current_thought = await get_structured_query_response(inner_dialogue, get_thought_schema())
+    current_thought = await get_structured_response(inner_dialogue, get_thought_schema())
     
     current_thought_object = {
         "thought": current_thought['thought'],

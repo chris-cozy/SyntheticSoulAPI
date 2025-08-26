@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.constants.schemas import get_thought_schema
 from app.models.request import MessageRequest, MessageResponse
@@ -10,10 +10,17 @@ from bson.json_util import dumps
 from dotenv import load_dotenv
 import os
 import asyncio
+import redis
+from rq import Queue
+from rq.job import Job
 
 from app.services.util_service import start_emotion_decay
 
 load_dotenv()
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+rconn = redis.from_url(REDIS_URL)
+q = Queue("default", connection=rconn)
 
 API_VERSION = "1.0.0"
 
@@ -60,14 +67,65 @@ async def root():
         print(f"Error in root endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-@app.post("/messages/submit", response_model=MessageResponse)
+@app.post("/messages/submit")
 async def submit_message(request: MessageRequest):
     try:
-        response = await handle_message(request)
+        # enqueue the job into RQ; pass the request body as a dict
+        job = q.enqueue(
+            "app.tasks.send_message_task",   # dotted path to the function we created
+            request.model_dump(),            # pydantic -> dict
+            job_timeout=600                  # safety cap
+        )
+        
+        # return 202 + Location header so clients can poll
+        response =  Response(
+            content=dumps({"job_id": job.id, "status": job.get_status()}),
+            status_code=202,
+            headers={
+                "Location": f"/jobs/{job.id}",
+                "Retry-After": "3"
+            },
+            media_type="application/json"
+        )
+        
         print(response)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+# --- NEW: status endpoint for polling ---
+@app.get("/jobs/{job_id}")
+async def job_status(job_id: str):
+    try:
+        job = Job.fetch(job_id, connection=rconn)
+    except Exception:
+        raise HTTPException(status_code=404, detail="not_found")
+
+    # Normalize RQ statuses to a small set
+    rq_status = job.get_status(refresh=True)
+    if rq_status in ("queued", "deferred"):
+        status = "queued"
+    elif rq_status in ("started",):
+        status = "running"
+    elif rq_status in ("finished",):
+        status = "succeeded"
+    elif rq_status in ("failed",):
+        status = "failed"
+    else:
+        status = rq_status
+
+    payload = {
+        "job_id": job.id,
+        "status": status,
+        "progress": (job.meta or {}).get("progress"),
+    }
+
+    if status == "succeeded":
+        payload["result"] = job.result  # whatever send_message_task returned
+    if status == "failed":
+        payload["error"] = str(job.exc_info) if job.exc_info else "Job failed"
+
+    return payload
     
 @app.get("/agents")
 async def get_agents():

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import os
 import asyncio
 import redis
+import ssl
 from rq import Queue
 from rq.job import Job
 
@@ -18,8 +19,12 @@ from app.services.util_service import start_emotion_decay
 
 load_dotenv()
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-rconn = redis.from_url(REDIS_URL)
+REDIS_URL = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+if REDIS_URL.startswith("rediss://"):
+    rconn = redis.from_url(REDIS_URL, ssl_cert_reqs=ssl.CERT_NONE)
+else:
+    rconn = redis.from_url(REDIS_URL)
+
 q = Queue("default", connection=rconn)
 
 API_VERSION = "1.0.0"

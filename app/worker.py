@@ -1,16 +1,19 @@
 import os
 
 import redis
+import ssl
 from rq import Worker, Queue, Connection
 
 listen = ['high', 'default', 'low']
 
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-
-
+REDIS_URL = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 def main():
-    conn = redis.from_url(redis_url)
+    if REDIS_URL.startswith("rediss://"):
+        conn = redis.from_url(REDIS_URL, ssl_cert_reqs=ssl.CERT_NONE)
+    else:
+        conn = redis.from_url(REDIS_URL)
+        
     with Connection(conn):
         worker = Worker([Queue(name) for name in listen])
         worker.work(with_scheduler=True)

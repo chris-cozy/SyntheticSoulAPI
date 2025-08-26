@@ -12,7 +12,7 @@ from app.services.deepseek_service import get_structured_query_reasoning_respons
 from app.services.openai_service import check_for_memory, get_structured_response
 import json
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
-from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_memory, insert_agent_memory, update_summary_identity_relationship
+from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, insert_agent_memory, update_summary_identity_relationship
 from dotenv import load_dotenv
 
 from app.services.prompt_service import  build_final_emotional_response_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt, build_thought_prompt
@@ -694,11 +694,7 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         "sender": username,
         "from_agent": False
     }
-    
-    await db[CONVERSATION_COLLECTION].update_one(
-        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
-        { "$push": {"messages": incoming_message }})
-
+    await insert_message_to_conversation(username, agent_name, incoming_message)
 
     if response_choice["response_choice"] == RESPOND_CHOICE:
         outgoing_message = {
@@ -710,9 +706,7 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
             "from_agent": True
         }
         
-        await db[CONVERSATION_COLLECTION].update_one(
-        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
-        { "$push": {"messages": outgoing_message }})
+        await insert_message_to_conversation(username, agent_name, outgoing_message)
         
         # Add to message collection
         new_message_response = {
@@ -722,8 +716,6 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         }
 
         await insert_message_to_memory(agent_name, new_message_response)
-        
-    print(conversation["messages"])
     
     await db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": current_emotions }})
     

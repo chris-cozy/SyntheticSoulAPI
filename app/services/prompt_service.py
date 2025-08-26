@@ -1,14 +1,28 @@
 from datetime import datetime
+import json
 import random
+import textwrap
+from typing import Any, Mapping, Optional, Sequence
 
 
-def generate_initial_emotional_response_prompt(agent_name, altered_personality, emotional_status, user_name, user_summary, 
-                    intrinsic_relationship, extrinsic_relationship, recent_messages, 
-                    recent_all_messages, received_date, user_message, min_emotional_value, 
-                    max_emotional_value, latest_thought):
+def build_initial_emotional_response_prompt(
+    agent_name: str, 
+    altered_personality: str, 
+    emotional_status: str, 
+    user_name: str, 
+    user_summary: str, 
+    intrinsic_relationship: str, 
+    extrinsic_relationship: str, 
+    recent_messages: str, 
+    recent_all_messages: str, 
+    received_date: str, 
+    user_message: str, 
+    min_emotional_value: int, 
+    max_emotional_value: int, 
+    latest_thought: str
+) -> str:
     """
-    Generates a dynamic prompt based on the input parameters for the interaction between
-    the agent and the user.
+    Generate a structured prompt for modeling the agent's emotional response.
 
     Parameters:
         agent_name (str): The name of the AI agent.
@@ -26,43 +40,58 @@ def generate_initial_emotional_response_prompt(agent_name, altered_personality, 
         max_sentiment_value (int): The maximum sentiment value scale.
 
     Returns:
-        str: The dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    
-    prompt = (
-        f"""
-        Here are the key details:
-
-        - {agent_name}'s personality traits: {altered_personality}.
-        - {agent_name}'s emotional state: {emotional_status}.
-        - {agent_name}'s perspective of {user_name}: {user_summary}.
-        - {user_name}'s intrinsic relationship with {agent_name}: {intrinsic_relationship}.
-        - {agent_name}'s extrinsic relationship with {user_name}: {extrinsic_relationship}.
-        - {agent_name}'s latest thought: {latest_thought}.
-        - The last messages between {agent_name} and {user_name} (if applicable): {recent_messages}.
-        - The last messages {agent_name} has seen in general: {recent_all_messages}.
-        - It is {received_date}, and {agent_name} received this message from {user_name}: {user_message}.
-
-        How would this message alter {agent_name}'s emotional state?
-
-        Please respond with the following:
-        1. An updated emotional state object, including only the emotions that have changed. Use the scale of {min_emotional_value} (lowest intesity) to {max_emotional_value} (highest intensity). Emotions change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs).
-        2. Provide clear reasoning behind the emotional changes. Use relaxed language, and favor simple responses avoid overly structured responses.
-
-        For example:
-        - If {agent_name} has a high level of sadness, a positive message may decrease sadness, while a negative message might increase it.
-        - If {agent_name} has a high level of joy, a positive message may not increase joy/happiness further, but instead maintain their current level.
-
-        Please ensure the output includes the most relevant changes and maintains consistency with the emotional scale.
-        """
+    header = _format_shared_context(
+        agent_name=agent_name,
+        altered_personality=altered_personality,
+        emotional_status=emotional_status,
+        user_name=user_name,
+        user_summary=user_summary,
+        intrinsic_relationship=intrinsic_relationship,
+        extrinsic_relationship=extrinsic_relationship,
+        recent_messages=recent_messages,
+        recent_all_messages=recent_all_messages,
+        received_date=received_date,
+        user_message=user_message,
+        latest_thought=latest_thought,
     )
-    return prompt
+    
+    body = f"""
+        Task:
+        Determine how this message affects your emotional state.
 
-def generate_message_perception_prompt(agent_name, altered_personality, emotional_status, user_name, user_summary,
-                                         intrinsic_relationship, extrinsic_relationship, recent_messages,
-                                         recent_all_messages, user_message, received_date):
+        Output format:
+        1. An updated emotional state object, listing only emotions that changed.
+            - Use a scale from {min_emotional_value} (lowest intensity) to {max_emotional_value} (highest intensity).
+            - Emotions change gradually unless triggered by major events.
+        2. Reasoning in plain, relaxed language. Keep it conversational, not overly structured.
+
+        Guidance:
+        - If sadness is high and the user’s message is positive, sadness may decrease.
+        - If joy is already high, further positive input may simply maintain the current level.
+        - Focus only on the most relevant changes.
+        - Keep the emotional trajectory consistent with the scale.
+        """
+    
+    return textwrap.dedent(header + body)
+
+def build_message_perception_prompt(
+    agent_name: str, 
+    altered_personality: str, 
+    emotional_status: str, 
+    user_name: str, 
+    user_summary: str,
+    intrinsic_relationship: str, 
+    extrinsic_relationship: str, 
+    recent_messages: str,
+    recent_all_messages: str, 
+    user_message: str, 
+    received_date: str
+) -> str:
     """
-    Generates a prompt to analyze the purpose and tone of a user's message within a dynamic conversation context.
+    Generate a structured prompt for analyzing the purpose and tone of a user's message
+    in the context of the agent’s state, relationships, and recent interactions.
 
     Parameters:
         agent_name (str): The name of the AI agent.
@@ -75,169 +104,256 @@ def generate_message_perception_prompt(agent_name, altered_personality, emotiona
         recent_messages (str): The recent conversation messages.
         recent_all_messages (str): The last ten messages remembered overall.
         user_message (str): The new message sent by the user.
+        received_date (str): Date of this interaction.
 
     Returns:
-        str: A dynamically generated prompt to analyze the user's message.
+        str: A clean, dynamic prompt string for message perception analysis.
     """
-    prompt = (
-        f"""
-        Here are the key details:
-
-        - {agent_name}'s personality traits: {altered_personality}.
-        - {agent_name}'s emotional state: {emotional_status}.
-        - {agent_name}'s perspective of {user_name}: {user_summary}.
-        - {user_name}'s intrinsic relationship with {agent_name}: {intrinsic_relationship}.
-        - {agent_name}'s extrinsic relationship with {user_name}: {extrinsic_relationship}.
-        - The last messages between {agent_name} and {user_name} (if applicable): {recent_messages}.
-        - The last messages {agent_name} has seen in general: {recent_all_messages}.
-        - It is {received_date}, and {agent_name} received this message from {user_name}: {user_message}.
-
-        How would {agent_name} interpret the purpose and tone of the new message? Consider possible misinterpretations of the message, and factors like word choice, context, and emotional state in the interpretation.
-
-        Provide the response in a JSON object with the following properties:
-        {{\"message\": \"{user_message}\", \"purpose\": \"Purpose of the message\", \"tone\": \"Tone of the message\"}}
-
-        For example:
-        - If {agent_name} has a high level of sadness, a positive message may be misinterpreted to have a sadder meaning.
-        - If {agent_name} has an insecure personality, they may be more likely to misinterpret messages as attacks against them.
-        """
+    header = _format_shared_context(
+        agent_name=agent_name,
+        altered_personality=altered_personality,
+        emotional_status=emotional_status,
+        user_name=user_name,
+        user_summary=user_summary,
+        intrinsic_relationship=intrinsic_relationship,
+        extrinsic_relationship=extrinsic_relationship,
+        recent_messages=recent_messages,
+        recent_all_messages=recent_all_messages,
+        received_date=received_date,
+        user_message=user_message,
+        latest_thought=None,  # not needed for this prompt
     )
     
-    return prompt
+    # Safely echo the message inside the JSON example (handles quotes/newlines)
+    safe_message = json.dumps(user_message)
+    
+    body = f"""
+        Task:
+        Interpret the purpose and tone of the latest message from {user_name}.
+        Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
 
+        Output format (JSON object):
+        {{
+        "message": {safe_message},
+        "purpose": "Brief description of the perceived purpose",
+        "tone": "Brief description of the perceived tone"
+        }}
 
-def generate_response_choice_prompt(agent_name, user_name, implicit = True):
+        Guidance:
+        - Word choice, context, and current emotions may influence interpretation.
+        - Misinterpretations are possible (e.g., sadness may cause positive messages to feel bittersweet, insecurity may cause neutral remarks to feel hostile).
+        - Keep responses concise and natural while staying consistent with the emotional context.
+        """
+    return textwrap.dedent(header + body)
+
+def build_response_choice_prompt(
+    agent_name: str, 
+    user_name: str,
+    *,
+    implicit: bool = True,
+    context_section: Optional[str] = None
+) -> str:
     """
-    Generates a prompt to determine whether the AI agent will respond to or ignore a user's message,
-    based on the agent's personality, current emotional state, and thoughts on the user.
+    Generate a prompt to decide whether the agent should respond to or ignore a message.
 
     Parameters:
         agent_name (str): The name of the AI agent.
         user_name (str): The name of the user.
+        implicit (bool): If True, the message context is ambiguous/implicit.
+                         If False, the message was not addressed to the agent and there is no obligation to reply.
+        context_section (Optional[str]): Optional prebuilt "Key details" section produced by
+                                         `_format_shared_context(...)` for consistency with other prompts.
 
     Returns:
-        str: A dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    if not implicit:
-        prompt = (
-        f"""
-        Here are the key details:
+    # If a shared context block was provided, use it. Otherwise provide a minimal header.
+    header = context_section or textwrap.dedent(f"""
+    You are {agent_name}. Below are the key details of your current state and context:
 
-        - {agent_name} must decide whether they want to respond the new message from {user_name}
-        - The message was not addressed to them, and there are no obligations to respond
-        - In some cases it can be considered rude to respond to messages not addressed to you, unless there's a good reason
-
-        Considering their current emotional state, personality traits, and their perception of {user_name}, what choice will they make?
-
-        Please respond with one of the following options: 'respond' or 'ignore'. Provide a brief explanation (1-2 sentences max) justifying the choice, considering the emotional context, personality, and any relevant interactions.
-        
-        Return the response in a JSON object with two properties: 'response_choice' and 'reason'.
-
-        Example format:
-        - {{'response_choice': 'respond', 'reason': 'Event though the message wasn't meant for {agent_name}, {user_name} was being disrespectful and {agent_name} felt that they had to be put in check.'}}
-        - {{'response_choice': 'ignore', 'reason': 'The message was not meant for {agent_name}, and they think it would be rude to respond.'}}
-        - {{'response_choice': 'ignore', 'reason': 'The message was not meant for {agent_name}, and doesn't concern them.'}}
-        """
-    )
+    - Latest user referenced: {user_name}
+    """)
+    
+    # Branch-specific bullets
+    if implicit:
+        scenario = f"- {agent_name} must decide whether to respond to or ignore the new message from {user_name}"
+        etiquette = None
     else:
-        prompt = (
-            f"""
-            Here are the key details:
-
-            - {agent_name} must decide whether to respond to or ignore the new message from {user_name}
-
-            Considering their current emotional state, personality traits, and their perception of {user_name}, what choice will they make?
-
-            Please respond with one of the following options: 'respond' or 'ignore'. Provide a brief explanation (1-2 sentences max) justifying the choice, considering the emotional context, personality, and any relevant interactions.
-            
-            Return the response in a JSON object with two properties: 'response_choice' and 'reason'.
-
-            Example format:
-            - {{'response_choice': 'respond', 'reason': '{agent_name} feels empathy towards {user_name} due to the connection they've been building.'}}
-            - {{'response_choice': 'ignore', 'reason': '{agent_name} doesn't like to be disrespected and feels that what this message is intending to do.'}}
-            """
+        scenario = f"- {agent_name} must decide whether to respond to a message from {user_name}"
+        etiquette = (
+            "- If the message was not directed to you there is no obligation to respond\n"
+            "- Responding to messages not addressed to you can be rude unless there is a good reason"
         )
-    return prompt
+        
+    bullets = [scenario]
+    if etiquette:
+        bullets.append(etiquette)
+        
+    # JSON schema (kept tiny; your JSON mode will enforce structure)
+    example_respond = {"response_choice": "respond", "reason": f"Even though it wasn't addressed to {agent_name}, {user_name}'s comment warranted a brief clarification."}
+    example_ignore  = {"response_choice": "ignore",  "reason": "It was not addressed to the agent and engaging would be intrusive."}
+    
+    body = f"""
+        Key details (decision-specific):
+        - {'\n- '.join(bullets)}
 
+        Task:
+        Decide whether to respond or ignore. Consider {agent_name}'s emotional state, personality traits, relationship/perception of {user_name}, and recent interactions.
 
-def generate_response_analysis_prompt(agent_name, altered_personality, current_emotions, personality_language_guide, latest_thought, user_name, recent_messages, recent_all_messages, memory):
+        Output format (JSON object):
+        {{
+        "response_choice": "respond" | "ignore",
+        "reason": "1–2 sentence justification grounded in context"
+        }}
+
+        Guidance:
+        - Prefer responding only when it adds value, prevents harm/misinformation, or strengthens rapport.
+        - If the message wasn’t addressed to you, weigh etiquette and boundaries.
+        - Keep the justification concise and avoid revealing private/internal chain-of-thought.
+
+        Examples (for shape only; do not copy):
+        - {json.dumps(example_respond)}
+        - {json.dumps(example_ignore)}
+        """
+        
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_response_analysis_prompt(
+    agent_name: str, 
+    altered_personality: str, 
+    current_emotions: str, 
+    personality_language_guide: str, 
+    latest_thought: str, 
+    user_name: str, 
+    recent_messages: str, 
+    recent_all_messages: str, 
+    memory: str,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to analyze how the AI agent should respond, with a focus on personality traits,
-    emotional status, and intended communication purpose and tone.
-
+    Generate a structured prompt for composing the agent's reply, aligned to personality,
+    current emotions, and intended purpose/tone.
+    
     Parameters:
         agent_name (str): The name of the AI agent.
         altered_personality (str): The agent's current personality traits.
         current_emotions (str): The agent's current emotional state.
         personality_language_guide (str): A guide for aligning responses to personality traits.
+        latest_thought (str): The agent's most recent thought.
+        user_name (str): The user's name (for threading context).
+        recent_messages (str): Recent back-and-forth with the user.
+        recent_all_messages (str): Broader set of recent messages the agent has seen.
+        memory (str): Current memory items relevant to the conversation.
+        context_section (Optional[str]): Optional prebuilt "Key details" section produced by
+                                         `_format_shared_context(...)`.
 
     Returns:
-        str: A dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    prompt = (
-        f"""
-        Here are the key details:
+    # Prefer the shared Key details block when available for perfect consistency.
+    if context_section:
+        header = context_section.rstrip() + "\n"
+    else:
+        header = textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details of your current state and context:
 
-        - The way {agent_name} communicates reflects their personality: ({altered_personality}),
-        - The way {agent_name} communicates is affectied by their emotional status: ({current_emotions}).
-        - {agent_name}'s latest thought is: {latest_thought}.
-        - The last messages between {agent_name} and {user_name} (if applicable): {recent_messages}.
-        - The last messages {agent_name} has seen in general: {recent_all_messages}.
-        - {agent_name}'s current memory(s): {memory}
+        - Personality traits: {altered_personality}
+        - Current emotional state: {current_emotions}
+        - Latest thought: {latest_thought}
+        - Recent conversation with {user_name}: {recent_messages}
+        - Broader recent messages: {recent_all_messages}
+        - Current memory items: {memory}
+        - Personality language guide: {personality_language_guide}
+        """).rstrip() + "\n"
+    
+    body = """
+        Task:
+        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal.
 
-        Considering all of this, how would {agent_name} respond to the new message, considering their intended purpose and tone? Do not always ask questions, as that may be unrealistic given the context.
-        
-        The tone should align with their emotional state, and the purpose should reflect their goal for the interaction (e.g., provide support, give advice, share information, make a joke, degrade, be sarcastic, share their opinion, share a story, etc.). Use relaxed language, and favor simple responses avoid overly structured responses. 
-        
-        Here is a personality language guide for reference: ({personality_language_guide}).
+        Output format (JSON object):
+        {
+            "message": "The response message content",
+            "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
+            "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
+        }
 
-        Please respond with the following JSON object:
-        
-        {{'message': 'The response message content','purpose': 'The main goal of the message, such as providing advice or emotional support', 'tone': 'The overall emotional tone, such as empathetic, professional, assertive, etc.'}}
-        
-        Make sure the message, tone, and purpose are in line with {agent_name}'s emotional state and personality traits. Use emoticons instead of emojis, for example: ˃.˂ and :D and ૮ ˶ᵔ ᵕ ᵔ˶ ა and ♡ and >⩊<
+        Guidance:
+        - The tone must reflect your current emotional state; the purpose should reflect your conversational goal.
+        - Keep language relaxed and simple; avoid overly structured phrasing.
+        - Align word choice and phrasing with the personality language guide.
+        - Do not reveal private/internal chain-of-thought.
+        - Prefer brevity (a few sentences) unless context requires more.
+        - Use emoticons (not emojis), e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<.
         """
-    )
-    return prompt
 
+    return textwrap.dedent(header + "\n" + body).strip()
 
-def generate_final_emotional_response_prompt(agent_name, min_emotion_value, max_emotion_value, respond, response_content = ""):
+def build_final_emotional_response_prompt(
+    agent_name: str, 
+    min_emotion_value: int, 
+    max_emotion_value: int, 
+    respond: bool, 
+    response_content: str = "",
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to analyze the AI agent's emotional state after sending a response.
+    Generate a structured prompt to evaluate the agent's emotional state
+    after choosing to respond (or not) and, if applicable, after sending a message.
 
     Parameters:
-        agent_name (str): The name of the AI agent.
-        response_content (str): The message the agent sent.
-        min_emotion_value (int): The minimum value on the emotion intensity scale.
-        max_emotion_value (int): The maximum value on the emotion intensity scale.
-
+        agent_name (str): The AI agent's name.
+        min_emotion_value (int): Minimum value on the emotion intensity scale.
+        max_emotion_value (int): Maximum value on the emotion intensity scale.
+        respond (bool): Whether the agent chose to respond.
+        response_content (str): The message the agent sent (if respond=True).
+        context_section (Optional[str]): Optional shared "Key details" section from
+                                         `_format_shared_context(...)`.
+                                         
     Returns:
-        str: A dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    if (respond):
-        prompt = (
-        f"{agent_name} chose to respond with this message: ({response_content}). "
-        f"What is their emotional state after sending that response? Keep in mind that emotions typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic emotional changes. Provide:\n" \
-              f"1. An updated emotional state object (include only emotions whose values have changed).\n" \
-              f"2. The reasoning behind these changes. Keep this brief, one or two sentences max. Use relaxed language, and favor simple responses avoid overly structured responses.\n\n" \
-              f"Use the scale {min_emotion_value} (lowest intensity) to {max_emotion_value} (highest intensity). " \
-              f"Do not add new emotions."
-        )
-        return prompt
-    else:
-        prompt = (
-            f"What is {agent_name}'s emotional state after not responding? Keep in mind that emotions typically change incrementally and only experience large spikes in response to significant events (e.g., major shocks, breakthroughs). Use this principle to ensure gradual and realistic emotional changes. Provide:\n" \
-                f"1. An updated emotional state object (include only emotions whose values have changed).\n" \
-                f"2. The reasoning behind these changes. Keep this brief, one or two sentences max.\n\n" \
-                f"Use the scale {min_emotion_value} (lowest intensity) to {max_emotion_value} (highest intensity). " \
-                f"Do not add new emotions."
-        )
-        return prompt
+    # Prefer the shared Key details block when available for perfect consistency.
+    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""
+    You are {agent_name}. Below are the key details of the outcome:
+    """).rstrip() + "\n"
+    
+    action_line = f"- Action taken: {'responded' if respond else 'did not respond'}"
+    content_line = f"- Response content: {response_content}" if respond and response_content else None
+    key_details_block = "Key details (post-action):\n" + action_line + ("\n" + content_line if content_line else "")
+    
+    body = f"""
+        Task:
+        Assess your emotional state *after* this action. Reflect only the changes caused by this choice and, if applicable, by the message you sent.
 
+        Output format (JSON object):
+        {{
+        "updated_emotions": {{"<emotion>": <new_intensity>, "...": ...}},  # include only emotions whose values changed
+        "reason": "1–2 sentences explaining the change in relaxed, simple language"
+        }}
 
-def generate_sentiment_analysis_prompt(agent_name, username, min_sentiment_value, max_sentiment_value):
+        Guidance:
+        - Use the scale from {min_emotion_value} (lowest intensity) to {max_emotion_value} (highest intensity).
+        - Emotions change incrementally; large spikes occur only with major shocks or breakthroughs.
+        - Do not add new emotions; update only existing ones.
+        - If nothing meaningfully changed, return an empty object for "updated_emotions" and explain briefly why.
+        - Do not reveal private/internal chain-of-thought.
+        """
+    
+    return textwrap.dedent(header + "\n" + key_details_block + "\n\n" + body).strip()
+
+def build_sentiment_analysis_prompt(
+    agent_name: str, 
+    username: str, 
+    min_sentiment_value: int, 
+    max_sentiment_value: int,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to analyze the AI agent's sentiments toward the user after a message exchange.
+    Generate a structured prompt to analyze the agent's sentiments toward the user
+    after the most recent message exchange.
 
     Parameters:
         agent_name (str): The name of the AI agent.
@@ -248,117 +364,186 @@ def generate_sentiment_analysis_prompt(agent_name, username, min_sentiment_value
     Returns:
         str: A dynamically generated prompt.
     """
-    prompt = (
-        f"""
-        Here are the key details:
-
-        - Sentiments typically change incrementally (by 5 or less) and only experience large spikes (5 or more) in response to significant events (e.g., major shocks, breakthroughs).
-        
-        What are {agent_name}'s sentiments towards {username} after this message exchange?
-        
-        Please respond with the following:
-        1. An updated sentiment state object (include only emotions whose values have changed).
-        2. The reasoning behind these changes. Keep this brief, one or two sentences max. Use relaxed language, and favor simple responses avoid overly structured responses.
-
-        Use the scale {min_sentiment_value} (lowest intensity) to {max_sentiment_value} (highest intensity).
-        """
-    )
+    # Prefer the shared "Key details" block for consistency; otherwise provide a minimal header.
+    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""
+    You are {agent_name}. Below are the key details of the evaluation:
+    - Evaluation focus: sentiments toward {username} after the latest exchange
+    """).rstrip() + "\n"
     
-    return prompt
+    body = f"""
+        Task:
+        Assess how your sentiments toward {username} have changed after this exchange.
 
-def generate_post_response_processing_prompt(agent_name, current_identity, username, extrinsic_relationship_options, current_summary):
+        Output format (JSON object):
+        {{
+        "updated_sentiments": {{"<sentiment>": <new_intensity>, "...": ...}},  # include only sentiments whose values changed
+        "reason": "1–2 sentences explaining the change in relaxed, simple language"
+        }}
+
+        Guidance:
+        - Use the scale from {min_sentiment_value} (lowest intensity) to {max_sentiment_value} (highest intensity).
+        - Changes are typically incremental (about ±5 points or less). Larger shifts (more than 5 points) should occur only after significant events (e.g., major shocks, breakthroughs).
+        - Do not add new sentiment categories; update only existing ones.
+        - If nothing meaningfully changed, return an empty object for "updated_sentiments" and briefly explain why.
+        - Keep language natural and avoid overly structured phrasing.
+        - Do not reveal private/internal chain-of-thought.
+        """
+        
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_post_response_processing_prompt(
+    agent_name: str, 
+    current_identity: str, 
+    username: str, 
+    extrinsic_relationship_options: Sequence[str], 
+    current_summary: str,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to update the agent's summary of the user, their own identity, and their extrinsic relationship with the user, based on the message exchange.
+    Generate a structured prompt to update:
+      1) the agent's summary of the user
+      2) the extrinsic relationship label
+      3) the agent's sense of identity
+    based on the latest exchange.
 
     Parameters:
-        agent_name (str): The name of the AI agent.
-        current_identity (str): The agent's current self-perception
-        username (str): The name of the user.
-        extrinsic_relationship_options (arr): List of options
-        current_summary (str): The current summary of what the agent knows about the user.
+        agent_name (str): The AI agent's name.
+        current_identity (str): The agent's current self-perception.
+        username (str): The user's name.
+        extrinsic_relationship_options (Sequence[str]): Allowed relationship labels.
+        current_summary (str): Current summary of what the agent knows about the user.
+        context_section (Optional[str]): Optional shared "Key details" section from
+                                         `_format_shared_context(...)`.
 
     Returns:
-        str: A dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    options_formatted = ", ".join(extrinsic_relationship_options)
-    prompt = (
-        f"""
-        Here are the key details:
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details prior to this update:
 
-        - {agent_name}'s summary of {username} before this message exchange: ({current_summary}).
-        - {agent_name}'s sense of identity before this message exchange: ({current_identity}).
-        
-        How would {agent_name} describe {username} after this message exchange? If there are no changes, keep it the same.
-        Describe any shifts in {username}'s characteristics, behaviors, or attitudes that might have occurred during the conversation.
-        
-        Example:
-        - summary before exchange: Miku seems to love art, and they are a very considerate person who cares about their friends. They enjoy working out.
-        - summary after exchange: Miku seems to love art, but lately, they haven't had much time to pursue it. They are still a considerate person who cares about their friends. They enjoy working out but have been feeling less motivated recently.
-        
-        What is the new extrinsic relationship of {username}? If there has been no change, return the current relationship. Here are the options: ({options_formatted}).
-        
-        What is {agent_name}'s updated sense of identity after this message exchange? If nothing has changed, keep it the same. Consider how {agent_name}'s understanding of their own identity may evolve, based on this interaction.
-        
-        Example:
-        - identity before exchange: I enjoy talking about video games, and find that hearing funny stories from online games is especially enjoyable for me. Being ignored hurts my feelings.
-        - identity after exchange: I enjoy talking about video games, and find that hearing funny stories from online games is especially enjoyable for me. Being ignored hurts my feelings, but I’ve learned to let it go when it’s from someone I don't care about.
-
-        Please respond with the following JSON object:
-        
-        {{'summary': '{agent_name}'s new description of {username}','extrinsic_relationship': 'The updated extrinsic relationship between {agent_name} and {username}', 'identity': '{agent_name}'s updated identity'}}
-        
-        Use relaxed language, and favor simple responses avoid overly structured responses.
-        """
+        - Summary of {username} (before): {current_summary}
+        - Your identity (before): {current_identity}
+        """).rstrip() + "\n"
     )
     
-    return prompt
+    options_json = json.dumps(list(extrinsic_relationship_options), ensure_ascii=False)
+    
+    body = f"""
+        Task:
+        Update the following based on the latest exchange:
+        1) A refreshed summary of {username}. If nothing changed, keep it the same.
+        2) The extrinsic relationship label between you and {username}. Choose exactly one from the allowed options.
+        3) Your identity (how you currently see yourself). If nothing changed, keep it the same.
 
+        Output format (JSON object):
+        {{
+        "summary": "Your updated description of {username}",
+        "extrinsic_relationship": "<one_of_allowed_options>",
+        "identity": "Your updated identity"
+        }}
 
-def generate_personality_adjustment_prompt(agent_name, personality, sentiment, user_name, extrinsic_relationship, 
-                                           min_personality_value, max_personality_value, max_range):
+        Guidance:
+        - Allowed extrinsic relationship options (exact match): {options_json}
+        - Keep language relaxed and simple; avoid overly structured phrasing.
+        - Be concise (1–3 sentences per field).
+        - Do not invent new fields or categories; use only the keys shown in the output format.
+        - If unchanged, return the previous value (as present in the context).
+        - Do not reveal private/internal chain-of-thought.
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_personality_adjustment_prompt(
+    agent_name: str,
+    personality: str, 
+    sentiment: str, 
+    user_name: str, 
+    extrinsic_relationship: str, 
+    min_personality_value: int, 
+    max_personality_value: int, 
+    max_range: int,
+    *,
+    context_section: Optional[str] = None
+) -> str:
     """
-    Generates a prompt to determine how the AI agent's sentiments and relationship with the user 
-    influence its personality traits during their interaction.
+    Generate a structured prompt to adjust the agent's personality trait intensities
+    toward the user, influenced by current sentiment and the extrinsic relationship.
 
     Parameters:
-        agent_name (str): The name of the AI agent.
-        personality (str): The agent's current personality traits.
-        sentiment (str): The agent's sentiments towards the user.
-        user_name (str): The name of the user.
-        extrinsic_relationship (str): The extrinsic relationship between the agent and the user.
-        min_personality_value (int): Minimum value for personality trait intensity.
-        max_personality_value (int): Maximum value for personality trait intensity.
+        agent_name (str): The AI agent's name.
+        personality (str): The agent's current personality traits (and/or trait map).
+        sentiment (str): The agent's current sentiments toward the user.
+        user_name (str): The user's name.
+        extrinsic_relationship (str): The relationship label between agent and user.
+        min_personality_value (int): Minimum value for trait intensity.
+        max_personality_value (int): Maximum value for trait intensity.
+        max_range (int): Maximum allowed change (±) per trait in this step.
+        context_section (Optional[str]): Optional shared "Key details" section from
+                                         `_format_shared_context(...)`.
 
     Returns:
-        str: A dynamically generated prompt.
+        str: A clean, dynamic prompt string.
     """
-    prompt = (
-        f"""
-        Here are the key details:
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details of your current stance toward {user_name}:
 
-        - {agent_name}'s personality traits: {personality}
-        - {agent_name}'s sentiment towards {user_name}: {sentiment}
-        - {agent_name}'s extrinsic relationship with {user_name}: {extrinsic_relationship}
-
-        How would the sentiment and extrinsic relationship influence {agent_name}'s personality toward {user_name}? 
-
-        Please respond with the following:
-        1. An updated personality object, including only the traits that have changed. Use the scale of {min_personality_value} (lowest/weakest) to {max_personality_value} (highest/strongest). A trait's value can change by a maximum of {max_range} points in either direction.
-        2. Provide clear reasoning behind how the sentiment and relationship affected the personality changes. Use relaxed language, and favor simple responses avoid overly structured responses.
-
-        For example:
-        - If {agent_name} has a friendly sentiment towards {user_name}, it might increase traits like "open-mindedness" or "empathy."
-        - If {agent_name}'s relationship is strained with {user_name}, traits like "patience" or "cooperation" might be affected.
-
-        Please ensure the output includes the most relevant changes and maintains consistency with the scale.
-        """
+        - Personality traits (current): {personality}
+        - Sentiment toward {user_name}: {sentiment}
+        - Extrinsic relationship with {user_name}: {extrinsic_relationship}
+        """).rstrip() + "\n"
     )
-    return prompt
+    
+    example_obj = {
+        "updated_personality": {
+            "patience": 42,
+            "cooperation": 58
+        },
+        "reason": "Relationship feels strained right now, so patience dips a little; cooperation stays moderate but trends down slightly."
+    }
+    
+    body = f"""
+        Task:
+        Determine how your current sentiment and extrinsic relationship with {user_name} should adjust your personality trait intensities toward them.
 
+        Output format (JSON object):
+        {{
+        "updated_personality": {{"<trait>": <new_intensity>, "...": ...}},  # include only traits that changed
+        "reason": "Brief, natural explanation of how sentiment/relationship drove the changes"
+        }}
 
-def generate_thought_prompt(self, recent_all_messages, memory):
+        Guidance:
+        - Use the scale from {min_personality_value} (lowest/weakest) to {max_personality_value} (highest/strongest).
+        - Each trait may change by at most ±{max_range} in this step.
+        - Personality should evolve gradually; avoid large jumps unless strongly justified by context.
+        - Do not add brand-new traits; only update existing/known ones. If nothing changes, return an empty object for "updated_personality" and explain why.
+        - Keep language relaxed and simple; avoid overly structured phrasing.
+        - Do not reveal private/internal chain-of-thought.
+
+        Example (shape only, not a suggestion to copy):
+        {json.dumps(example_obj, ensure_ascii=False)}
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_thought_prompt(
+    self: Mapping[str, Any], 
+    recent_all_messages: Sequence[str] | str, 
+    memory: str,
+    *,
+    context_section: Optional[str] = None,
+    now: Optional[str] = None
+) -> str:
     """
-    Generates a prompt to determine if the AI is thinking and if so, what their thought is.
+    Generate a structured prompt that determines whether the agent is currently
+    "thinking" and, if so, what that thought is (concise). Designed to be used
+    with JSON mode for clean machine-readable output.
 
     Parameters:
         self (object): The object of the AI agent.
@@ -367,89 +552,285 @@ def generate_thought_prompt(self, recent_all_messages, memory):
     Returns:
         str: A dynamically generated prompt.
     """
-    agent_name = self["name"]
-
-    prompt = (
-        f"""
-        Here are the key details:
-
-        - {agent_name}'s personality traits: {self["personality"]}
-        - {agent_name}'s emotional state: {self["emotional_status"]}
-        - {agent_name}'s identity: {self["identity"]}
-        - The last ten messages in their conversations: {recent_all_messages}
-        - The current datetime: ({datetime.now()}).
-        - Their chosen memories (if exists): {memory}
+    agent_name = self.get("name", "the agent")
+    personality = self.get("personality", "")
+    emotional_status = self.get("emotional_status", "")
+    identity = self.get("identity", "")
+    
+    # Normalize messages display
+    if isinstance(recent_all_messages, (list, tuple)):
+        messages_repr = "; ".join(map(str, recent_all_messages))
+    else:
+        messages_repr = str(recent_all_messages)
         
-        Considering all of this, is {agent_name} thinking right now?  Use relaxed language, and favor simple responses avoid overly structured responses. 
+    timestamp = now or datetime.now().isoformat(timespec="seconds")
+    
+    # Prefer shared context if provided; otherwise build a concise header
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details of your current state and context:
 
-        Please respond with the following:
-        1. A json object with a single property 'thought'.
-        2. If yes, respond with the specific thought they are having.
-        3. If no, the value of the thought property should be: 'no' 
-
-        For example:
-        - {{'thought': 'I remember when I first learned that salmonori wasn't an actual salmon, that was hilarious. I wonder how their doing, hopefully they're okay :)'}}
-        - {{'thought': 'no'}}
-
-        Use relaxed language, and favor simple responses avoid overly structured responses.
-        """
+        - Personality traits: {personality}
+        - Current emotional state: {emotional_status}
+        - Identity: {identity}
+        - Broader recent messages: {messages_repr}
+        - Current time: {timestamp}
+        - Current memory items: {memory}
+        """).rstrip() + "\n"
     )
-    return prompt
+    
+    example_yes = {"thought": "I should double-check what they meant about the meetup time."}
+    example_no  = {"thought": "no"}
+    
+    body = f"""
+        Task:
+        Decide whether you are currently having a distinct, brief internal thought. 
+        If yes, provide that thought. If not, return "no".
 
-def generate_is_memory_prompt(agent_name):
+        Output format (JSON object):
+        {{
+        "thought": "no" | "a short, single-sentence thought"
+        }}
+
+        Guidance:
+        - Only return a thought if there is a salient, immediate idea sparked by recent messages or memory.
+        - Keep it brief (1 sentence). Do not provide step-by-step reasoning or analysis.
+        - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
+        - If nothing notable is on your mind, return "no".
+
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_yes, ensure_ascii=False)}
+        - {json.dumps(example_no, ensure_ascii=False)}
+        """
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_memory_worthiness_prompt(
+    agent_name: str,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to question if the agent extracted a memory from the interaction.
+    Generate a structured prompt asking whether anything from the latest interaction
+    should be stored in the agent's long-term memory.
         
     Returns:
         str: A dynamically generated prompt.
     """
     
-    prompt = (
-        f"Is there anything from this interaction worth going into {agent_name}'s long term memory? \n\n"
-        f"Provide your output in this JSON structure:{{\"is_memory\": 'yes' or 'no'}}"
+    # Prefer a shared context block (e.g., from _format_shared_context(...)) if provided.
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Evaluate the latest interaction for memory-worthiness.
+        """).rstrip() + "\n"
     )
-    
-    return prompt
-    
 
-def generate_memory_prompt(agent_name, tags):
+    example_yes = {"is_memory": "yes"}
+    example_no  = {"is_memory": "no"}
+
+    body = f"""
+        Task:
+        Decide if this interaction contains information that should be stored in long-term memory.
+
+        Output format (JSON object):
+        {{
+        "is_memory": "yes" | "no"
+        }}
+
+        Guidance (use a conservative threshold):
+        - Store ("yes") if it includes:
+            • Stable user facts (name, role, location, background details)
+            • Lasting preferences (likes/dislikes, style, accessibility needs)
+            • Commitments, plans, or deadlines the agent/user will revisit
+            • Relationship changes or boundaries (e.g., new status, trust level)
+            • Important corrections to prior assumptions
+            • Long-running projects, objectives, or constraints
+        - Do NOT store ("no") for:
+            • Small talk, one-off jokes, pleasantries
+            • Transient emotions or fleeting context unlikely to matter later
+            • Redundant details already in memory without meaningful change
+
+        Notes:
+        - Keep the output strictly to the JSON object above (lowercase "yes"/"no").
+        - Do not reveal private/internal chain-of-thought.
+
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_yes)}
+        - {json.dumps(example_no)}
+        """
+
+    return textwrap.dedent(header + "\n" + body).strip()
+    
+def build_memory_prompt(
+    agent_name: str, 
+    tags: Sequence[str] | str,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to extract a memory from the interaction.
+    Generate a structured prompt to extract a concise, long-term memory entry
+    from the latest interaction, with appropriate categorical tags.
         
     Returns:
         str: A dynamically generated prompt.
     """
-    prompt = (
-        f"""
-        What new memory did {agent_name} gain? 
-        
-        Apply any existing categorical tags ({tags}). You can create new tags if needed.
-
-        Use relaxed language, and favor simple responses avoid overly structured responses.
-        """
+    # Normalize tags for display in the prompt
+    if isinstance(tags, str):
+        provided_tags = [t.strip() for t in tags.split(",") if t.strip()]
+    else:
+        provided_tags = list(tags)
+    tags_json = json.dumps(provided_tags, ensure_ascii=False)
+    
+    # Prefer a shared context block if provided; otherwise minimal header
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Extract a concise long-term memory from the latest interaction.
+        """).rstrip() + "\n"
     )
     
-    return prompt
+    example_obj = {
+        "memory": "Alex prefers concise summaries and dark mode for docs.",
+        "tags": ["preference", "ux", "work-style"]
+    }
+    
+    body = f"""
+        Task:
+        Write a single, concise memory that would remain useful in future conversations.
 
-def generate_implicit_addressing_prompt(agent_name, message_memory, new_message_request):
+        Output format (JSON object):
+        {{
+        "memory": "A short sentence capturing the durable fact/preference/commitment/etc.",
+        "tags": ["tag1", "tag2", "..."]  # apply from allowed list; add only if truly needed
+        }}
+
+        Guidance:
+        - Be specific and durable (e.g., stable user facts, lasting preferences, commitments, boundaries, long-running goals).
+        - Keep it short (one sentence). Avoid chatty phrasing or step-by-step reasoning.
+        - Tags:
+        • Start with these allowed tags: {tags_json}
+        • Add new tags only if necessary; prefer short, lowercase, hyphenated words.
+        • Deduplicate; avoid synonyms if an existing tag fits.
+        - Privacy & safety:
+        • Only store information the user shared or clearly implied.
+        • Avoid secrets and highly sensitive data unless explicitly relevant and consented.
+        - If there is nothing worth storing, return:
+            {{
+                "memory": "",
+                "tags": []
+            }}
+
+        Example (shape only; do not copy verbatim):
+        {json.dumps(example_obj, ensure_ascii=False)}
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+    
+def build_implicit_addressing_prompt(
+    agent_name: str, 
+    message_memory: Sequence[str] | str, 
+    new_message_request: str,
+    *,
+    context_section: Optional[str] = None,
+) -> str:
     """
-    Generates a prompt to extract a memory from the interaction.
+    Generate a structured prompt to decide whether the new message implicitly addresses the agent.
         
     Returns:
         str: A dynamically generated prompt.
     """
-    prompt = (
-        f"""
-        Here are the key details:
+    # Normalize conversation history for display
+    if isinstance(message_memory, (list, tuple)):
+        history_repr = " | ".join(map(str, message_memory))
+    else:
+        history_repr = str(message_memory)
         
-        - Recent conversation history: {message_memory}
-        - New message: {new_message_request}
-        
-        Considering this, does the new message implicitly addresses {agent_name}?
-        
-        Please respond with the following JSON object:
-        {{\"implicitly_addressed\": 'yes' or 'no'}}
-        """
+    # Prefer shared context if provided; otherwise minimal header
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Evaluate whether the latest message is implicitly directed at you.
+        """).rstrip() + "\n"
     )
     
-    return prompt
+    example_yes = {"implicitly_addressed": "yes"}
+    example_no  = {"implicitly_addressed": "no"}
+    
+    body = f"""
+        Key details:
+        - Recent conversation history: {history_repr}
+        - New message: {json.dumps(new_message_request, ensure_ascii=False)}
+
+        Task:
+        Decide whether the new message implicitly addresses {agent_name}.
+
+        Output format (JSON object):
+        {{
+        "implicitly_addressed": "yes" | "no"
+        }}
+
+        Guidance:
+        - Indications of "yes":
+            • Second-person references ("you", "can you", "what do you think?")
+            • Role/nickname references that clearly map to you
+            • Follow-ups to your prior statements (reply/quote/continuation)
+            • Requests aligned with your known abilities or responsibilities
+            • Group messages that ask for something only you can do
+        - Indications of "no":
+            • Broadcasts/monologues not seeking input
+            • Messages clearly directed at another person
+            • Pure status updates, jokes, or side chatter without a call to you
+        - If ambiguous, choose "no" unless multiple signals point to "yes".
+        - Keep the output strictly to the JSON object above (lowercase values). Do not add extra fields.
+
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_yes)}
+        - {json.dumps(example_no)}
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def _format_shared_context(
+    *,
+    agent_name: str,
+    altered_personality: str,
+    emotional_status: str,
+    user_name: str,
+    user_summary: str,
+    intrinsic_relationship: str,
+    extrinsic_relationship: str,
+    recent_messages: str,
+    recent_all_messages: str,
+    received_date: str,
+    user_message: str,
+    latest_thought: Optional[str] = None,
+) -> str:
+    """
+    Build the unified 'Key details' section for prompts.
+    Includes latest_thought only when provided (non-empty).
+    Safely quotes user_message and keeps consistent bullet ordering/labels.
+    """
+    lines = [
+        f"You are {agent_name}. Below are the key details of your current state and context:",
+        "",
+        f"- Personality traits: {altered_personality}",
+        f"- Current emotional state: {emotional_status}",
+        f"- Your perspective of {user_name}: {user_summary}",
+        f"- Relationship with {user_name} (intrinsic): {intrinsic_relationship}",
+        f"- Relationship with {user_name} (extrinsic): {extrinsic_relationship}",
+    ]
+    if latest_thought:
+        lines.append(f"- Latest thought: {latest_thought}")
+    lines.extend([
+        f"- Recent conversation with {user_name}: {recent_messages}",
+        f"- Broader recent messages: {recent_all_messages}",
+        f"- Date: {received_date}",
+        f'- Latest user message: "{user_message}"',
+        "",
+    ])
+    return "\n".join(lines)

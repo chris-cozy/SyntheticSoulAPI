@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION
+from typing import Any
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -303,6 +304,21 @@ async def insert_message_to_memory(agent_name, message_request):
         message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
     except Exception as e:
         print(e)
+        
+async def insert_message_to_conversation(
+    username: str,
+    agent_name: str,
+    message: dict[str, Any]
+) -> None:
+    try:
+        db = get_database()
+        conversation_collection = db[CONVERSATION_COLLECTION]
+        await conversation_collection.update_one(
+        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+        { "$push": {"messages": message }})
+    except Exception as e:
+        print(e)
+        
         
 async def insert_agent_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
     """Inserts a new general memory

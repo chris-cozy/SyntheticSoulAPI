@@ -694,9 +694,10 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         "sender": username,
         "from_agent": False
     }
-    print("INCOMING MESSAGE")
-    print(incoming_message)
-    conversation["messages"].append(incoming_message)
+    
+    await db[CONVERSATION_COLLECTION].update_one(
+        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+        { "$push": {"messages": incoming_message }})
 
 
     if response_choice["response_choice"] == RESPOND_CHOICE:
@@ -708,10 +709,10 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
             "sender": agent_name,
             "from_agent": True
         }
-    
-        print("OUTGOING MESSAGE")
-        print(outgoing_message)
-        conversation["messages"].append(outgoing_message)
+        
+        await db[CONVERSATION_COLLECTION].update_one(
+        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+        { "$push": {"messages": outgoing_message }})
         
         # Add to message collection
         new_message_response = {
@@ -724,9 +725,9 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         
     print(conversation["messages"])
     
-    db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": current_emotions }})
-    db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: username, "agent_name": agent_name}, { "$set": {"messages": conversation["messages"] }})
-    user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": current_sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
+    await db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": current_emotions }})
+    
+    await user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": current_sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
             
 async def alter_personality(self, user, lite_mode):
     """

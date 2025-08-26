@@ -10,7 +10,7 @@ client = openai.OpenAI()
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-async def get_structured_query_response(messages, schema):
+async def get_structured_response(messages, schema):
     """
     Queries the OpenAI API to receive a structured response.
 
@@ -27,7 +27,6 @@ async def get_structured_query_response(messages, schema):
 
         content_json = response.choices[0].message.content
         parsed_content = json.loads(content_json)
-        print('############################################')
         print(parsed_content) 
                
         return parsed_content

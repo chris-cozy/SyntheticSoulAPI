@@ -4,7 +4,7 @@ USER_LITE_VALIDATOR = {
     "bsonType": "object",
     "required": [
       "username",
-      "agent_perspective"
+      "agent_perspective",
       "summary",
       "intrinsic_relationship",
       "extrinsic_relationship",
@@ -28,7 +28,7 @@ USER_LITE_VALIDATOR = {
       "intrinsic_relationship": {
         "bsonType": "string",
         "enum": [
-          "creator and master",
+          "creator",
           "brother",
           "sister",
           "mother",

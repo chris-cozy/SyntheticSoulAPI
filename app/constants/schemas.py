@@ -559,7 +559,7 @@ def get_emotion_status_schema():
                                     },
                                 },
                             },
-                            "embarassment": {
+                            "embarrassment": {
                                 "description": f"The intensity with which they are feeling self-conscious or uncomfortable. Scale: {MIN_EMOTION_VALUE} (no embarrassment) to {MAX_EMOTION_VALUE} (deeply embarrassed)",
                                 "type": "object",
                                 "properties": {

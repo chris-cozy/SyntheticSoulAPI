@@ -694,7 +694,8 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         "sender": username,
         "from_agent": False
     }
-
+    print("INCOMING MESSAGE")
+    print(incoming_message)
     conversation["messages"].append(incoming_message)
 
 
@@ -708,6 +709,8 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
             "from_agent": True
         }
     
+        print("OUTGOING MESSAGE")
+        print(outgoing_message)
         conversation["messages"].append(outgoing_message)
         
         # Add to message collection

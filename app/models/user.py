@@ -22,7 +22,7 @@ USER_VALIDATOR = {
       "intrinsic_relationship": {
         "bsonType": "string",
         "enum": [
-          "creator and master",
+          "creator",
           "brother",
           "sister",
           "mother",

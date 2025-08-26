@@ -721,8 +721,8 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
         }
 
         await insert_message_to_memory(agent_name, new_message_response)
-
-    
+        
+    print(conversation["messages"])
     
     db[AGENT_LITE_COLLECTION].update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": current_emotions }})
     db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: username, "agent_name": agent_name}, { "$set": {"messages": conversation["messages"] }})

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.constants.schemas import get_thought_schema
 from app.models.request import MessageRequest, MessageResponse
 from app.services.brain_service import periodic_thinking, handle_message
-from app.services.openai_service import get_structured_query_response
+from app.services.openai_service import get_structured_response
 from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps
 from dotenv import load_dotenv
@@ -14,6 +14,8 @@ import asyncio
 from app.services.util_service import start_emotion_decay
 
 load_dotenv()
+
+API_VERSION = "1.0.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,7 +44,7 @@ ALLOWED_ORIGINS = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,           # do NOT use "*" if you send cookies/Authorization
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,                  # set to True only if you send cookies/Authorization
     allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
     allow_headers=["Content-Type","Authorization"],  # add any custom headers you use
@@ -52,7 +54,7 @@ app.add_middleware(
 @app.get("/")
 async def root():
     try:
-        response = await get_structured_query_response([{"role": "user", "content": "Please give me a random thought."}], get_thought_schema())
+        response = await get_structured_response([{"role": "user", "content": "Please give me a random thought."}], get_thought_schema())
         return {'message': response["thought"]}
     except Exception as e:
         print(f"Error in root endpoint: {e}")

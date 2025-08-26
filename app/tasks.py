@@ -4,7 +4,7 @@ import json
 import redis
 from rq import get_current_job
 from typing import Dict, Any
-
+from app.services.data_service import db_client, init_db
 from app.models.request import MessageRequest
 from app.services.brain_service import handle_message  # your existing async function
 
@@ -32,9 +32,15 @@ def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
 
     # Build your Pydantic input from dict (mirrors your current endpoint)
     message_req = MessageRequest(**request_payload)
+    
+    async def _run():
+        # Ensure DB is ready on THIS loop before any DB calls
+        if db_client is None:
+            await init_db()
+        return await handle_message(message_req)
 
     # Run the async function in a private event loop
-    result = asyncio.run(handle_message(message_req))
+    result = asyncio.run(_run())
 
     # --- progress 100% ---
     job.meta["progress"] = 100

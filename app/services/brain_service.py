@@ -701,7 +701,8 @@ async def process_remaining_steps(
         "from_agent": False
     }
     await insert_message_to_conversation(username, agent_name, incoming_message)
-
+    
+    print(response_choice)
     if response_choice["response_choice"] == RESPOND_CHOICE:
         outgoing_message = {
             "message": response_content["message"],

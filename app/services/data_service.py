@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 from typing import Any
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -32,7 +32,7 @@ async def init_db():
     print(f"Connected to MongoDB at {mongo_uri}")
     await initialize_collections()
 
-def get_database():
+async def get_database():
     """Grabs the database
 
     Raises:
@@ -42,13 +42,13 @@ def get_database():
         AsyncIOMotorDatabase: The database
     """
     if db_client is None:
-        raise RuntimeError("Error - get_database: db_client is not initialized. Call `init_db()` first.")
+        await init_db()
     return db_client.get_database(os.getenv("DATABASE_NAME"))
 
 async def initialize_collections():
     """Initializes the collections if they don't already exist
     """
-    db = get_database()
+    db = await get_database()
 
     # Conversation
     try:
@@ -97,7 +97,7 @@ async def grab_user(username, agent_name, lite_mode=True):
     :param author_name: Username of the user
     :return: User object
     """
-    db = get_database()
+    db = await get_database()
     if (lite_mode):
         user_lite_collection = db[USER_LITE_COLLECTION]
 
@@ -162,7 +162,7 @@ async def grab_self(agent_name, lite_mode=True):
     :param agent_name: Name of the bot
     :return: Self object
     """
-    db = get_database()
+    db = await get_database()
     if(lite_mode):
         agent_lite_collection = db[AGENT_LITE_COLLECTION]
 
@@ -219,7 +219,7 @@ async def get_conversation(username, agent_name):
     :param agent_name: name of the agent
     :return: Conversation object
     """
-    db = get_database()
+    db = await get_database()
     conversations_collection = db["conversation"]
 
     user_conversation = await conversations_collection.find_one({"username": username, "agent_name": agent_name})
@@ -260,7 +260,7 @@ async def get_message_memory(agent_name, count):
     :return: List of messages
     """
     try:
-        db = get_database()
+        db = await get_database()
         message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
         message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
 
@@ -287,7 +287,7 @@ async def insert_message_to_memory(agent_name, message_request):
         message_request (MessageRequest): The message to insert
     """
     try:
-        db = get_database()
+        db = await get_database()
         message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
         message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
 
@@ -311,7 +311,7 @@ async def insert_message_to_conversation(
     message: dict[str, Any]
 ) -> None:
     try:
-        db = get_database()
+        db = await get_database()
         conversation_collection = db[CONVERSATION_COLLECTION]
         await conversation_collection.update_one(
         {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
@@ -333,7 +333,7 @@ async def insert_agent_memory(agent_name, event, thoughts, significance, emotion
         tags (array): Array of string tags
     """
     try:
-        db = get_database()
+        db = await get_database()
         if(lite_mode):
             agent_lite_collection = db[AGENT_LITE_COLLECTION]
 
@@ -378,7 +378,7 @@ async def update_summary_identity_relationship(agent_name, username, summary, ex
         identity (string): The updated identity
     """
     try:
-        db = get_database()
+        db = await get_database()
         if(lite_mode):
             agent_lite_collection = db[AGENT_LITE_COLLECTION]
             user_lite_collection = db[USER_LITE_COLLECTION]
@@ -387,7 +387,24 @@ async def update_summary_identity_relationship(agent_name, username, summary, ex
             user_lite_collection.update_one({"username": username, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
     except Exception as e:
         print(e)
+        
+async def update_agent_emotions(agent_name, emotions, lite_mode=True):
+    try:
+        db = await get_database()
+        if(lite_mode):
+            agent_lite_collection = db[AGENT_LITE_COLLECTION]
+            agent_lite_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": emotions }})
     
-            
+    except Exception as e:
+        print(e)
+        
+async def update_user_sentiment(username, sentiments, lite_mode=True):
+    try:
+        db = await get_database()
+        if(lite_mode):
+            user_lite_collection = db[USER_LITE_COLLECTION]
+            user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
+    except Exception as e:
+        print(e)
         
         

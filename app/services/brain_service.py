@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 from fastapi import HTTPException
-from typing import Dict, Any
+from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, get_thought_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
@@ -345,55 +345,42 @@ async def process_message_lite(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
-            # Retrieve past messages received from anyone
-            message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
-            
-            # Build new message request
-            new_message_request = {
-            "message": request.message,
-            "sender": request.username,
-            "timestamp": datetime.now()
-            }
-
-            # Add message request to all messages received list
-            await insert_message_to_memory(agent_name, new_message_request)
-            
-            
             db = get_database()
-            
             user_lite_collection = db[USER_LITE_COLLECTION]
+            received_date = datetime.now() 
             username = request.username
-
-            # Re-getting the message memory??
-            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             
-            # Retrieve user, agent, and conversation between the two
             self = await grab_self(agent_name)  
             user = await grab_user(username, agent_name)
             conversation = await get_conversation(username, agent_name)
+
+            new_message_request = {
+            "message": request.message,
+            "sender": username,
+            "timestamp": received_date
+            }
+            
+            # Retrieve past messages received from anyone
+            general_message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+            
+            # Add message request to all messages received list
+            await insert_message_to_memory(agent_name, new_message_request)
+            
+            recent_all_messages = general_message_memory.append(new_message_request)
+            
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
-            
-            # Rewrite messages in concise format
-            recent_messages_formatted = []
-            for message in recent_messages:
-                recent_messages_formatted.append({'message': message['message'], 'sender': message['sender'], 'timestamp': message['timestamp']})
-            recent_messages = recent_messages_formatted
-            print(recent_messages)
-            
-            # Set current datetime
-            received_date = datetime.now() 
+            print('RECENT MESSAGES: ' + recent_messages)
             
             # If multi-user conversation
             if (request.type == GC_TYPE):
 
-                implicit_addressing_query = {
+                implicit_addressing_result = await get_structured_response([{
                     "role": USER_ROLE,
                     "content": (
-                        build_implicit_addressing_prompt(agent_name, message_memory, new_message_request)
+                        build_implicit_addressing_prompt(agent_name, general_message_memory, new_message_request)
                     )
-                }
-
-                implicit_addressing_result = await get_structured_response([implicit_addressing_query], implicitly_addressed_schema())
+                }], implicitly_addressed_schema())
+                
                 if not implicit_addressing_result:
                     raise HTTPException(status_code=500, detail="Error - check_implicit_addressing")
                 
@@ -520,14 +507,12 @@ async def process_message_lite(request: MessageRequest):
                 })
         
             # Step 7: Determine whether to respond: CLEAR
-            response_choice_query = {
+            message_queries.append({
                 "role": "user",
                 "content": (
                     build_response_choice_prompt(agent_name, username)
                 ),
-            }
-            
-            message_queries.append(response_choice_query)
+            })
 
             response_choice = await get_structured_response(message_queries, get_response_choice_schema())
 
@@ -540,16 +525,14 @@ async def process_message_lite(request: MessageRequest):
                 })
             
             if response_choice["response_choice"] == RESPOND_CHOICE:
-                #Step 8: Generate a response: CLEAR
                 memory = get_random_memories(self)
-                response_query = {
+
+                message_queries.append({
                     "role": USER_ROLE,
                     "content": (
                         build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
                     ),
-                }
-
-                message_queries.append(response_query)
+                })
                 response_content = await get_structured_response(message_queries, get_message_schema())
 
                 if not response_content:
@@ -623,16 +606,39 @@ async def process_message_lite(request: MessageRequest):
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
                       
-async def process_remaining_steps(agent_name, username, db, user, self, conversation, altered_personality, 
-                current_emotions, message_analysis, response_choice, received_date, message_queries, user_lite_collection, response_content=None):
-    # Step 10: Sentiment Reflection: CLEAR
-    sentiment_query = {
+async def process_remaining_steps(
+    agent_name: str, 
+    username: str, 
+    db, 
+    user: Mapping[str, Any], 
+    self: Mapping[str, Any], 
+    conversation: Mapping[str, Any], 
+    altered_personality: Mapping[str, Any], 
+    current_emotions: Mapping[str, Any], 
+    message_analysis: Mapping[str, Any], 
+    response_choice: Mapping[str, Any], 
+    received_date: datetime, 
+    message_queries: List[Dict[str, Any]], 
+    user_lite_collection, 
+    response_content: Optional[Mapping[str, Any]] = None,
+) -> None:
+    """
+    Post-response pipeline:
+      1) Reflect on sentiment, merge into user sentiment_status.
+      2) Update summary/identity/extrinsic relationships.
+      3) Decide memory worthiness and (optionally) write memory.
+      4) Persist conversation messages.
+      5) Update emotional_status and user document.
+    Returns a summary of changes (for logging/metrics).
+    Raises HTTPException(500) on critical failures.
+    """
+    # ---- 1) Sentiment reflection -------------------------------------------
+    message_queries.append({
                 "role": USER_ROLE,
                 "content": (
                     build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
                 ),
-            }
-    message_queries.append(sentiment_query)
+            })
     
     sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
 
@@ -645,26 +651,24 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
             })
             
     current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
-
-    post_response_processing_query = {
+    
+    # ---- 2) Post-response processing (summary/identity/relationships) ------
+    message_queries.append({
         "role": USER_ROLE,
         "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
-    }
-    
-    message_queries.append(post_response_processing_query)
+    })
     
     post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
     
     await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
-    
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     
-    is_memory_query = {
+    # ---- 3) Memory worthiness ----------------------------------------------
+    message_queries.append({
         "role": USER_ROLE,
         "content": (build_memory_worthiness_prompt(agent_name))
-    }
-    message_queries.append(is_memory_query)
+    })
     
     is_memory_response = await get_structured_response(message_queries, is_memory_schema())
     
@@ -677,13 +681,14 @@ async def process_remaining_steps(agent_name, username, db, user, self, conversa
     })
     
     if (is_memory_response["is_memory"] == "yes"):
-        message_queries.append({"role": USER_ROLE, "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])})
+        message_queries.append({
+            "role": USER_ROLE, 
+            "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
+        })
         check_for_memory_response = await check_for_memory(message_queries)
         function = eval(check_for_memory_response.function_call.name)
         params = json.loads(check_for_memory_response.function_call.arguments)
         await function(**params)
-    
-    # Check if exchange altered current thought
     
     # Update and Save Conversation
     incoming_message = {

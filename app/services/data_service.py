@@ -316,6 +316,7 @@ async def insert_message_to_conversation(
         await conversation_collection.update_one(
         {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
         { "$push": {"messages": message }})
+        print('CONVERSATION UPDATED')
     except Exception as e:
         print(e)
         

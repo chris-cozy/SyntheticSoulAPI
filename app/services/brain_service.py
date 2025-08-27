@@ -369,7 +369,8 @@ async def process_message_lite(request: MessageRequest):
             recent_all_messages = general_message_memory.append(new_message_request)
             
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
-            print('RECENT MESSAGES: ' + recent_messages)
+            print('RECENT MESSAGES')
+            print(recent_messages)
             
             # If multi-user conversation
             if (request.type == GC_TYPE):

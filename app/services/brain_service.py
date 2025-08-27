@@ -11,7 +11,7 @@ from app.models.request import MessageRequest, MessageResponse
 from app.services.deepseek_service import get_structured_query_reasoning_response
 from app.services.openai_service import check_for_memory, get_structured_response
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
 from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, insert_agent_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
 
@@ -46,7 +46,7 @@ async def process_message(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
-            db = get_database()
+            db = await get_database()
 
             # Step 1: Fetch user and self objects: CLEAR
             self = await grab_self(os.getenv("BOT_NAME"), False)
@@ -345,8 +345,6 @@ async def process_message_lite(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
-            db = get_database()
-            user_lite_collection = db[USER_LITE_COLLECTION]
             received_date = datetime.now() 
             username = request.username
             
@@ -461,8 +459,8 @@ async def process_message_lite(request: MessageRequest):
                         
                     asyncio.create_task(
                 process_remaining_steps(
-                agent_name, username, db, user, self, conversation, self['personality'], 
-                current_emotions, message_analysis, response_choice, received_date, message_queries, user_lite_collection, response_content
+                agent_name, username, user, self, conversation, self['personality'], 
+                current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
                 )
             )
                         
@@ -596,8 +594,8 @@ async def process_message_lite(request: MessageRequest):
             
             asyncio.create_task(
                 process_remaining_steps(
-                agent_name, username, db, user, self, conversation, altered_personality, 
-                current_emotions, message_analysis, response_choice, received_date, message_queries, user_lite_collection, response_content
+                agent_name, username, user, self, conversation, altered_personality, 
+                current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
                 )
             )
             
@@ -610,7 +608,6 @@ async def process_message_lite(request: MessageRequest):
 async def process_remaining_steps(
     agent_name: str, 
     username: str, 
-    db, 
     user: Mapping[str, Any], 
     self: Mapping[str, Any], 
     conversation: Mapping[str, Any], 
@@ -619,8 +616,7 @@ async def process_remaining_steps(
     message_analysis: Mapping[str, Any], 
     response_choice: Mapping[str, Any], 
     received_date: datetime, 
-    message_queries: List[Dict[str, Any]], 
-    user_lite_collection, 
+    message_queries: List[Dict[str, Any]],  
     response_content: Optional[Mapping[str, Any]] = None,
 ) -> None:
     """
@@ -789,7 +785,7 @@ async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
     """
-    db = get_database()
+    db = await get_database()
 
     # Step 1: Fetch self object
     recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)

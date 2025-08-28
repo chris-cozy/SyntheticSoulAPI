@@ -4,9 +4,8 @@ import json
 import redis
 from rq import get_current_job
 from typing import Dict, Any
-from app.services.data_service import db_client, init_db
 from app.models.request import MessageRequest
-from app.services.brain_service import handle_message  # your existing async function
+from app.services.message_processor_lite import process_message
 
 def _publish_progress(job_id: str, progress: int) -> None:
     """
@@ -34,10 +33,7 @@ def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
     message_req = MessageRequest(**request_payload)
     
     async def _run():
-        # Ensure DB is ready on THIS loop before any DB calls
-        if db_client is None:
-            await init_db()
-        return await handle_message(message_req)
+        return await process_message(message_req)
 
     # Run the async function in a private event loop
     result = asyncio.run(_run())

@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.constants.schemas import get_thought_schema
-from app.models.request import MessageRequest, MessageResponse
-from app.services.brain_service import periodic_thinking, handle_message
+from app.models.request import MessageRequest
+from app.services.thinking import periodic_thinking
 from app.services.openai_service import get_structured_response
 from app.services.data_service import get_all_agents, init_db, db_client
 from bson.json_util import dumps

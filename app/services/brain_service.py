@@ -592,12 +592,114 @@ async def process_message_lite(request: MessageRequest):
             # Return the response to the user
             messageResponse = MessageResponse(response=agent_response_message)
             
+            # ---- 0) Save Messages -------------------------------------------
+            await insert_message_to_conversation(
+                username, 
+                agent_name, 
+                {
+                    "message": message_analysis["message"],
+                    "purpose": message_analysis["purpose"],
+                    "tone": message_analysis["tone"],
+                    "timestamp": received_date,
+                    "sender": username,
+                    "from_agent": False
+                }
+            )
+            
+            print(response_choice)
+            if response_choice["response_choice"] == RESPOND_CHOICE:
+                await insert_message_to_conversation(
+                    username, 
+                    agent_name, 
+                    {
+                        "message": response_content["message"],
+                        "purpose": response_content["purpose"],
+                        "tone": response_content["tone"],
+                        "timestamp": datetime.now(),
+                        "sender": agent_name,
+                        "from_agent": True
+                    }
+                )
+                
+                await insert_message_to_memory(
+                    agent_name, 
+                    {
+                    "message": response_content["message"],
+                    "sender": agent_name,
+                    "timestamp": datetime.now()
+                    }
+                )
+            
+            # ---- 1) Sentiment reflection -------------------------------------------
+            message_queries.append({
+                        "role": USER_ROLE,
+                        "content": (
+                            build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
+                        ),
+                    })
+            
+            sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
+
+            if not sentiment_response:
+                raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on sentiment")
+            
+            message_queries.append({
+                        "role": BOT_ROLE,
+                        "content": json.dumps(sentiment_response),
+                    })
+                    
+            current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
+            
+            # ---- 2) Post-response processing (summary/identity/relationships) ------
+            message_queries.append({
+                "role": USER_ROLE,
+                "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
+            })
+            
+            post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
+            
+            await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+
+            message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
+            
+            # ---- 3) Memory worthiness ----------------------------------------------
+            message_queries.append({
+                "role": USER_ROLE,
+                "content": (build_memory_worthiness_prompt(agent_name))
+            })
+            
+            is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+            
+            if not is_memory_response:
+                raise HTTPException(status_code=500, detail="Error - process_message_lite: determining if memory will be extracted")
+            
+            message_queries.append({
+                "role": BOT_ROLE,
+                "content": json.dumps(is_memory_response)
+            })
+            
+            if (is_memory_response["is_memory"] == "yes"):
+                message_queries.append({
+                    "role": USER_ROLE, 
+                    "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
+                })
+                check_for_memory_response = await check_for_memory(message_queries)
+                function = eval(check_for_memory_response.function_call.name)
+                params = json.loads(check_for_memory_response.function_call.arguments)
+                await function(**params)
+            
+            await update_agent_emotions(agent_name, current_emotions)
+            
+            await update_user_sentiment(username, current_sentiments)
+            
+            '''
             asyncio.create_task(
                 process_remaining_steps(
                 agent_name, username, user, self, 
                 current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
                 )
             )
+            '''
             
             return messageResponse
             

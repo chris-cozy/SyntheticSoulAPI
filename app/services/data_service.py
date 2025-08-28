@@ -316,7 +316,17 @@ async def insert_message_to_conversation(
         await conversation_collection.update_one(
         {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
         { "$push": {"messages": message }})
-        print('CONVERSATION UPDATED')
+    except Exception as e:
+        print(e)
+        
+async def add_thought(
+    agent_name: str,
+    thought: dict[str, Any]
+) -> None:
+    try:
+        db = await get_database()
+        thought_collection = db[AGENT_LITE_COLLECTION]
+        await thought_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$push": {"thoughts": thought}})
     except Exception as e:
         print(e)
         

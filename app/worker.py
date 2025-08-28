@@ -4,7 +4,6 @@ import redis
 import ssl
 from rq import Worker, Queue, Connection
 from dotenv import load_dotenv
-from app.services.data_service import init_db
 
 load_dotenv()
 

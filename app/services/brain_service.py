@@ -459,7 +459,7 @@ async def process_message_lite(request: MessageRequest):
                         
                     asyncio.create_task(
                 process_remaining_steps(
-                agent_name, username, user, self, conversation, self['personality'], 
+                agent_name, username, user, self, 
                 current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
                 )
             )
@@ -594,7 +594,7 @@ async def process_message_lite(request: MessageRequest):
             
             asyncio.create_task(
                 process_remaining_steps(
-                agent_name, username, user, self, conversation, altered_personality, 
+                agent_name, username, user, self, 
                 current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
                 )
             )
@@ -610,8 +610,6 @@ async def process_remaining_steps(
     username: str, 
     user: Mapping[str, Any], 
     self: Mapping[str, Any], 
-    conversation: Mapping[str, Any], 
-    altered_personality: Mapping[str, Any], 
     current_emotions: Mapping[str, Any], 
     message_analysis: Mapping[str, Any], 
     response_choice: Mapping[str, Any], 
@@ -629,6 +627,44 @@ async def process_remaining_steps(
     Returns a summary of changes (for logging/metrics).
     Raises HTTPException(500) on critical failures.
     """
+    # ---- 0) Save Messages -------------------------------------------
+    await insert_message_to_conversation(
+        username, 
+        agent_name, 
+        {
+            "message": message_analysis["message"],
+            "purpose": message_analysis["purpose"],
+            "tone": message_analysis["tone"],
+            "timestamp": received_date,
+            "sender": username,
+            "from_agent": False
+        }
+    )
+    
+    print(response_choice)
+    if response_choice["response_choice"] == RESPOND_CHOICE:
+        await insert_message_to_conversation(
+            username, 
+            agent_name, 
+            {
+                "message": response_content["message"],
+                "purpose": response_content["purpose"],
+                "tone": response_content["tone"],
+                "timestamp": datetime.now(),
+                "sender": agent_name,
+                "from_agent": True
+            }
+        )
+        
+        await insert_message_to_memory(
+            agent_name, 
+            {
+            "message": response_content["message"],
+            "sender": agent_name,
+            "timestamp": datetime.now()
+            }
+        )
+    
     # ---- 1) Sentiment reflection -------------------------------------------
     message_queries.append({
                 "role": USER_ROLE,
@@ -686,39 +722,6 @@ async def process_remaining_steps(
         function = eval(check_for_memory_response.function_call.name)
         params = json.loads(check_for_memory_response.function_call.arguments)
         await function(**params)
-    
-    # Update and Save Conversation
-    incoming_message = {
-        "message": message_analysis["message"],
-        "purpose": message_analysis["purpose"],
-        "tone": message_analysis["tone"],
-        "timestamp": received_date,
-        "sender": username,
-        "from_agent": False
-    }
-    await insert_message_to_conversation(username, agent_name, incoming_message)
-    
-    print(response_choice)
-    if response_choice["response_choice"] == RESPOND_CHOICE:
-        outgoing_message = {
-            "message": response_content["message"],
-            "purpose": response_content["purpose"],
-            "tone": response_content["tone"],
-            "timestamp": datetime.now(),
-            "sender": agent_name,
-            "from_agent": True
-        }
-        
-        await insert_message_to_conversation(username, agent_name, outgoing_message)
-        
-        # Add to message collection
-        new_message_response = {
-        "message": response_content["message"],
-        "sender": agent_name,
-        "timestamp": datetime.now()
-        }
-
-        await insert_message_to_memory(agent_name, new_message_response)
     
     await update_agent_emotions(agent_name, current_emotions)
     

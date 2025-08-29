@@ -475,7 +475,6 @@ AGENT_LITE_VALIDATOR = {
                                 }
                             }
                         }
-                    }
                     },
                     "tags": {
                         "bsonType": "array",
@@ -688,7 +687,9 @@ AGENT_LITE_VALIDATOR = {
       }
     }
   }
+    }
 }
+
 MYERS_BRIGGS_LIST = [
                         "ISTJ",
                         "ISFJ",

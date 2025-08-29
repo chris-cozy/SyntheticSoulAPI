@@ -419,10 +419,23 @@ async def add_thought(
     agent_name: str,
     thought: dict[str, Any]
 ) -> None:
+    db = await get_database()
+    thought_collection = db[AGENT_LITE_COLLECTION]
     try:
-        db = await get_database()
-        thought_collection = db[AGENT_LITE_COLLECTION]
-        await thought_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$push": {"thoughts": thought}})
+        await thought_collection.update_one(
+            {AGENT_NAME_PROPERTY: agent_name}, 
+            { 
+             "$push": 
+                 {
+                     "thoughts": {
+                         "$each": [thought],
+                         "$slice": -100
+                         }
+                     },
+                 "$setOnInsert": {AGENT_NAME_PROPERTY: agent_name}
+            },
+            upsert=True
+        )
     except Exception as e:
         print(e)
                

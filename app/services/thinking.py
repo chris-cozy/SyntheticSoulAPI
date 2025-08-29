@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 import os
 
@@ -39,4 +40,8 @@ async def periodic_thinking():
     Starts the thinking process, for the assigned duration
     """
     while True:
-        await generate_thought()
+        try:
+            await generate_thought()
+        except Exception as e:
+            print(f"Error in generate_thought: {e}")
+        await asyncio.sleep(60)

@@ -1,6 +1,8 @@
+import asyncio
 from datetime import datetime
 import os
-from typing import Any
+import time
+from typing import Any, Dict, List, Tuple
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,79 +16,146 @@ from app.models.user_lite import USER_LITE_VALIDATOR
 
 load_dotenv()
 
+# ---- Globals guarded by a simple init flag
+_db_client: AsyncIOMotorClient | None = None
+_db_init_done: bool = False
+
+_VALIDATORS: Dict[str, Dict[str, Any]] = {
+    CONVERSATION_COLLECTION: CONVERSATION_VALIDATOR,
+    AGENT_LITE_COLLECTION:   AGENT_LITE_VALIDATOR,
+    AGENT_COLLECTION:        AGENT_VALIDATOR,
+    USER_LITE_COLLECTION:    USER_LITE_VALIDATOR,
+    USER_COLLECTION:         USER_VALIDATOR,
+    MESSAGE_MEMORY_COLLECTION: MESSAGE_MEMORY_VALIDATOR,
+}
+
+def _client_opts() -> Dict[str, Any]:
+    # Trim excessive default timeouts; adjust to your infra as needed
+    return {
+        "serverSelectionTimeoutMS": 5000,  # 5s to pick a server
+        "connectTimeoutMS": 5000,          # 5s TCP connect
+        "socketTimeoutMS": 10000,          # 10s socket ops
+        "uuidRepresentation": "standard",
+        # "tls": True, "tlsAllowInvalidCertificates": False,  # if applicable
+    }
+
 db_client = None
 
-async def init_db():
-    """Initializes the database
-
-    Raises:
-        RuntimeError: Error - init_db: MONGO_CONNECTION environment variable is not set.
+async def init_db() -> None:
     """
-    global db_client
-    mongo_uri = os.getenv('MONGO_CONNECTION')
+    Initialize the global Mongo client and collections once.
+    Safe to call multiple times; only the first call does work.
+    """
+    global _db_client, _db_init_done
     
+    if _db_init_done and _db_client is not None:
+        return
+    
+    timings: Dict[str, float] = {}
+    t0 = time.perf_counter()
+    
+    mongo_uri = os.getenv('MONGO_CONNECTION')
     if not mongo_uri:
         raise RuntimeError("Error - init_db: MONGO_CONNECTION environment variable is not set.")
     
-    db_client = AsyncIOMotorClient(mongo_uri)
-    print(f"Connected to MongoDB at {mongo_uri}")
-    await initialize_collections()
+    # Create client (lazy connect)
+    t = time.perf_counter()
+    _db_client = AsyncIOMotorClient(mongo_uri, **_client_opts())
+    timings["client_create"] = time.perf_counter() - t
+    
+    # Force a quick ping so we fail fast instead of later
+    t = time.perf_counter()
+    await _db_client.admin.command("ping")
+    timings["client_ping"] = time.perf_counter() - t
+    
+    # Initialize collections (cheap if already present)
+    t = time.perf_counter()
+    await _initialize_collections(_db_client)
+    timings["initialize_collections"] = time.perf_counter() - t
+    
+    _db_init_done = True
+    timings["total_init_db"] = time.perf_counter() - t0
+    
+    # One-line timing summary
+    print(
+        "DB init timings (s): "
+        + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
+    )
+    
+def _get_db_name() -> str:
+    name = os.getenv("DATABASE_NAME")
+    if not name:
+        raise RuntimeError("Error - get_database: DATABASE_NAME is not set.")
+    return name
 
 async def get_database():
-    """Grabs the database
-
-    Raises:
-        RuntimeError: Error - get_database: db_client is not initialized. Call `init_db()` first.
-
-    Returns:
-        AsyncIOMotorDatabase: The database
     """
-    if db_client is None:
-        await init_db()
-    return db_client.get_database(os.getenv("DATABASE_NAME"))
-
-async def initialize_collections():
-    """Initializes the collections if they don't already exist
+    Returns the DB instance. Ensures init has happened.
     """
-    db = await get_database()
+    await init_db()
+    assert _db_client is not None
+    return _db_client.get_database(_get_db_name())
 
-    # Conversation
-    try:
-        await db.create_collection(CONVERSATION_COLLECTION, validator=CONVERSATION_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
-
-    # Agent_Lite
-    try:
-        await db.create_collection(AGENT_LITE_COLLECTION, validator=AGENT_LITE_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
-
-    # Agent
-    try:
-        await db.create_collection(AGENT_COLLECTION, validator=AGENT_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
-
-    # User_Lite
-    try:
-        await db.create_collection(USER_LITE_COLLECTION, validator=USER_LITE_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
-
-    # User
-    try:
-        await db.create_collection(USER_COLLECTION, validator=USER_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
-
-    # Message
-    try:
-        await db.create_collection(MESSAGE_MEMORY_COLLECTION, validator=MESSAGE_MEMORY_VALIDATOR, validationLevel='strict')
-    except Exception as e:
-        print(e)
+async def _initialize_collections(client: AsyncIOMotorClient) -> None:
+    """
+    Creates any missing collections and applies validators with minimal overhead.
+    Might need to remove asyncio if doesn't function properly on task
+    """
+    db = client.get_database(_get_db_name())
+    
+    # 1) Fetch once, avoid per-collection “create then fail” round-trips
+    t = time.perf_counter()
+    existing = await db.list_collection_names()
+    list_names_time = time.perf_counter() - t
+    
+    # 2) Decide work
+    to_create: List[Tuple[str, Dict[str, Any]]] = []
+    to_update_validator: List[Tuple[str, Dict[str, Any]]] = []
+    
+    for coll, validator in _VALIDATORS.items():
+        if coll in existing:
+            # Optional: ensure validator/validationLevel is in place via collMod
+            to_update_validator.append((coll, validator))
+        else:
+            to_create.append((coll, validator))
+            
+    # 3) Create missing collections in parallel
+    async def _create_one(name: str, validator: Dict[str, Any]) -> None:
+        await db.create_collection(name, validator=validator, validationLevel="strict")
         
-    print(f"Initialized connections")
+    # 4) Update validators on existing collections (fast no-op if already set)
+    async def _ensure_validator(name: str, validator: Dict[str, Any]) -> None:
+        # collMod sets/updates existing options; cheap if already matching
+        try:
+            await db.command({
+                "collMod": name,
+                "validator": validator,
+                "validationLevel": "strict"
+            })
+        except Exception as e:
+            # Some deployments may not permit collMod; log once, continue
+            print(f"collMod skipped for '{name}': {e}")
+    
+    # Run tasks concurrently but keep them bounded
+    create_tasks = [asyncio.create_task(_create_one(n, v)) for n, v in to_create]
+    update_tasks = [asyncio.create_task(_ensure_validator(n, v)) for n, v in to_update_validator]
+    
+    t_create = time.perf_counter()
+    if create_tasks:
+        await asyncio.gather(*create_tasks)
+    create_time = time.perf_counter() - t_create
+
+    t_update = time.perf_counter()
+    if update_tasks:
+        await asyncio.gather(*update_tasks)
+    update_time = time.perf_counter() - t_update
+    
+    print(
+        "Collection init: "
+        f"list_names={list_names_time:.3f}s, "
+        f"created={len(to_create)} in {create_time:.3f}s, "
+        f"validated={len(to_update_validator)} in {update_time:.3f}s"
+    )
 
 async def grab_user(username, agent_name, lite_mode=True):
     """
@@ -329,8 +398,7 @@ async def add_thought(
         await thought_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$push": {"thoughts": thought}})
     except Exception as e:
         print(e)
-        
-        
+               
 async def insert_agent_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
     """Inserts a new general memory
 

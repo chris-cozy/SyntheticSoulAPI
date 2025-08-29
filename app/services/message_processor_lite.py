@@ -33,11 +33,14 @@ async def process_message(request: MessageRequest):
             start = time.perf_counter()
             received_date = datetime.now() 
             username = request.username
-            self = await grab_self(agent_name)  
+            self = await grab_self(agent_name)
+            timings["grab_self"] = time.perf_counter() - start
+            step_start = time.perf_counter()
             user = await grab_user(username, agent_name)
+            timings["grab_user"] = time.perf_counter() - step_start
+            step_start = time.perf_counter()
             conversation = await get_conversation(username, agent_name)
-            
-            timings["grab_self_user_conversation"] = time.perf_counter() - start
+            timings["grab_conversation"] = time.perf_counter() - step_start
             step_start = time.perf_counter()
 
             new_message_request = {

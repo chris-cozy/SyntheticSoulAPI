@@ -492,8 +492,7 @@ AGENT_LITE_VALIDATOR = {
                 }
                 }
             }
-        }  
-      },
+        } ,
       "emotional_status": {
             "bsonType": "object",
             "required": ["emotions", "reason"],
@@ -690,7 +689,6 @@ AGENT_LITE_VALIDATOR = {
     }
   }
 }
-
 MYERS_BRIGGS_LIST = [
                         "ISTJ",
                         "ISFJ",

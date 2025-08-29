@@ -60,7 +60,7 @@ async def init_db() -> None:
     
     # Create client (lazy connect)
     t = time.perf_counter()
-    _db_client = AsyncIOMotorClient(mongo_uri, **_client_opts())
+    _db_client = AsyncIOMotorClient(mongo_uri)
     timings["client_create"] = time.perf_counter() - t
     
     # Force a quick ping so we fail fast instead of later

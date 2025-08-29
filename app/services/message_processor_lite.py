@@ -1,6 +1,7 @@
 import asyncio
 import os
 import random
+import time
 from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
@@ -28,11 +29,16 @@ async def process_message(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
+            timings = {}
+            start = time.perf_counter()
             received_date = datetime.now() 
             username = request.username
             self = await grab_self(agent_name)  
             user = await grab_user(username, agent_name)
             conversation = await get_conversation(username, agent_name)
+            
+            timings["grab_self_user_conversation"] = time.perf_counter() - start
+            step_start = time.perf_counter()
 
             new_message_request = {
             "message": request.message,
@@ -49,415 +55,46 @@ async def process_message(request: MessageRequest):
             recent_all_messages = general_message_memory.append(new_message_request)
             
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
+            
+            timings["get_message_memory_and_insert"] = time.perf_counter() - step_start
+            step_start = time.perf_counter()
 
-            # If multi-user conversation
             if (request.type == GC_TYPE):
-                implicit_addressing_result = await get_structured_response([{
-                    "role": USER_ROLE,
-                    "content": (
-                        build_implicit_addressing_prompt(agent_name, general_message_memory, new_message_request)
-                    )
-                }], implicitly_addressed_schema())
-                
-                # TODO If not implicitly addressed check if they want to respond anyway
-                # TODO Identify different group chats with an identifier sent from the client, so that group chat memory can be implemented
-                if (implicit_addressing_result["implicitly_addressed"] == 'no'):
-                    initial_emotion_query = {
-                        "role": "user",
-                        "content": (build_initial_emotional_response_prompt(agent_name, self['personality'], self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
-                    }
-
-                    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
-
-                    current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
-
-                    # Step 6: Analyze the purpose and tone of the user's message: CLEAR
-                    message_queries = [SYSTEM_MESSAGE, {
-                        "role": "user",
-                        "content": (
-                            build_message_perception_prompt(agent_name, self['personality'], current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
-                        ),
-                    }]
-                    
-                    message_analysis = await get_structured_response(message_queries, get_message_schema())
-                    
-                    message_queries.append({
-                        "role": BOT_ROLE,
-                        "content": json.dumps(message_analysis)
-                        })
-                
-                    # Step 7: Determine whether to respond: CLEAR
-                    response_choice_query = {
-                        "role": "user",
-                        "content": (
-                            build_response_choice_prompt(agent_name, username, False)
-                        ),
-                    }
-                    
-                    message_queries.append(response_choice_query)
-
-                    response_choice = await get_structured_response(message_queries, get_response_choice_schema())
-                    
-                    message_queries.append({
-                        "role": BOT_ROLE,
-                        "content": json.dumps(response_choice)
-                        })
-                    
-                    if response_choice["response_choice"] == RESPOND_CHOICE:
-                        memory = get_random_memories(self)
-                        response_query = {
-                            "role": USER_ROLE,
-                            "content": (
-                                build_response_analysis_prompt(agent_name, self['personality'], current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
-                            ),
-                        }
-
-                        message_queries.append(response_query)
-                        response_content = await get_structured_response(message_queries, get_message_schema())
-                        
-                        agent_response_message = response_content['message']
-                    elif response_choice["response_choice"] == IGNORE_CHOICE:
-                        response_content = None
-                        agent_response_message = None
-                        
-                    asyncio.create_task(
-                        process_remaining_steps(
-                        agent_name, username, user, self, 
-                        current_emotions, message_analysis, response_choice, received_date, message_queries, response_content
-                        )
-                    )
-                               
-                    return MessageResponse(response=agent_response_message) 
-                
-
-            # Alter personality based on user relationship
-            altered_personality = await alter_personality(self, user, True)
-            
-            # Assess emotional response upon first viewing message
-            initial_emotion_query = {
-                "role": "user",
-                "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
-            }
-            initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
-
-            current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
-            
-            message_queries = [SYSTEM_MESSAGE, {
-                "role": "user",
-                "content": (
-                    build_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
-                ),
-            }]
-            
-            message_analysis = await get_structured_response(message_queries, get_message_schema())
-            
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(message_analysis)
-                })
-        
-            # Step 7: Determine whether to respond: CLEAR
-            message_queries.append({
-                "role": "user",
-                "content": (
-                    build_response_choice_prompt(agent_name, username)
-                ),
-            })
-
-            response_choice = await get_structured_response(message_queries, get_response_choice_schema())
-            
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(response_choice)
-                })
-            
-            if response_choice["response_choice"] == RESPOND_CHOICE:
-                memory = get_random_memories(self)
-
-                message_queries.append({
-                    "role": USER_ROLE,
-                    "content": (
-                        build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
-                    ),
-                })
-                response_content = await get_structured_response(message_queries, get_message_schema())
-                
-                agent_response_message = response_content['message']
-                
-                '''
-                # Step 9: Evaluate bot's emotional state after responding: CLEAR
-                final_emotion_query = {
-                    "role": USER_ROLE,
-                    "content": (
-                        generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, True, response_content)
-                    ),
-                }
-
-                inner_dialogue.append(final_emotion_query)
-
-                final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
-
-                if not final_emotion_response:
-                    raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
-
-                inner_dialogue.append({
-                    "role": BOT_ROLE,
-                    "content": json.dumps(final_emotion_response),
-                })
-
-                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
-                '''
-            elif response_choice["response_choice"] == IGNORE_CHOICE:
-                response_content = None
-                agent_response_message = None
-                '''
-                # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
-                final_emotion_query = {
-                    "role": USER_ROLE,
-                    "content": (
-                        generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, False)
-                    ),
-                }
-
-                inner_dialogue.append(final_emotion_query)
-
-                final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
-
-                if not final_emotion_response:
-                    raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
-
-                inner_dialogue.append({
-                    "role": BOT_ROLE,
-                    "content": json.dumps(final_emotion_response),
-                })
-
-                current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
-                '''
-
-            # Return the response to the user
-            messageResponse = MessageResponse(response=agent_response_message)
-            
-            # ---- 0) Save Messages -------------------------------------------
-            await insert_message_to_conversation(
-                username, 
-                agent_name, 
-                {
-                    "message": message_analysis["message"],
-                    "purpose": message_analysis["purpose"],
-                    "tone": message_analysis["tone"],
-                    "timestamp": received_date,
-                    "sender": username,
-                    "from_agent": False
-                }
-            )
-            
-            if response_choice["response_choice"] == RESPOND_CHOICE:
-                await insert_message_to_conversation(
-                    username, 
+                response = await group_message(
                     agent_name, 
-                    {
-                        "message": response_content["message"],
-                        "purpose": response_content["purpose"],
-                        "tone": response_content["tone"],
-                        "timestamp": datetime.now(),
-                        "sender": agent_name,
-                        "from_agent": True
-                    }
+                    general_message_memory,
+                    new_message_request,
+                    username,
+                    user,
+                    recent_messages,
+                    recent_all_messages,
+                    received_date,
+                    request,
+                    self
+                )
+            else:
+                response = await direct_message(
+                    self,
+                    user,
+                    username,
+                    recent_messages,
+                    recent_all_messages,
+                    received_date,
+                    request
                 )
                 
-                await insert_message_to_memory(
-                    agent_name, 
-                    {
-                    "message": response_content["message"],
-                    "sender": agent_name,
-                    "timestamp": datetime.now()
-                    }
-                )
+            timings["message_handling"] = time.perf_counter() - step_start
+            # Print timings
+            print("\nStep timings (seconds):")
+            for step, duration in timings.items():
+                print(f"{step}: {duration:.4f}")
             
-            # ---- 1) Sentiment reflection -------------------------------------------
-            message_queries.append({
-                        "role": USER_ROLE,
-                        "content": (
-                            build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
-                        ),
-                    })
-            
-            sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
-            
-            message_queries.append({
-                        "role": BOT_ROLE,
-                        "content": json.dumps(sentiment_response),
-                    })
-                    
-            current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
-            
-            # ---- 2) Post-response processing (summary/identity/relationships) ------
-            message_queries.append({
-                "role": USER_ROLE,
-                "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
-            })
-            
-            post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
-            
-            await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
-
-            message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
-            
-            # ---- 3) Memory worthiness ----------------------------------------------
-            message_queries.append({
-                "role": USER_ROLE,
-                "content": (build_memory_worthiness_prompt(agent_name))
-            })
-            
-            is_memory_response = await get_structured_response(message_queries, is_memory_schema())
-            
-            message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(is_memory_response)
-            })
-            
-            if (is_memory_response["is_memory"] == "yes"):
-                message_queries.append({
-                    "role": USER_ROLE, 
-                    "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
-                })
-                check_for_memory_response = await check_for_memory(message_queries)
-                function = eval(check_for_memory_response.function_call.name)
-                params = json.loads(check_for_memory_response.function_call.arguments)
-                await function(**params)
-            
-            await update_agent_emotions(agent_name, current_emotions)
-            
-            await update_user_sentiment(username, current_sentiments)
-            
-            return messageResponse
-            
+            return response
+                
         except Exception as e:
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-                      
-async def process_remaining_steps(
-    agent_name: str, 
-    username: str, 
-    user: Mapping[str, Any], 
-    self: Mapping[str, Any], 
-    current_emotions: Mapping[str, Any], 
-    message_analysis: Mapping[str, Any], 
-    response_choice: Mapping[str, Any], 
-    received_date: datetime, 
-    message_queries: List[Dict[str, Any]],  
-    response_content: Optional[Mapping[str, Any]] = None,
-) -> None:
-    """
-    Post-response pipeline:
-      1) Reflect on sentiment, merge into user sentiment_status.
-      2) Update summary/identity/extrinsic relationships.
-      3) Decide memory worthiness and (optionally) write memory.
-      4) Persist conversation messages.
-      5) Update emotional_status and user document.
-    Returns a summary of changes (for logging/metrics).
-    Raises HTTPException(500) on critical failures.
-    """
-    # ---- 0) Save Messages -------------------------------------------
-    await insert_message_to_conversation(
-        username, 
-        agent_name, 
-        {
-            "message": message_analysis["message"],
-            "purpose": message_analysis["purpose"],
-            "tone": message_analysis["tone"],
-            "timestamp": received_date,
-            "sender": username,
-            "from_agent": False
-        }
-    )
-    
-    print(response_choice)
-    if response_choice["response_choice"] == RESPOND_CHOICE:
-        await insert_message_to_conversation(
-            username, 
-            agent_name, 
-            {
-                "message": response_content["message"],
-                "purpose": response_content["purpose"],
-                "tone": response_content["tone"],
-                "timestamp": datetime.now(),
-                "sender": agent_name,
-                "from_agent": True
-            }
-        )
-        
-        await insert_message_to_memory(
-            agent_name, 
-            {
-            "message": response_content["message"],
-            "sender": agent_name,
-            "timestamp": datetime.now()
-            }
-        )
-    
-    # ---- 1) Sentiment reflection -------------------------------------------
-    message_queries.append({
-                "role": USER_ROLE,
-                "content": (
-                    build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
-                ),
-            })
-    
-    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
-
-    if not sentiment_response:
-        raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on sentiment")
-    
-    message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(sentiment_response),
-            })
-            
-    current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
-    
-    # ---- 2) Post-response processing (summary/identity/relationships) ------
-    message_queries.append({
-        "role": USER_ROLE,
-        "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
-    })
-    
-    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
-    
-    await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
-
-    message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
-    
-    # ---- 3) Memory worthiness ----------------------------------------------
-    message_queries.append({
-        "role": USER_ROLE,
-        "content": (build_memory_worthiness_prompt(agent_name))
-    })
-    
-    is_memory_response = await get_structured_response(message_queries, is_memory_schema())
-    
-    if not is_memory_response:
-        raise HTTPException(status_code=500, detail="Error - process_message_lite: determining if memory will be extracted")
-    
-    message_queries.append({
-        "role": BOT_ROLE,
-        "content": json.dumps(is_memory_response)
-    })
-    
-    if (is_memory_response["is_memory"] == "yes"):
-        message_queries.append({
-            "role": USER_ROLE, 
-            "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
-        })
-        check_for_memory_response = await check_for_memory(message_queries)
-        function = eval(check_for_memory_response.function_call.name)
-        params = json.loads(check_for_memory_response.function_call.arguments)
-        await function(**params)
-    
-    await update_agent_emotions(agent_name, current_emotions)
-    
-    await update_user_sentiment(username, current_sentiments)
-            
+                               
 async def alter_personality(self, user, lite_mode):
     """
     Alters the bot's personality based on the user's sentiment status and their extrinsic relationship.
@@ -515,3 +152,395 @@ def deep_merge(target: Dict[str, Any], source: Dict[str, Any], average: bool = F
                 target[key] = value
     return target
 
+async def group_message(
+    agent_name: str,
+    general_message_memory: Any,
+    new_message_request: Any,
+    username: str,
+    user: Any,
+    recent_messages: Any,
+    recent_all_messages: Any,
+    received_date: datetime,
+    request: Any,
+    self: Any,
+) -> MessageResponse:
+    implicit_addressing_result = await get_structured_response([{
+        "role": USER_ROLE,
+        "content": (
+            build_implicit_addressing_prompt(agent_name, general_message_memory, new_message_request)
+        )
+    }], implicitly_addressed_schema())
+    
+    # TODO If not implicitly addressed check if they want to respond anyway
+    # TODO Identify different group chats with an identifier sent from the client, so that group chat memory can be implemented
+    if (implicit_addressing_result["implicitly_addressed"] == 'no'):
+        initial_emotion_query = {
+            "role": "user",
+            "content": (build_initial_emotional_response_prompt(agent_name, self['personality'], self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
+        }
+
+        initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+
+        current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
+
+        # Step 6: Analyze the purpose and tone of the user's message: CLEAR
+        message_queries = [SYSTEM_MESSAGE, {
+            "role": "user",
+            "content": (
+                build_message_perception_prompt(agent_name, self['personality'], current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+            ),
+        }]
+        
+        message_analysis = await get_structured_response(message_queries, get_message_schema())
+        
+        message_queries.append({
+            "role": BOT_ROLE,
+            "content": json.dumps(message_analysis)
+            })
+    
+        # Step 7: Determine whether to respond: CLEAR
+        response_choice_query = {
+            "role": "user",
+            "content": (
+                build_response_choice_prompt(agent_name, username, False)
+            ),
+        }
+        
+        message_queries.append(response_choice_query)
+
+        response_choice = await get_structured_response(message_queries, get_response_choice_schema())
+        
+        message_queries.append({
+            "role": BOT_ROLE,
+            "content": json.dumps(response_choice)
+            })
+        
+        if response_choice["response_choice"] == RESPOND_CHOICE:
+            memory = get_random_memories(self)
+            response_query = {
+                "role": USER_ROLE,
+                "content": (
+                    build_response_analysis_prompt(agent_name, self['personality'], current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+                ),
+            }
+
+            message_queries.append(response_query)
+            response_content = await get_structured_response(message_queries, get_message_schema())
+            
+            agent_response_message = response_content['message']
+        elif response_choice["response_choice"] == IGNORE_CHOICE:
+            response_content = None
+            agent_response_message = None
+            
+        # ---- 0) Save Messages -------------------------------------------
+        await insert_message_to_conversation(
+            username, 
+            agent_name, 
+            {
+                "message": message_analysis["message"],
+                "purpose": message_analysis["purpose"],
+                "tone": message_analysis["tone"],
+                "timestamp": received_date,
+                "sender": username,
+                "from_agent": False
+            }
+        )
+        
+        print(response_choice)
+        if response_choice["response_choice"] == RESPOND_CHOICE:
+            await insert_message_to_conversation(
+                username, 
+                agent_name, 
+                {
+                    "message": response_content["message"],
+                    "purpose": response_content["purpose"],
+                    "tone": response_content["tone"],
+                    "timestamp": datetime.now(),
+                    "sender": agent_name,
+                    "from_agent": True
+                }
+            )
+            
+            await insert_message_to_memory(
+                agent_name, 
+                {
+                "message": response_content["message"],
+                "sender": agent_name,
+                "timestamp": datetime.now()
+                }
+            )
+        
+        # ---- 1) Sentiment reflection -------------------------------------------
+        message_queries.append({
+                    "role": USER_ROLE,
+                    "content": (
+                        build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
+                    ),
+                })
+        
+        sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
+
+        if not sentiment_response:
+            raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on sentiment")
+        
+        message_queries.append({
+                    "role": BOT_ROLE,
+                    "content": json.dumps(sentiment_response),
+                })
+                
+        current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
+        
+        # ---- 2) Post-response processing (summary/identity/relationships) ------
+        message_queries.append({
+            "role": USER_ROLE,
+            "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
+        })
+        
+        post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
+        
+        await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+
+        message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
+        
+        # ---- 3) Memory worthiness ----------------------------------------------
+        message_queries.append({
+            "role": USER_ROLE,
+            "content": (build_memory_worthiness_prompt(agent_name))
+        })
+        
+        is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+        
+        if not is_memory_response:
+            raise HTTPException(status_code=500, detail="Error - process_message_lite: determining if memory will be extracted")
+        
+        message_queries.append({
+            "role": BOT_ROLE,
+            "content": json.dumps(is_memory_response)
+        })
+        
+        if (is_memory_response["is_memory"] == "yes"):
+            message_queries.append({
+                "role": USER_ROLE, 
+                "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
+            })
+            check_for_memory_response = await check_for_memory(message_queries)
+            function = eval(check_for_memory_response.function_call.name)
+            params = json.loads(check_for_memory_response.function_call.arguments)
+            await function(**params)
+        
+        await update_agent_emotions(agent_name, current_emotions)
+        
+        await update_user_sentiment(username, current_sentiments)
+                        
+        return MessageResponse(response=agent_response_message) 
+    
+async def direct_message(
+    self: Any,
+    user: Any,
+    username: str,
+    recent_messages: Any,
+    recent_all_messages: Any,
+    received_date: datetime,
+    request: Any,
+) -> MessageResponse:
+    # Alter personality based on user relationship
+    altered_personality = await alter_personality(self, user, True)
+    
+    # Assess emotional response upon first viewing message
+    initial_emotion_query = {
+        "role": "user",
+        "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
+    }
+    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+
+    current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
+    
+    message_queries = [SYSTEM_MESSAGE, {
+        "role": "user",
+        "content": (
+            build_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+        ),
+    }]
+    
+    message_analysis = await get_structured_response(message_queries, get_message_schema())
+    
+    message_queries.append({
+        "role": BOT_ROLE,
+        "content": json.dumps(message_analysis)
+        })
+
+    # Step 7: Determine whether to respond: CLEAR
+    message_queries.append({
+        "role": "user",
+        "content": (
+            build_response_choice_prompt(agent_name, username)
+        ),
+    })
+
+    response_choice = await get_structured_response(message_queries, get_response_choice_schema())
+    
+    message_queries.append({
+        "role": BOT_ROLE,
+        "content": json.dumps(response_choice)
+        })
+    
+    if response_choice["response_choice"] == RESPOND_CHOICE:
+        memory = get_random_memories(self)
+
+        message_queries.append({
+            "role": USER_ROLE,
+            "content": (
+                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+            ),
+        })
+        response_content = await get_structured_response(message_queries, get_message_schema())
+        
+        agent_response_message = response_content['message']
+        
+        '''
+        # Step 9: Evaluate bot's emotional state after responding: CLEAR
+        final_emotion_query = {
+            "role": USER_ROLE,
+            "content": (
+                generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, True, response_content)
+            ),
+        }
+
+        inner_dialogue.append(final_emotion_query)
+
+        final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
+
+        if not final_emotion_response:
+            raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
+
+        inner_dialogue.append({
+            "role": BOT_ROLE,
+            "content": json.dumps(final_emotion_response),
+        })
+
+        current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+        '''
+    elif response_choice["response_choice"] == IGNORE_CHOICE:
+        response_content = None
+        agent_response_message = None
+        '''
+        # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
+        final_emotion_query = {
+            "role": USER_ROLE,
+            "content": (
+                generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, False)
+            ),
+        }
+
+        inner_dialogue.append(final_emotion_query)
+
+        final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
+
+        if not final_emotion_response:
+            raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
+
+        inner_dialogue.append({
+            "role": BOT_ROLE,
+            "content": json.dumps(final_emotion_response),
+        })
+
+        current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
+        '''
+
+    # Return the response to the user
+    messageResponse = MessageResponse(response=agent_response_message)
+    
+    # ---- 0) Save Messages -------------------------------------------
+    await insert_message_to_conversation(
+        username, 
+        agent_name, 
+        {
+            "message": message_analysis["message"],
+            "purpose": message_analysis["purpose"],
+            "tone": message_analysis["tone"],
+            "timestamp": received_date,
+            "sender": username,
+            "from_agent": False
+        }
+    )
+    
+    if response_choice["response_choice"] == RESPOND_CHOICE:
+        await insert_message_to_conversation(
+            username, 
+            agent_name, 
+            {
+                "message": response_content["message"],
+                "purpose": response_content["purpose"],
+                "tone": response_content["tone"],
+                "timestamp": datetime.now(),
+                "sender": agent_name,
+                "from_agent": True
+            }
+        )
+        
+        await insert_message_to_memory(
+            agent_name, 
+            {
+            "message": response_content["message"],
+            "sender": agent_name,
+            "timestamp": datetime.now()
+            }
+        )
+    
+    # ---- 1) Sentiment reflection -------------------------------------------
+    message_queries.append({
+                "role": USER_ROLE,
+                "content": (
+                    build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
+                ),
+            })
+    
+    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
+    
+    message_queries.append({
+                "role": BOT_ROLE,
+                "content": json.dumps(sentiment_response),
+            })
+            
+    current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
+    
+    # ---- 2) Post-response processing (summary/identity/relationships) ------
+    message_queries.append({
+        "role": USER_ROLE,
+        "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
+    })
+    
+    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
+    
+    await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+
+    message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
+    
+    # ---- 3) Memory worthiness ----------------------------------------------
+    message_queries.append({
+        "role": USER_ROLE,
+        "content": (build_memory_worthiness_prompt(agent_name))
+    })
+    
+    is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+    
+    message_queries.append({
+        "role": BOT_ROLE,
+        "content": json.dumps(is_memory_response)
+    })
+    
+    if (is_memory_response["is_memory"] == "yes"):
+        message_queries.append({
+            "role": USER_ROLE, 
+            "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
+        })
+        check_for_memory_response = await check_for_memory(message_queries)
+        function = eval(check_for_memory_response.function_call.name)
+        params = json.loads(check_for_memory_response.function_call.arguments)
+        await function(**params)
+    
+    await update_agent_emotions(agent_name, current_emotions)
+    
+    await update_user_sentiment(username, current_sentiments)
+    
+    return messageResponse

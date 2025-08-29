@@ -1,6 +1,7 @@
 import asyncio
 import os
 import random
+import time
 from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
@@ -28,11 +29,16 @@ async def process_message(request: MessageRequest):
         :return: JSON response with the bot's reply
         """
         try:
+            timings = {}
+            start = time.perf_counter()
             received_date = datetime.now() 
             username = request.username
             self = await grab_self(agent_name)  
             user = await grab_user(username, agent_name)
             conversation = await get_conversation(username, agent_name)
+            
+            timings["grab_self_user_conversation"] = time.perf_counter() - start
+            step_start = time.perf_counter()
 
             new_message_request = {
             "message": request.message,
@@ -49,9 +55,12 @@ async def process_message(request: MessageRequest):
             recent_all_messages = general_message_memory.append(new_message_request)
             
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
+            
+            timings["get_message_memory_and_insert"] = time.perf_counter() - step_start
+            step_start = time.perf_counter()
 
             if (request.type == GC_TYPE):
-                return await group_message(
+                response = await group_message(
                     agent_name, 
                     general_message_memory,
                     new_message_request,
@@ -64,7 +73,7 @@ async def process_message(request: MessageRequest):
                     self
                 )
             else:
-                return await direct_message(
+                response = await direct_message(
                     self,
                     user,
                     username,
@@ -73,6 +82,14 @@ async def process_message(request: MessageRequest):
                     received_date,
                     request
                 )
+                
+            timings["message_handling"] = time.perf_counter() - step_start
+            # Print timings
+            print("\nStep timings (seconds):")
+            for step, duration in timings.items():
+                print(f"{step}: {duration:.4f}")
+            
+            return response
                 
         except Exception as e:
             print(f"Error: {e}")

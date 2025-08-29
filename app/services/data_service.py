@@ -283,7 +283,10 @@ async def grab_self(agent_name, lite_mode=True):
             result = await agent_collection.insert_one(new_self)
             self = await agent_collection.find_one({"_id": result.inserted_id})
 
-        
+    print(
+        "Self init timings (s): "
+        + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
+    )
     return self
 
 async def get_conversation(username, agent_name):

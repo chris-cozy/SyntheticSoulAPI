@@ -316,7 +316,7 @@ async def get_conversation(username, agent_name):
     :return: Conversation object
     """
     db = await get_database()
-    conversations_collection = db["conversation"]
+    conversations_collection = db[CONVERSATION_COLLECTION]
 
     user_conversation = await conversations_collection.find_one({"username": username, "agent_name": agent_name})
 
@@ -339,7 +339,7 @@ async def get_all_agents():
     :return: List of agent objects
     """
     db = get_database()
-    agent_collection = db["agent"]
+    agent_collection = db[AGENT_COLLECTION]
     cursor = agent_collection.find({}, {"name": 1, "_id": 0})  # This returns an AsyncIOMotorCursor
     all_agents = await cursor.to_list(length=None)  # Convert the cursor to a list of documents
 

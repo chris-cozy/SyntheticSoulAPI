@@ -39,6 +39,21 @@ def _client_opts() -> Dict[str, Any]:
         # "tls": True, "tlsAllowInvalidCertificates": False,  # if applicable
     }
 
+async def _ensure_indexes(db):
+    await db[AGENT_LITE_COLLECTION].create_index("name", unique=True)
+    await db[AGENT_COLLECTION].create_index("name", unique=True)
+    await db[USER_LITE_COLLECTION].create_index(
+        [("username", 1), ("agent_perspective", 1)],
+        unique=True,
+        name="username_agent_perspective"
+    )
+    await db[USER_COLLECTION].create_index("username", unique=True)
+    await db[CONVERSATION_COLLECTION].create_index(
+        [("username", 1), ("agent_name", 1)],
+        name="username_agent"
+    )
+    await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
+
 db_client = None
 
 async def init_db() -> None:
@@ -149,6 +164,8 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     if update_tasks:
         await asyncio.gather(*update_tasks)
     update_time = time.perf_counter() - t_update
+    
+    await _ensure_indexes(db)
     
     print(
         "Collection init: "
@@ -299,7 +316,7 @@ async def get_conversation(username, agent_name):
     :return: Conversation object
     """
     db = await get_database()
-    conversations_collection = db["conversation"]
+    conversations_collection = db[CONVERSATION_COLLECTION]
 
     user_conversation = await conversations_collection.find_one({"username": username, "agent_name": agent_name})
 
@@ -322,7 +339,7 @@ async def get_all_agents():
     :return: List of agent objects
     """
     db = get_database()
-    agent_collection = db["agent"]
+    agent_collection = db[AGENT_COLLECTION]
     cursor = agent_collection.find({}, {"name": 1, "_id": 0})  # This returns an AsyncIOMotorCursor
     all_agents = await cursor.to_list(length=None)  # Convert the cursor to a list of documents
 

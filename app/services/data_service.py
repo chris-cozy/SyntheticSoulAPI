@@ -7,12 +7,12 @@ from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGE
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.models.agent import AGENT_VALIDATOR
-from app.models.agent_lite import AGENT_LITE_VALIDATOR
-from app.models.conversations import CONVERSATION_VALIDATOR
-from app.models.message import MESSAGE_MEMORY_VALIDATOR
-from app.models.user import USER_VALIDATOR
-from app.models.user_lite import USER_LITE_VALIDATOR
+from app.constants.validators import AGENT_VALIDATOR
+from app.constants.validators import AGENT_LITE_VALIDATOR
+from app.constants.validators import CONVERSATION_VALIDATOR
+from app.constants.validators import MESSAGE_MEMORY_VALIDATOR
+from app.constants.validators import USER_VALIDATOR
+from app.constants.validators import USER_LITE_VALIDATOR
 
 load_dotenv()
 

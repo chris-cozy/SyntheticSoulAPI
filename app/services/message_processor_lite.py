@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
-from app.constants.schemas import get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
+from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.models.request import MessageRequest, MessageResponse
 from app.services.openai_service import check_for_memory, get_structured_response
@@ -367,7 +367,7 @@ async def direct_message(
         ),
     }]
     
-    message_analysis = await get_structured_response(message_queries, get_message_schema())
+    message_analysis = await get_structured_response(message_queries, get_message_perception_schema())
     
     timings["message_analysis"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

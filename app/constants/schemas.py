@@ -651,6 +651,32 @@ def get_emotion_status_schema():
             },
         },
     }
+    
+def get_message_perception_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "message_response",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "description": "The message",
+                        "type": "string"
+                    },
+                    "purpose": {
+                        "description": "Message purpose",
+                        "type": "string"
+                    },
+                    "tone": {
+                        "description": "Message tone",
+                        "type": "string"
+                    },
+                },
+                "additionalProperties": False
+            }
+        }
+    }
 
 def get_message_schema():
     return {

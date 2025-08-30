@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException
 from rq.job import Job
 
 from app.core.redis_queue import get_redis
+from app.domain.models import JobStatusResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=JobStatusResponse)
 async def job_status(job_id: str):
     try:
         job = Job.fetch(job_id, connection=get_redis())

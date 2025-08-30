@@ -4,6 +4,7 @@ from rq import Queue
 
 from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
+from app.tasks import send_message_task
 
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -14,7 +15,7 @@ async def submit_message(request: MessageRequest):
     try:
         q: Queue = get_queue()
         job = q.enqueue(
-            "app.tasks.send_message_task", # dotted path to worker function
+            send_message_task,
             request.model_dump(), # pydantic -> dict
             job_timeout=600,
         )

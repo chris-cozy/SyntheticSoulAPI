@@ -5,7 +5,7 @@ from app.constants.schemas import get_thought_schema
 from app.models.request import MessageRequest
 from app.services.thinking import periodic_thinking
 from app.services.openai_service import get_structured_response
-from app.services.data_service import get_all_agents, init_db, db_client
+from app.services.data_service import get_all_agents, grab_self, init_db, db_client
 from bson.json_util import dumps
 from dotenv import load_dotenv
 import os
@@ -18,6 +18,8 @@ from rq.job import Job
 from app.services.util_service import start_emotion_decay
 
 load_dotenv()
+
+agent = os.getenv("BOT_NAME")
 
 REDIS_URL = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
 if REDIS_URL.startswith("rediss://"):
@@ -141,4 +143,16 @@ async def get_agents():
         return {'agents': serialized_response}
     except Exception as e:
         print(f"Error in agents endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.get("/active_agent")
+async def get_active_agent():
+    try:
+        response = await grab_self(agent)
+        serialized_response = dumps(response)  # Serialize the response
+        print(serialized_response)
+        return {'agent': serialized_response}
+    except Exception as e:
+        print(f"Error in agent endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

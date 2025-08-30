@@ -7,7 +7,7 @@ from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_emotion_status_schema, get_extrinsic_relationship_schema, get_identity_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, get_sentiment_status_schema, get_summary_schema, get_thought_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
-from app.models.request import MessageRequest, MessageResponse
+from app.domain.models import MessageRequest, MessageResponse
 from app.services.deepseek_service import get_structured_query_reasoning_response
 from app.services.openai_service import check_for_memory, get_structured_response
 import json

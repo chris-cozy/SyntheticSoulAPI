@@ -34,32 +34,24 @@ async def process_message(request: MessageRequest):
             received_date = datetime.now() 
             username = request.username
             self = await grab_self(agent_name)
-            timings["grab_self"] = time.perf_counter() - start
-            step_start = time.perf_counter()
             user = await grab_user(username, agent_name)
-            timings["grab_user"] = time.perf_counter() - step_start
-            step_start = time.perf_counter()
             conversation = await get_conversation(username, agent_name)
-            timings["grab_conversation"] = time.perf_counter() - step_start
-            step_start = time.perf_counter()
 
             new_message_request = {
-            "message": request.message,
-            "sender": username,
-            "timestamp": received_date
+                "message": request.message,
+                "sender": username,
+                "timestamp": received_date
             }
             
-            # Retrieve past messages received from anyone
             general_message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
-            
-            # Add message request to all messages received list
+        
             await insert_message_to_memory(agent_name, new_message_request)
             
             recent_all_messages = general_message_memory.append(new_message_request)
             
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
-            timings["get_message_memory_and_insert"] = time.perf_counter() - step_start
+            timings["message_handling_setup"] = time.perf_counter() - start
             step_start = time.perf_counter()
 
             if (request.type == GC_TYPE):
@@ -346,8 +338,13 @@ async def direct_message(
     received_date: datetime,
     request: Any,
 ) -> MessageResponse:
+    timings = {}
+    start = time.perf_counter()
     # Alter personality based on user relationship
     altered_personality = await alter_personality(self, user, True)
+    
+    timings["alter_personality"] = time.perf_counter() - start
+    step_start = time.perf_counter()
     
     # Assess emotional response upon first viewing message
     initial_emotion_query = {
@@ -355,6 +352,9 @@ async def direct_message(
         "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
     }
     initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+    
+    timings["initial_emotion_response"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
 
     current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
     
@@ -366,6 +366,9 @@ async def direct_message(
     }]
     
     message_analysis = await get_structured_response(message_queries, get_message_schema())
+    
+    timings["message_analysis"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
     
     message_queries.append({
         "role": BOT_ROLE,
@@ -381,6 +384,9 @@ async def direct_message(
     })
 
     response_choice = await get_structured_response(message_queries, get_response_choice_schema())
+    
+    timings["response_choice"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
     
     message_queries.append({
         "role": BOT_ROLE,
@@ -449,6 +455,9 @@ async def direct_message(
 
         current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
         '''
+        
+    timings["response"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
 
     # Return the response to the user
     messageResponse = MessageResponse(response=agent_response_message)
@@ -500,6 +509,9 @@ async def direct_message(
     
     sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
     
+    timings["sentiments"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
+    
     message_queries.append({
                 "role": BOT_ROLE,
                 "content": json.dumps(sentiment_response),
@@ -515,6 +527,9 @@ async def direct_message(
     
     post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
     
+    timings["post_response_processing"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
+    
     await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
@@ -526,6 +541,9 @@ async def direct_message(
     })
     
     is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+    
+    timings["memory_worthiness"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
     
     message_queries.append({
         "role": BOT_ROLE,
@@ -545,5 +563,9 @@ async def direct_message(
     await update_agent_emotions(agent_name, current_emotions)
     
     await update_user_sentiment(username, current_sentiments)
+    
+    print("\nStep timings (seconds):")
+    for step, duration in timings.items():
+        print(f"{step}: {duration:.4f}")
     
     return messageResponse

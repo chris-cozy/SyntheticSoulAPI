@@ -6,7 +6,7 @@ from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
 
 
-router = APIRouter(prefix="/v1/messages", tags=["messages"])
+router = APIRouter(prefix="/messages", tags=["messages"])
 
 
 @router.post("/submit")

@@ -4,7 +4,7 @@ from bson.json_util import dumps
 from app.services.data_service import get_all_agents, grab_self
 from app.core.config import BOT_NAME
 
-router = APIRouter(prefix="/v1/agents", tags=["agents"])
+router = APIRouter(prefix="/agents", tags=["agents"])
 
 @router.get("/all")
 async def get_agents():

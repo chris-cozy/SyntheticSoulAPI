@@ -3,7 +3,7 @@ from rq.job import Job
 
 from app.core.redis_queue import get_redis
 
-router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
+router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.get("/{job_id}")
 async def job_status(job_id: str):

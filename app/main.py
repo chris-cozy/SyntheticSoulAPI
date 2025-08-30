@@ -20,10 +20,10 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(root_router)
-app.include_router(messages_router)
-app.include_router(jobs_router)
-app.include_router(agents_router)
+app.include_router(root_router, prefix="/v1")
+app.include_router(messages_router, prefix="/v1")
+app.include_router(jobs_router, prefix="/v1")
+app.include_router(agents_router, prefix="/v1")
 
 @app.get("/version", tags=["meta"])
 async def version():

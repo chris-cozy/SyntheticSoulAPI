@@ -6,8 +6,6 @@ from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
-
-from rq import get_current_job
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.domain.models import MessageRequest, MessageResponse
@@ -18,7 +16,7 @@ from app.services.database import get_message_memory, grab_user, grab_self, get_
 from dotenv import load_dotenv
 from app.services.prompting import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
 from app.services.utility import get_random_memories
-from app.tasks import _publish_progress
+from app.services.progress import publish_progress
 
 agent_name = os.getenv("BOT_NAME")
 

@@ -6,17 +6,7 @@ from rq import get_current_job
 from typing import Dict, Any
 from app.domain.models import MessageRequest
 from app.services.message_processor_lite import process_message
-
-def _publish_progress(job_id: str, progress: int) -> None:
-    """
-    Optional: publish progress events to Redis pub/sub (handy if you later add SSE/WS).
-    Safe to no-op if you don't use it.
-    """
-    try:
-        r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-        r.publish(f"job:{job_id}", json.dumps({"job_id": job_id, "progress": progress}))
-    except Exception:
-        pass
+from app.services.progress import publish_progress
 
 def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -27,7 +17,7 @@ def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
     # --- progress 0% ---
     job.meta["progress"] = 0
     job.save_meta()
-    _publish_progress(job.id, 0)
+    publish_progress(job.id, 0)
 
     # Build your Pydantic input from dict (mirrors your current endpoint)
     message_req = MessageRequest(**request_payload)
@@ -41,7 +31,7 @@ def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
     # --- progress 100% ---
     job.meta["progress"] = 100
     job.save_meta()
-    _publish_progress(job.id, 100)
+    publish_progress(job.id, 100)
 
     # Whatever your handle_message() returns should be JSON-serializable (e.g., {"response": "..."}).
     # RQ stores this in job.result for retrieval by the status endpoint.

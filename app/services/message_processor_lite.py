@@ -572,4 +572,4 @@ async def direct_message(
     for step, duration in timings.items():
         print(f"{step}: {duration:.4f}")
     
-    return MessageResponse(response=agent_response_message, time=timings["total_message_handling"], emote=selected_emote)
+    return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), emote=selected_emote)

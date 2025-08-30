@@ -113,7 +113,7 @@ async def alter_personality(self, user, lite_mode):
         }
     ]    
     if (lite_mode):
-        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema_lite())
+        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema_lite(), False)
     else:
         alter_query_response = await get_structured_response(alter_query, get_personality_status_schema())
 
@@ -351,7 +351,7 @@ async def direct_message(
         "role": "user",
         "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
     }
-    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite())
+    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite(), False)
     
     timings["initial_emotion_response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -507,7 +507,7 @@ async def direct_message(
                 ),
             })
     
-    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite())
+    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite(), False)
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

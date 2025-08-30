@@ -342,13 +342,7 @@ async def direct_message(
     recent_all_messages: Any,
     received_date: datetime,
     request: Any,
-) -> MessageResponse:
-    job = get_current_job()
-    # --- progress 0% ---
-    job.meta["progress"] = 5
-    job.save_meta()
-    _publish_progress(job.id, 5)
-    
+) -> MessageResponse:    
     timings = {}
     start = time.perf_counter()
     altered_personality = await alter_personality(self, user, True)

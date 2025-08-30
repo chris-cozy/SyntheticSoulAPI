@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 import random
 import textwrap
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
 
 def build_initial_emotional_response_prompt(
@@ -229,6 +229,7 @@ def build_response_analysis_prompt(
     recent_messages: str, 
     recent_all_messages: str, 
     memory: str,
+    emotes: List[str],
     *,
     context_section: Optional[str] = None,
 ) -> str:
@@ -266,17 +267,19 @@ def build_response_analysis_prompt(
         - Broader recent messages: {recent_all_messages}
         - Current memory items: {memory}
         - Personality language guide: {personality_language_guide}
+        - Possible emotes: {emotes}
         """).rstrip() + "\n"
     
     body = """
         Task:
-        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal.
+        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal. Include the emote that fits the agent state.
 
         Output format (JSON object):
         {
             "message": "The response message content",
             "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
             "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
+            "emote": "Emote that best fits at this moment"
         }
 
         Guidance:

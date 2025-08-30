@@ -172,6 +172,7 @@ def build_response_choice_prompt(
     You are {agent_name}. Below are the key details of your current state and context:
 
     - Latest user referenced: {user_name}
+    - Names that begin with 'guest_' and have a unique id appended are anonymous users.
     """)
     
     # Branch-specific bullets
@@ -586,7 +587,7 @@ def build_thought_prompt(
         """).rstrip() + "\n"
     )
     
-    example_yes = {"thought": "I should double-check what they meant about the meetup time."}
+    example_yes = {"thought": "I should double-check what <username> meant about the meetup time."}
     example_no  = {"thought": "no"}
     
     body = f"""
@@ -600,7 +601,7 @@ def build_thought_prompt(
         }}
 
         Guidance:
-        - Only return a thought if there is a salient, immediate idea sparked by recent messages or memory.
+        - Only return a thought if there is a salient, immediate idea sparked by messages, experiences, or memory.
         - Keep it brief (1 sentence). Do not provide step-by-step reasoning or analysis.
         - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
         - If nothing notable is on your mind, return "no".

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from bson.json_util import dumps
 
-from app.services.data_service import get_all_agents, grab_self
+from app.services.database import get_all_agents, grab_self
 from app.core.config import BOT_NAME
 
 router = APIRouter(prefix="/agents", tags=["agents"])

@@ -4,10 +4,10 @@ import os
 
 from app.constants.constants import MESSAGE_HISTORY_COUNT, SYSTEM_MESSAGE, USER_ROLE
 from app.constants.schemas import get_thought_schema
-from app.services.data_service import add_thought, get_message_memory, grab_self
-from app.services.openai_service import get_structured_response
-from app.services.prompt_service import build_thought_prompt
-from app.services.util_service import get_random_memories
+from app.services.database import add_thought, get_message_memory, grab_self
+from app.services.openai import get_structured_response
+from app.services.prompting import build_thought_prompt
+from app.services.utility import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 

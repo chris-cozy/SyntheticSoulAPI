@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 import asyncio
 from fastapi import FastAPI
 
-from app.services.data_service import init_db, db_client
-from app.services.util_service import start_emotion_decay
+from app.services.database import init_db, db_client
+from app.services.utility import start_emotion_decay
 from app.services.thinking import periodic_thinking
 
 @asynccontextmanager

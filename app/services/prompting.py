@@ -229,7 +229,7 @@ def build_response_analysis_prompt(
     recent_messages: str, 
     recent_all_messages: str, 
     memory: str,
-    emotes: List[str],
+    expressions: List[str],
     *,
     context_section: Optional[str] = None,
 ) -> str:
@@ -267,7 +267,7 @@ def build_response_analysis_prompt(
         - Broader recent messages: {recent_all_messages}
         - Current memory items: {memory}
         - Personality language guide: {personality_language_guide}
-        - Possible emotes: {emotes}
+        - Possible expressions: {expressions}
         """).rstrip() + "\n"
     
     body = """
@@ -279,16 +279,17 @@ def build_response_analysis_prompt(
             "message": "The response message content",
             "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
             "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
-            "emote": "Selection from the list of possible emotes list, that best fits you at this moment (e.g., happy, sad, curious, etc.)"
+            "expression": "Selection from the list of possible expressions, that best fits this moment (e.g., happy, sad, curious, etc.)"
         }
 
         Guidance:
         - The tone must reflect your current emotional state; the purpose should reflect your conversational goal.
+        - The expression must reflect your emotional state and response.
         - Keep language relaxed and simple; avoid overly structured phrasing.
         - Align word choice and phrasing with the personality language guide.
         - Do not reveal private/internal chain-of-thought.
         - Prefer brevity (a few sentences) unless context requires more.
-        - Use emoticons (not emojis), e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<.
+        - Use emoticons (not emojis), (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<, etc)
         """
 
     return textwrap.dedent(header + "\n" + body).strip()

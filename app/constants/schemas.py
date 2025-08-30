@@ -698,8 +698,8 @@ def get_message_schema():
                         "description": "Message tone",
                         "type": "string"
                     },
-                    "emote": {
-                        "description": "The associated emote",
+                    "expression": {
+                        "description": "The associated expression",
                         "type": "string"
                     }
                 },

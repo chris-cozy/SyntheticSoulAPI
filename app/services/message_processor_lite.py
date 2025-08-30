@@ -19,7 +19,7 @@ from app.services.utility import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 
-EMOTE_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
+EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
 load_dotenv()
 
@@ -401,7 +401,7 @@ async def direct_message(
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EMOTE_LIST)
+                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EXPRESSION_LIST)
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())

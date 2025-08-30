@@ -671,6 +671,10 @@ def get_message_schema():
                     "tone": {
                         "description": "Message tone",
                         "type": "string"
+                    },
+                    "emote": {
+                        "description": "The associated emote",
+                        "type": "string"
                     }
                 },
                 "additionalProperties": False

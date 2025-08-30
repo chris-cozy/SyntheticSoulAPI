@@ -9,6 +9,8 @@ class MessageRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     response: Optional[str]
+    time: int
+    emote: str
 
 class ExtendedMessageRequest(BaseModel):
     message: str

@@ -19,6 +19,8 @@ from app.services.util_service import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 
+EMOTE_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
+
 load_dotenv()
 
 async def process_message(request: MessageRequest):
@@ -399,12 +401,13 @@ async def direct_message(
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory)
+                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EMOTE_LIST)
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())
         
         agent_response_message = response_content['message']
+        selected_emote = response_content['emote']
         
         '''
         # Step 9: Evaluate bot's emotional state after responding: CLEAR
@@ -432,6 +435,7 @@ async def direct_message(
     elif response_choice["response_choice"] == IGNORE_CHOICE:
         response_content = None
         agent_response_message = None
+        selected_emote = 'neutral'
         '''
         # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
         final_emotion_query = {
@@ -459,8 +463,6 @@ async def direct_message(
     timings["response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
 
-    # Return the response to the user
-    messageResponse = MessageResponse(response=agent_response_message)
     
     # ---- 0) Save Messages -------------------------------------------
     await insert_message_to_conversation(
@@ -564,8 +566,10 @@ async def direct_message(
     
     await update_user_sentiment(username, current_sentiments)
     
+    timings["total_message_handling"] = time.perf_counter() - start
+    
     print("\nStep timings (seconds):")
     for step, duration in timings.items():
         print(f"{step}: {duration:.4f}")
     
-    return messageResponse
+    return MessageResponse(response=agent_response_message, time=timings["total_message_handling"], emote=selected_emote)

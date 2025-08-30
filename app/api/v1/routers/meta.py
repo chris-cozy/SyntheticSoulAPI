@@ -7,7 +7,6 @@ router = APIRouter(prefix="/meta", tags=["meta"])
 async def version():
     return {"version": API_VERSION}
 
-
 @router.get("/ping")
 async def ping():
     return {"status": "ok"}

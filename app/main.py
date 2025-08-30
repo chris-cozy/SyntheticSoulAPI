@@ -5,7 +5,19 @@ from app.core.config import ALLOWED_ORIGINS, API_VERSION
 
 from app.api.v1.routers import all_routers
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Synthetic Soul API",
+    version=API_VERSION,
+    description="A digital replication of human-like thought processes and emotional fluctuation",
+    lifespan=lifespan,
+    openapi_tags=[
+        {"name": "root", "description": "Misc root endpoints."},
+        {"name": "messages", "description": "Submit and process messages."},
+        {"name": "jobs", "description": "Job status polling."},
+        {"name": "agents", "description": "Agents registry endpoints."},
+        {"name": "meta", "description": "Service metadata (health, version)."},
+    ],
+)
 
 app.add_middleware(
     CORSMiddleware,

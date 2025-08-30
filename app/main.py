@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core import lifespan
+from app.core.lifespan import app_lifespan
 from app.core.config import ALLOWED_ORIGINS, API_VERSION
 
 from app.api.v1.routers import all_routers
@@ -9,7 +9,7 @@ app = FastAPI(
     title="Synthetic Soul API",
     version=API_VERSION,
     description="A digital replication of human-like thought processes and emotional fluctuation",
-    lifespan=lifespan,
+    lifespan=app_lifespan,
     openapi_tags=[
         {"name": "root", "description": "Misc root endpoints."},
         {"name": "messages", "description": "Submit and process messages."},

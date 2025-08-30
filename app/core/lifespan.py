@@ -7,7 +7,7 @@ from app.services.utility import start_emotion_decay
 from app.services.thinking import periodic_thinking
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def app_lifespan(app: FastAPI):
     print("Initializing database...")
     await init_db()
 

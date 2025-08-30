@@ -279,7 +279,7 @@ def build_response_analysis_prompt(
             "message": "The response message content",
             "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
             "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
-            "emote": "Emote that best fits at this moment"
+            "emote": "Selection from the list of possible emotes list, that best fits you at this moment (e.g., happy, sad, curious, etc.)"
         }
 
         Guidance:

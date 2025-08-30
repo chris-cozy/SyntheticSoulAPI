@@ -72,6 +72,7 @@ def build_initial_emotional_response_prompt(
         - If joy is already high, further positive input may simply maintain the current level.
         - Focus only on the most relevant changes.
         - Keep the emotional trajectory consistent with the scale.
+        - Focus on speed of the response
         """
     
     return textwrap.dedent(header + body)
@@ -387,6 +388,7 @@ def build_sentiment_analysis_prompt(
         - If nothing meaningfully changed, return an empty object for "updated_sentiments" and briefly explain why.
         - Keep language natural and avoid overly structured phrasing.
         - Do not reveal private/internal chain-of-thought.
+        - Focus on speed of the response
         """
         
     return textwrap.dedent(header + "\n" + body).strip()
@@ -525,6 +527,7 @@ def build_personality_adjustment_prompt(
         - Do not add brand-new traits; only update existing/known ones. If nothing changes, return an empty object for "updated_personality" and explain why.
         - Keep language relaxed and simple; avoid overly structured phrasing.
         - Do not reveal private/internal chain-of-thought.
+        - Focus on speed of the response
 
         Example (shape only, not a suggestion to copy):
         {json.dumps(example_obj, ensure_ascii=False)}

@@ -10,7 +10,7 @@ client = openai.OpenAI()
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-async def get_structured_response(messages, schema):
+async def get_structured_response(messages, schema, quality = True):
     """
     Queries the OpenAI API to receive a structured response.
 
@@ -18,9 +18,12 @@ async def get_structured_response(messages, schema):
     :param schema: Schema for structuring the result (as JSON)
     :return: Parsed response as a Python dictionary, or None on error
     """
+    gpt_model = os.getenv('GPT_FAST_MODEL')
+    if quality:
+        gpt_model = os.getenv('GPT_QUALITY_MODEL')
     try:
         response = client.beta.chat.completions.parse(
-            model= os.getenv('GPT_MODEL'),
+            model= gpt_model,   
             messages=messages,
             response_format = schema
         )

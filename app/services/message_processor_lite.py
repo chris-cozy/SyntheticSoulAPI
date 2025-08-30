@@ -6,6 +6,8 @@ from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
+
+from rq import get_current_job
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.domain.models import MessageRequest, MessageResponse
@@ -16,6 +18,7 @@ from app.services.database import get_message_memory, grab_user, grab_self, get_
 from dotenv import load_dotenv
 from app.services.prompting import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
 from app.services.utility import get_random_memories
+from app.tasks import _publish_progress
 
 agent_name = os.getenv("BOT_NAME")
 
@@ -340,9 +343,14 @@ async def direct_message(
     received_date: datetime,
     request: Any,
 ) -> MessageResponse:
+    job = get_current_job()
+    # --- progress 0% ---
+    job.meta["progress"] = 5
+    job.save_meta()
+    _publish_progress(job.id, 5)
+    
     timings = {}
     start = time.perf_counter()
-    # Alter personality based on user relationship
     altered_personality = await alter_personality(self, user, True)
     
     timings["alter_personality"] = time.perf_counter() - start
@@ -407,7 +415,7 @@ async def direct_message(
         response_content = await get_structured_response(message_queries, get_message_schema())
         
         agent_response_message = response_content['message']
-        selected_emote = response_content['emote']
+        selected_expression = response_content['expression']
         
         '''
         # Step 9: Evaluate bot's emotional state after responding: CLEAR
@@ -435,7 +443,7 @@ async def direct_message(
     elif response_choice["response_choice"] == IGNORE_CHOICE:
         response_content = None
         agent_response_message = None
-        selected_emote = 'neutral'
+        selected_expression = 'neutral'
         '''
         # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
         final_emotion_query = {
@@ -572,4 +580,4 @@ async def direct_message(
     for step, duration in timings.items():
         print(f"{step}: {duration:.4f}")
     
-    return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), emote=selected_emote)
+    return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), expression=selected_expression)

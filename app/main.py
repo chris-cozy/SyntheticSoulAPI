@@ -3,10 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core import lifespan
 from app.core.config import ALLOWED_ORIGINS, API_VERSION
 
-from app.api.v1.routers.root import router as root_router
-from app.api.v1.routers.messages import router as messages_router
-from app.api.v1.routers.jobs import router as jobs_router
-from app.api.v1.routers.agents import router as agents_router
+from app.api.v1.routers import all_routers
 
 app = FastAPI(lifespan=lifespan)
 
@@ -20,10 +17,8 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(root_router, prefix="/v1")
-app.include_router(messages_router, prefix="/v1")
-app.include_router(jobs_router, prefix="/v1")
-app.include_router(agents_router, prefix="/v1")
+for r in all_routers:
+    app.include_router(r, prefix="/v1")
 
 @app.get("/version", tags=["meta"])
 async def version():

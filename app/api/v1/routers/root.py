@@ -2,9 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.constants.schemas import get_thought_schema
 from app.services.openai_service import get_structured_response
 
-
 router = APIRouter(tags=["root"]) # no prefix; mounted at "/"
-
 
 @router.get("/")
 async def root():

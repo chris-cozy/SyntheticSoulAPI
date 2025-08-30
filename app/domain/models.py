@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
@@ -16,3 +16,10 @@ class ExtendedMessageRequest(BaseModel):
     message: str
     sender: str
     timestamp: datetime
+    
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: Optional[float] = None
+    result: Optional[Any] = None
+    error: Optional[str] = None

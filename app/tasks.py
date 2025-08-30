@@ -4,7 +4,7 @@ import json
 import redis
 from rq import get_current_job
 from typing import Dict, Any
-from app.models.request import MessageRequest
+from app.domain.models import MessageRequest
 from app.services.message_processor_lite import process_message
 
 def _publish_progress(job_id: str, progress: int) -> None:

@@ -8,18 +8,18 @@ from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
-from app.models.request import MessageRequest, MessageResponse
-from app.services.openai_service import check_for_memory, get_structured_response
+from app.domain.models import MessageRequest, MessageResponse
+from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
-from app.services.data_service import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, insert_agent_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, insert_agent_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
-from app.services.prompt_service import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
-from app.services.util_service import get_random_memories
+from app.services.prompting import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
+from app.services.utility import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 
-EMOTE_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
+EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
 load_dotenv()
 
@@ -401,7 +401,7 @@ async def direct_message(
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EMOTE_LIST)
+                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EXPRESSION_LIST)
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())

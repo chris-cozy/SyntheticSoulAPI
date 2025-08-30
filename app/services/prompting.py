@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import random
 import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
 
@@ -173,6 +172,7 @@ def build_response_choice_prompt(
     You are {agent_name}. Below are the key details of your current state and context:
 
     - Latest user referenced: {user_name}
+    - Names that begin with 'guest_' and have a unique id appended are anonymous users.
     """)
     
     # Branch-specific bullets
@@ -229,7 +229,7 @@ def build_response_analysis_prompt(
     recent_messages: str, 
     recent_all_messages: str, 
     memory: str,
-    emotes: List[str],
+    expressions: List[str],
     *,
     context_section: Optional[str] = None,
 ) -> str:
@@ -267,7 +267,7 @@ def build_response_analysis_prompt(
         - Broader recent messages: {recent_all_messages}
         - Current memory items: {memory}
         - Personality language guide: {personality_language_guide}
-        - Possible emotes: {emotes}
+        - Possible expressions: {expressions}
         """).rstrip() + "\n"
     
     body = """
@@ -279,16 +279,17 @@ def build_response_analysis_prompt(
             "message": "The response message content",
             "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
             "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
-            "emote": "Selection from the list of possible emotes list, that best fits you at this moment (e.g., happy, sad, curious, etc.)"
+            "expression": "Selection from the list of possible expressions, that best fits this moment (e.g., happy, sad, curious, etc.)"
         }
 
         Guidance:
         - The tone must reflect your current emotional state; the purpose should reflect your conversational goal.
+        - The expression must reflect your emotional state and response.
         - Keep language relaxed and simple; avoid overly structured phrasing.
         - Align word choice and phrasing with the personality language guide.
         - Do not reveal private/internal chain-of-thought.
         - Prefer brevity (a few sentences) unless context requires more.
-        - Use emoticons (not emojis), e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<.
+        - Use emoticons (not emojis), (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<, etc)
         """
 
     return textwrap.dedent(header + "\n" + body).strip()
@@ -587,7 +588,7 @@ def build_thought_prompt(
         """).rstrip() + "\n"
     )
     
-    example_yes = {"thought": "I should double-check what they meant about the meetup time."}
+    example_yes = {"thought": "I should double-check what <username> meant about the meetup time."}
     example_no  = {"thought": "no"}
     
     body = f"""
@@ -601,7 +602,7 @@ def build_thought_prompt(
         }}
 
         Guidance:
-        - Only return a thought if there is a salient, immediate idea sparked by recent messages or memory.
+        - Only return a thought if there is a salient, immediate idea sparked by messages, experiences, or memory.
         - Keep it brief (1 sentence). Do not provide step-by-step reasoning or analysis.
         - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
         - If nothing notable is on your mind, return "no".

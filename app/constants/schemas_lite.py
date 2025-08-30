@@ -115,7 +115,6 @@ def get_personality_status_schema_lite():
         },
     }
 
-
 def get_emotion_status_schema_lite():
     return {
         "type": "json_schema",
@@ -209,7 +208,6 @@ def get_emotion_status_schema_lite():
             },
         },
     }
-
 
 def get_sentiment_status_schema_lite():
     return {

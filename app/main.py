@@ -19,7 +19,3 @@ app.add_middleware(
 # Routers
 for r in all_routers:
     app.include_router(r, prefix="/v1")
-
-@app.get("/version", tags=["meta"])
-async def version():
-    return {"version": API_VERSION}

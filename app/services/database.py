@@ -90,10 +90,12 @@ async def init_db() -> None:
     timings["total_init_db"] = time.perf_counter() - t0
     
     # One-line timing summary
+    '''
     print(
         "DB init timings (s): "
         + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
     )
+    '''
     
 def _get_db_name() -> str:
     name = os.getenv("DATABASE_NAME")
@@ -165,12 +167,14 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     
     await _ensure_indexes(db)
     
+    '''
     print(
         "Collection init: "
         f"list_names={list_names_time:.3f}s, "
         f"created={len(to_create)} in {create_time:.3f}s, "
         f"validated={len(to_update_validator)} in {update_time:.3f}s"
     )
+    '''
 
 async def grab_user(username, agent_name, lite_mode=True):
     """

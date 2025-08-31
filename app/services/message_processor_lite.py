@@ -46,13 +46,13 @@ async def process_message(request: MessageRequest):
                 "timestamp": received_date
             }
             
-            general_message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+            general_message_memory = None
         
             await insert_message_to_memory(agent_name, new_message_request)
             
-            recent_all_messages = general_message_memory.append(new_message_request)
+            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             
-            recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
+            recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
             timings["message_handling_setup"] = time.perf_counter() - start
             step_start = time.perf_counter()
@@ -64,7 +64,7 @@ async def process_message(request: MessageRequest):
                     new_message_request,
                     username,
                     user,
-                    recent_messages,
+                    recent_user_messages,
                     recent_all_messages,
                     received_date,
                     request,
@@ -75,7 +75,7 @@ async def process_message(request: MessageRequest):
                     self,
                     user,
                     username,
-                    recent_messages,
+                    recent_user_messages,
                     recent_all_messages,
                     received_date,
                     request

@@ -199,6 +199,11 @@ async def grab_user(username, agent_name, lite_mode=True):
             
             print(username)
             now = datetime.now()
+            memory = {
+                "event": "I have just met this person.",
+                "thoughts": "I don't know anything about this person yet.",
+                "timestamp": now,
+            }
             # Create a new user if one doesn't exist
             new_lite_user = {
                 "username": username,
@@ -206,7 +211,7 @@ async def grab_user(username, agent_name, lite_mode=True):
                 "summary": "I don't know anything about this person.",
                 "intrinsic_relationship": intrinsic_relationship,
                 "extrinsic_relationship": "stranger",
-                "memory_profile": [],
+                "memory_profile": [memory],
                 "sentiment_status": BASE_SENTIMENT_MATRIX_LITE,
                 "last_interaction": now
             }

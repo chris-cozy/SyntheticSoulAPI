@@ -2180,7 +2180,6 @@ USER_LITE_VALIDATOR = {
         
       },
       "hate": {
-    
           "bsonType": "object",
           "required": ["description", "value", "min", "max"],
           "properties": {

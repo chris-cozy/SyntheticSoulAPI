@@ -480,7 +480,7 @@ async def direct_message(
         ),
     })
 
-    response_choice = await get_structured_response(message_queries, get_response_choice_schema())
+    response_choice = await get_structured_response(message_queries, get_response_choice_schema(), False)
     
     timings["response_choice"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

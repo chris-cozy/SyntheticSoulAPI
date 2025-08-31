@@ -9,14 +9,14 @@ You can add cooldowns (e.g., ignore large absolute movement after a spike).
 You can unify the decay loop: treat decay as a delta event ({"all": -1} every N seconds) rather than a separate path, or keep your loop and run it through this reducer.
 '''
 
-def _friction(t: BoundedTrait, d: float) -> float:
+def _friction(t: BoundedTrait, d: float) -> int:
     # Damp movement near bounds so values saturate naturally
     span = max(1.0, float(t.max - t.min))
     up_room = (t.max - t.value) / span
     dn_room = (t.value - t.min) / span
     if d > 0: d *= up_room
     if d < 0: d *= dn_room
-    return d
+    return int(d)
 
 def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: float = 7.0) -> EmotionalState:
     '''
@@ -52,5 +52,6 @@ def apply_deltas_personality(mat: PersonalityMatrix, delta: PersonalityDelta, *,
         d = max(-cap, min(cap, d))
         conf = delta.confidence or 0.6
         d *= conf
+        d = int(d)
         new.traits[k] = new.traits[k].apply(d)
     return new

@@ -7,16 +7,16 @@ from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_delta_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
-from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotion_status_schema_lite, get_personality_delta_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
+from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotion_status_schema_lite, get_personality_delta_schema_lite, get_personality_status_schema_lite, get_sentiment_delta_schema_lite, get_sentiment_status_schema_lite
 from app.domain.models import MessageRequest, MessageResponse
-from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix
+from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
 from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
-from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
-from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality
+from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt, build_sentiment_delta_prompt
+from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 from app.services.utility import get_random_memories
 from app.services.progress import publish_progress
 
@@ -462,7 +462,7 @@ async def direct_message(
         ),
     }]
     
-    message_analysis = await get_structured_response(message_queries, get_message_perception_schema())
+    message_analysis = await get_structured_response(message_queries, get_message_perception_schema(), quality=False)
     
     timings["message_analysis"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -601,21 +601,33 @@ async def direct_message(
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
-                    build_sentiment_analysis_prompt(agent_name, username, MIN_SENTIMENT_VALUE, MAX_SENTIMENT_VALUE)
+                    build_sentiment_delta_prompt(agent_name, username)
                 ),
             })
     
-    sentiment_response = await get_structured_response(message_queries, get_sentiment_status_schema_lite(), False)
+    delta = await get_structured_response(message_queries, get_sentiment_delta_schema_lite(), False)
+            
+    if delta and delta.get("deltas"):
+        # Convert existing DB sentiment_status -> SentimentMatrix
+        flat = self["sentiment_status"]
+        mat = SentimentMatrix(sentiments={k: BoundedTrait(**v) for k, v in flat.items()})
+        
+        # Apply
+        new_mat = apply_deltas_sentiment(
+            mat, SentimentDelta(**delta), cap=5.0  # sentiment changes are slower
+        )
+        
+        # Put back into the persisted shape        
+        self["sentiment_status"]["sentiments"] = {
+            k: new_mat.sentiments[k].model_dump() for k in new_mat.sentiments
+        }
+        if new_mat.reason:
+            self["sentiment_status"]["reason"] = new_mat.reason
+    
+    current_sentiments = self["sentiment_status"]
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
-    
-    message_queries.append({
-                "role": BOT_ROLE,
-                "content": json.dumps(sentiment_response),
-            })
-            
-    current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
     
     # ---- 7) Post-response processing (summary/identity/relationships) ------
     message_queries.append({

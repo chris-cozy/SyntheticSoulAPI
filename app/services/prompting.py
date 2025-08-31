@@ -199,6 +199,54 @@ def build_personality_delta_prompt(
     """
     return textwrap.dedent(header + body)
 
+def build_sentiment_delta_prompt(
+    agent_name: str, 
+    username: str, 
+    typical_cap: int = 4,
+    *,
+    max_step: int = 15,
+    context_section: Optional[str] = None,
+) -> str:
+    """
+    Generate a structured prompt to analyze the agent's sentiments toward the user
+    after the most recent message exchange.
+
+    Parameters:
+        agent_name (str): The name of the AI agent.
+        username (str): The name of the user.
+        min_sentiment_value (int): The minimum value on the sentiment intensity scale.
+        max_sentiment_value (int): The maximum value on the sentiment intensity scale.
+
+    Returns:
+        str: A dynamically generated prompt.
+    """
+    # Prefer the shared "Key details" block for consistency; otherwise provide a minimal header.
+    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""You are {agent_name}.
+    Evaluate how your sentiments toward {username} changed after the most recent exchange.
+    """).rstrip() + "\n"
+    
+    body = f"""
+        Task:
+        Suggest small, realistic changes (deltas) to your sentiments toward {username}.
+        Do not output absolute values; output only integer deltas per changed sentiment.
+        
+        Output format (JSON):
+        {{
+        "deltas": {{ "<sentiment>": number, ... }},   // only include keys that should change
+        "reason": "brief natural explanation",
+        "confidence": 0.0 - 1.0
+        }}
+
+        Guidance:
+        - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
+        - Include only sentiments that meaningfully changed; omit everything else.
+        - Be consistent with prior context; avoid abrupt, contradictory swings without justification.
+        - Do not reveal chain-of-thought.
+        - Focus on speed
+        """
+        
+    return textwrap.dedent(header + "\n" + body).strip()
+
 def build_message_perception_prompt(
     agent_name: str, 
     altered_personality: str, 

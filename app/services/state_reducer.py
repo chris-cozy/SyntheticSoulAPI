@@ -1,6 +1,6 @@
 from math import exp
 
-from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix
+from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 '''
 You control realism centrally: tighter caps for personality (slow), looser for emotions (fast).
 
@@ -54,4 +54,17 @@ def apply_deltas_personality(mat: PersonalityMatrix, delta: PersonalityDelta, *,
         d *= conf
         d = int(d)
         new.traits[k] = new.traits[k].apply(d)
+    return new
+
+def apply_deltas_sentiment(mat: SentimentMatrix, delta: SentimentDelta, *, cap=5.0) -> SentimentMatrix:
+    new = mat.model_copy(deep=True)
+    for k, raw in delta.deltas.items():
+        if k not in new.sentiments: 
+            continue
+        d = float(raw)
+        d = max(-cap, min(cap, d))
+        conf = delta.confidence or 0.8
+        d *= conf
+        d = int(d)
+        new.traits[k] = new.sentiments[k].apply(d)
     return new

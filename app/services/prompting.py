@@ -202,6 +202,7 @@ def build_personality_delta_prompt(
 def build_sentiment_delta_prompt(
     agent_name: str, 
     username: str, 
+    sentiments: str,
     typical_cap: int = 4,
     *,
     max_step: int = 15,
@@ -221,8 +222,11 @@ def build_sentiment_delta_prompt(
         str: A dynamically generated prompt.
     """
     # Prefer the shared "Key details" block for consistency; otherwise provide a minimal header.
-    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""You are {agent_name}.
-    Evaluate how your sentiments toward {username} changed after the most recent exchange.
+    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(
+        f"""
+        Context:
+        - Your current sentiments toward {username} are: {sentiments}
+        - Evaluate how your sentiments toward {username} changed after the most recent exchange.
     """).rstrip() + "\n"
     
     body = f"""

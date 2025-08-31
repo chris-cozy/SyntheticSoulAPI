@@ -601,7 +601,7 @@ async def direct_message(
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
-                    build_sentiment_delta_prompt(agent_name, username)
+                    build_sentiment_delta_prompt(agent_name, username, user["sentiment_status"])
                 ),
             })
     

@@ -389,16 +389,16 @@ async def direct_message(
         latest_thought=self['thoughts'][-1] or ""
     )
     
-    delta_json = await get_structured_response([{"role": "user", "content": prompt}], get_personality_delta_schema_lite(), False)
+    delta = await get_structured_response([{"role": "user", "content": prompt}], get_personality_delta_schema_lite(), False)
             
-    if delta_json and delta.get("deltas"):
+    if delta and delta.get("deltas"):
         # Convert existing DB personality_matrix -> PersonalityMatrix
         flat = self["personality"].get("personality_matrix", {})
         mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
         
         # Apply
         new_mat = apply_deltas_personality(
-            mat, PersonalityDelta(**delta_json), cap=3.0  # personality changes are slower
+            mat, PersonalityDelta(**delta), cap=3.0  # personality changes are slower
         )
         
         # Put back into the persisted shape

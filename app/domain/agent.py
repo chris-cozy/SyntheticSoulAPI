@@ -55,11 +55,6 @@ class Emotions(BaseModel):
 class EmotionalStatus(BaseModel):
     emotions: Emotions
     reason: str
-    type: str
-    joy: Optional[int] = None
-    sadness: Optional[int] = None
-    anger: Optional[Dict[str, int]] = None
-
 
 class Thought(BaseModel):
     thought: str

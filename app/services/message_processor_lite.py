@@ -609,7 +609,7 @@ async def direct_message(
             
     if delta and delta.get("deltas"):
         # Convert existing DB sentiment_status -> SentimentMatrix
-        flat = self["sentiment_status"]
+        flat = user["sentiment_status"]
         mat = SentimentMatrix(sentiments={k: BoundedTrait(**v) for k, v in flat.items()})
         
         # Apply
@@ -622,9 +622,9 @@ async def direct_message(
             k: new_mat.sentiments[k].model_dump() for k in new_mat.sentiments
         }
         if new_mat.reason:
-            self["sentiment_status"]["reason"] = new_mat.reason
+            user["sentiment_status"]["reason"] = new_mat.reason
     
-    current_sentiments = self["sentiment_status"]
+    current_sentiments = user["sentiment_status"]
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

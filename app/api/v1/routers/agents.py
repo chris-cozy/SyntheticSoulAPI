@@ -3,45 +3,42 @@ from typing import Any
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException
 from bson.json_util import dumps
+from fastapi.encoders import jsonable_encoder
 
-from app.domain.agent import AgentModel
 from app.services.database import get_all_agents, grab_self
 from app.core.config import BOT_NAME
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-def to_aliased_mongo_shape(obj: Any) -> Any:
-    """
-    Recursively transform Mongo types so they match the JasmineModel aliases:
-    - ObjectId -> {"$oid": "..."}
-    - datetime -> {"$date": datetime}  (Pydantic will isoformat on output)
-    """
-    if isinstance(obj, ObjectId):
-        return {"$oid": str(obj)}
-    if isinstance(obj, datetime):
-        return {"$date": obj}
-    if isinstance(obj, dict):
-        return {k: to_aliased_mongo_shape(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [to_aliased_mongo_shape(v) for v in obj]
-    return obj
-
 @router.get("/all")
 async def get_agents():
     try:
         response = await get_all_agents()
-        return {"agents": response}
+        return {"agents": dumps(response)}
     except Exception as e:
         print(f"Error in agents endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/active", response_model=AgentModel)
+@router.get("/active")
 async def get_active_agent():
     try:
-        raw = await grab_self(BOT_NAME)
-        shaped = to_aliased_mongo_shape(raw)
-        model = AgentModel.model_validate(shaped)
-        return model
+        doc = await grab_self(BOT_NAME)  # e.g. {'_id': ObjectId(...), 'name': 'bot', ...}
+        if not doc:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        # make a copy, expose id as string, drop Mongo's _id key (optional but common)
+        doc = dict(doc)
+        if "_id" in doc:
+            doc["id"] = str(doc.pop("_id"))
+
+        payload = jsonable_encoder(
+            doc,
+            custom_encoder={
+                ObjectId: str,
+                datetime: lambda d: d.isoformat()
+            },
+        )
+        return {"agent": payload}
     except Exception as e:
         print(f"Error in agent endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

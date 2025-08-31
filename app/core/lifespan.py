@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import asyncio
 from fastapi import FastAPI
 
-from app.services.database import init_db, db_client
+from app.services.database import init_db, _db_client
 from app.services.utility import start_emotion_decay
 from app.services.thinking import periodic_thinking
 
@@ -20,8 +20,8 @@ async def app_lifespan(app: FastAPI):
     try:
         yield
     finally:
-        if db_client:
-            db_client.close()
+        if _db_client:
+            _db_client.close()
             print("Database connection closed.")
         decay_task.cancel()
         print("Emotion decay loop stopped.")

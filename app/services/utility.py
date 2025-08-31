@@ -2,7 +2,9 @@ import asyncio
 import os
 import random
 from app.constants.constants import AGENT_NAME_PROPERTY, MIN_EMOTION_VALUE, EMOTIONAL_DECAY_RATE
+from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import grab_self, update_agent_emotions
+from app.services.state_reducer import apply_deltas_emotion
 
 async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
     '''
@@ -14,27 +16,23 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
     while True:
         try:
             self = await grab_self(os.getenv('BOT_NAME'), lite_mode)
-
-            if not self:
-                print(f"Warning - emotion_decay_loop: Self-agent {os.getenv('BOT_NAME')} not found ")
-                await asyncio.sleep(decay_rate)
-                continue
-
-            emotions = self["emotional_status"]["emotions"]
-
-            for emotion, data in emotions.items():
-                if data["value"] > MIN_EMOTION_VALUE:
-                    data["value"] -= 1
-                    if data["value"] < 0:
-                        data["value"] = 0
-
-                    self["emotional_status"]["emotions"][emotion]["value"] = data["value"]
-
-            if (lite_mode):
-                await update_agent_emotions(self[AGENT_NAME_PROPERTY], self["emotional_status"])
-            else: 
-                await update_agent_emotions(self[AGENT_NAME_PROPERTY], self["emotional_status"], False)
-
+            
+            current = self["emotional_status"]
+            emo = EmotionalState(
+                emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
+                reason=current.get("reason")
+            )
+            # build a small negative delta only for > min values
+            deltas = {}
+            for k, t in emo.emotions.items():
+                if t.value > t.min:
+                    deltas[k] = -1.0
+            if deltas:
+                decayed = apply_deltas_emotion(emo, EmotionalDelta(deltas=deltas, reason="decay", confidence=1.0), cap=7.0)
+                self["emotional_status"]["emotions"] = {k: decayed.emotions[k].model_dump() for k in decayed.emotions}
+                
+                await update_agent_emotions(self["name"], self["emotional_status"])     
+    
         except Exception as e:
             print(f"Error - Emotional decay: {e}")
 

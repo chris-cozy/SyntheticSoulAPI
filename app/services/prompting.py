@@ -76,6 +76,130 @@ def build_initial_emotional_response_prompt(
     
     return textwrap.dedent(header + body)
 
+def build_emotion_delta_prompt(
+    agent_name: str, 
+    altered_personality: str, 
+    emotional_status: str, 
+    user_name: str, 
+    user_summary: str, 
+    intrinsic_relationship: str, 
+    extrinsic_relationship: str, 
+    recent_user_messages: str, 
+    recent_all_messages: str, 
+    received_date: str, 
+    user_message: str, 
+    latest_thought: str,
+    typical_cap: int = 7
+) -> str:
+    """
+    Generate a structured prompt for modeling the agent's emotional response.
+
+    Parameters:
+        agent_name (str): The name of the AI agent.
+        altered_personality (str): The agent's current personality traits.
+        emotional_status (str): The agent's current emotional state.
+        user_name (str): The user's name.
+        user_summary (str): Information the agent knows about the user.
+        intrinsic_relationship (str): The intrinsic relationship between the agent and the user.
+        extrinsic_relationship (str): The extrinsic relationship between the agent and the user.
+        recent_messages (str): The recent conversation messages.
+        recent_all_messages (str): The past ten remembered messages overall.
+        received_date (str): The date of the interaction.
+        user_message (str): The latest message sent by the user.
+        min_sentiment_value (int): The minimum sentiment value scale.
+        max_sentiment_value (int): The maximum sentiment value scale.
+
+    Returns:
+        str: A clean, dynamic prompt string.
+    """
+    header = _format_shared_context(
+        agent_name=agent_name,
+        altered_personality=altered_personality,
+        emotional_status=emotional_status,
+        user_name=user_name,
+        user_summary=user_summary,
+        intrinsic_relationship=intrinsic_relationship,
+        extrinsic_relationship=extrinsic_relationship,
+        recent_messages=recent_user_messages,
+        recent_all_messages=recent_all_messages,
+        received_date=received_date,
+        user_message=user_message,
+        latest_thought=latest_thought,
+    )
+    
+    body = f"""
+        Task:
+        Propose small **deltas** to the current emotional state in response to the latest message.
+
+        Output format (JSON):
+        {{
+            "deltas": {{ "<emotion>": number, ... }},  // only include keys that should change
+            "reason": "brief natural explanation",
+            "confidence": 0.0 - 1.0
+        }}
+
+        Guidance:
+        - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
+        - Stay consistent with current values; avoid abrupt reversals without cause.
+        - Do not output absolute values; output **deltas** only.
+        - If nothing should change, return an empty "deltas" object.
+        - Focus on speed
+        """
+    return textwrap.dedent(header + body)
+
+def build_personality_delta_prompt(
+    *,
+    agent_name: str,
+    personality: str,                 # JSON string (current personality object)
+    sentiment_status: str,            # JSON string (current sentiment)
+    user_name: str,
+    extrinsic_relationship: str,
+    recent_messages: str = "[]",      # JSON string (optional)
+    recent_all_messages: str = "[]",  # JSON string (optional)
+    received_date: str = "",
+    user_message: str = "",
+    latest_thought: str = "",
+    typical_cap: int = 3              # small, slow movement for personality
+) -> str:
+    """
+    Ask the model for *deltas* to the personality matrix (not absolute values).
+    Output is designed to validate against get_personality_delta_schema_lite().
+    """
+    # Reuse your shared context block (same helper used by build_initial_emotional_response_prompt)
+    header = _format_shared_context(
+        agent_name=agent_name,
+        altered_personality=personality,
+        emotional_status=sentiment_status,     # you can also pass "" if you prefer
+        user_name=user_name,
+        user_summary="",                        # optional
+        intrinsic_relationship="",              # optional
+        extrinsic_relationship=extrinsic_relationship,
+        recent_messages=recent_messages,
+        recent_all_messages=recent_all_messages,
+        received_date=received_date,
+        user_message=user_message,
+        latest_thought=latest_thought,
+    )
+
+    body = f"""
+    Task:
+    Propose small **deltas** to the current personality matrix in response to the latest interaction and overall context.
+
+    Output format (JSON):
+    {{
+      "deltas": {{ "<trait>": number, ... }},   // only include keys that should change
+      "reason": "brief natural explanation",
+      "confidence": 0.0 - 1.0
+    }}
+
+    Guidance:
+    - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
+    - Do **not** output absolute values—only **deltas** to apply to current values.
+    - If nothing should change, return an empty "deltas" object.
+    - Keep changes coherent with existing values and the relationship with {user_name}.
+    """
+    return textwrap.dedent(header + body)
+
 def build_message_perception_prompt(
     agent_name: str, 
     altered_personality: str, 

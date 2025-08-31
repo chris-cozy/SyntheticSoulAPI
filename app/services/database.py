@@ -54,8 +54,6 @@ async def _ensure_indexes(db):
     )
     await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
 
-db_client = None
-
 async def init_db() -> None:
     """
     Initialize the global Mongo client and collections once.
@@ -92,10 +90,12 @@ async def init_db() -> None:
     timings["total_init_db"] = time.perf_counter() - t0
     
     # One-line timing summary
+    '''
     print(
         "DB init timings (s): "
         + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
     )
+    '''
     
 def _get_db_name() -> str:
     name = os.getenv("DATABASE_NAME")
@@ -167,12 +167,14 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     
     await _ensure_indexes(db)
     
+    '''
     print(
         "Collection init: "
         f"list_names={list_names_time:.3f}s, "
         f"created={len(to_create)} in {create_time:.3f}s, "
         f"validated={len(to_update_validator)} in {update_time:.3f}s"
     )
+    '''
 
 async def grab_user(username, agent_name, lite_mode=True):
     """
@@ -248,19 +250,14 @@ async def grab_self(agent_name, lite_mode=True):
     :param agent_name: Name of the bot
     :return: Self object
     """
-    timings: Dict[str, float] = {}
-    t = time.perf_counter()
     db = await get_database()
-    timings["self_get_database"] = time.perf_counter() - t
     if(lite_mode):
         t = time.perf_counter()
         agent_lite_collection = db[AGENT_LITE_COLLECTION]
 
         self = await agent_lite_collection.find_one({"name": agent_name})
-        timings["self_find_agent"] = time.perf_counter() - t
 
         if not self:
-            t = time.perf_counter()
             # Create a new self object if one doesn't exist
             thought = {
                 "thought": "I think, therefore I am.",
@@ -277,7 +274,6 @@ async def grab_self(agent_name, lite_mode=True):
             }
             result = await agent_lite_collection.insert_one(new_self)
             self = await agent_lite_collection.find_one({"_id": result.inserted_id})
-            timings["self_create_agent"] = time.perf_counter() - t
     else:
         agent_collection = db[AGENT_COLLECTION]
 
@@ -299,11 +295,7 @@ async def grab_self(agent_name, lite_mode=True):
             }
             result = await agent_collection.insert_one(new_self)
             self = await agent_collection.find_one({"_id": result.inserted_id})
-
-    print(
-        "Self init timings (s): "
-        + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
-    )
+            
     return self
 
 async def get_conversation(username, agent_name):
@@ -385,19 +377,29 @@ async def insert_message_to_memory(agent_name, message_request):
     try:
         db = await get_database()
         message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
-        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
 
-        if not message_memory:
+        if not await message_memory_collection.find_one({"agent_name": agent_name}):
             # Create a new message memory object if one doesn't exist
             new_message_memory = {
                 "agent_name": agent_name,
                 "messages": [],
             }
-            result = await message_memory_collection.insert_one(new_message_memory)
-            message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+            await message_memory_collection.insert_one(new_message_memory)
 
-        message_memory["messages"].append(message_request)
-        message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
+        await message_memory_collection.update_one(
+            {"agent_name": agent_name}, 
+            { 
+             "$push": 
+                 {
+                     "messages": {
+                         "$each": [message_request],
+                         "$slice": -10000
+                         }
+                     },
+                 "$setOnInsert": {"agent_name": agent_name}
+                 },
+            upsert=True
+        )
     except Exception as e:
         print(e)
         
@@ -410,8 +412,19 @@ async def insert_message_to_conversation(
         db = await get_database()
         conversation_collection = db[CONVERSATION_COLLECTION]
         await conversation_collection.update_one(
-        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
-        { "$push": {"messages": message }})
+            {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+            { 
+            "$push": 
+                {
+                    "messages": {
+                        "$each": [message],
+                        "$slice": -1000 
+                        }
+                    },
+                "$setOnInsert": {USER_NAME_PROPERTY: username, "agent_name": agent_name}
+            },
+            upsert=True
+        )
     except Exception as e:
         print(e)
         

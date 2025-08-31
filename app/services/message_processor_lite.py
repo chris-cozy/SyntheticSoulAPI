@@ -6,15 +6,17 @@ from fastapi import HTTPException
 from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
-from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
-from app.constants.schemas_lite import get_emotion_status_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
+from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_delta_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
+from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotion_status_schema_lite, get_personality_delta_schema_lite, get_personality_status_schema_lite, get_sentiment_status_schema_lite
 from app.domain.models import MessageRequest, MessageResponse
+from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix
 from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
 from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
-from app.services.prompting import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
+from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
+from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality
 from app.services.utility import get_random_memories
 from app.services.progress import publish_progress
 
@@ -46,13 +48,13 @@ async def process_message(request: MessageRequest):
                 "timestamp": received_date
             }
             
-            general_message_memory = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+            general_message_memory = None
         
             await insert_message_to_memory(agent_name, new_message_request)
             
-            recent_all_messages = general_message_memory.append(new_message_request)
+            recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
             
-            recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
+            recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
             timings["message_handling_setup"] = time.perf_counter() - start
             step_start = time.perf_counter()
@@ -64,7 +66,7 @@ async def process_message(request: MessageRequest):
                     new_message_request,
                     username,
                     user,
-                    recent_messages,
+                    recent_user_messages,
                     recent_all_messages,
                     received_date,
                     request,
@@ -75,7 +77,7 @@ async def process_message(request: MessageRequest):
                     self,
                     user,
                     username,
-                    recent_messages,
+                    recent_user_messages,
                     recent_all_messages,
                     received_date,
                     request
@@ -93,7 +95,7 @@ async def process_message(request: MessageRequest):
             print(f"Error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
                                
-async def alter_personality(self, user, lite_mode):
+async def alter_personality(self, user):
     """
     Alters the bot's personality based on the user's sentiment status and their extrinsic relationship.
 
@@ -105,25 +107,54 @@ async def alter_personality(self, user, lite_mode):
     """
     personality = self["personality"]
     sentiment = user["sentiment_status"]
-    extrinsic_relationship = user['extrinsic_relationship']
+    extrinsic = user['extrinsic_relationship']
+    
+    prompt = build_personality_delta_prompt(
+        agent_name,
+        personality=json.dumps(personality),
+        sentiment_status=json.dumps(sentiment),
+        user_name=user[USER_NAME_PROPERTY],
+        extrinsic_relationship=extrinsic,
+        recent_messages=json.dumps([]),         # optional: your recent convo slice
+        recent_all_messages=json.dumps([]),
+        received_date=str(datetime.utcnow()),
+        user_message="",                         # optional: last user msg if relevant
+        latest_thought=""                        # optional
+    )
+    
+    prompt = build_personality_adjustment_prompt(
+        agent_name, personality, sentiment, user[USER_NAME_PROPERTY], extrinsic,
+        MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, 15
+    )
     alter_query = [
         {
         "role": "user",
-        "content": (
-            build_personality_adjustment_prompt(agent_name, personality, sentiment, user[USER_NAME_PROPERTY], extrinsic_relationship, 
-                                           MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, 15)
-            ),
+        "content": prompt,
         }
-    ]    
-    if (lite_mode):
-        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema_lite(), False)
-    else:
-        alter_query_response = await get_structured_response(alter_query, get_personality_status_schema())
+    ]  
+      
+    delta_json = await get_structured_response(alter_query, get_personality_delta_schema_lite(), False)
+    
+    # If model had no changes, return as-is
+    if not delta_json or not delta_json.get("deltas"):
+        return personality
+    
+    # Convert existing DB personality_matrix -> PersonalityMatrix
+    flat = personality.get("personality_matrix", {})
+    mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
+    
+    # Apply
+    new_mat = apply_deltas_personality(
+        mat, PersonalityDelta(**delta_json), cap=3.0  # personality changes are slower
+    )
+    
+    # Put back into the persisted shape
+    personality["personality_matrix"] = {
+        k: new_mat.traits[k].model_dump() if k in new_mat.traits else v
+        for k, v in flat.items()
+    }
 
-    # Merge the response with the original personality matrix
-    altered_personality = deep_merge(personality, alter_query_response)
-
-    return altered_personality
+    return personality
 
 def deep_merge(target: Dict[str, Any], source: Dict[str, Any], average: bool = False) -> Dict[str, Any]:
     """
@@ -336,34 +367,98 @@ async def direct_message(
     self: Any,
     user: Any,
     username: str,
-    recent_messages: Any,
+    recent_user_messages: Any,
     recent_all_messages: Any,
     received_date: datetime,
     request: Any,
-) -> MessageResponse:    
+) -> MessageResponse: 
+    
+    # ---- 0) Customize Personality -------------------------------------------   
     timings = {}
     start = time.perf_counter()
-    altered_personality = await alter_personality(self, user, True)
+    prompt = build_personality_delta_prompt(
+        agent_name,
+        personality=json.dumps(self["personality"]),
+        sentiment_status=json.dumps(user["sentiment_status"]),
+        user_name=user[USER_NAME_PROPERTY],
+        extrinsic_relationship=user['extrinsic_relationship'],
+        recent_messages=json.dumps(recent_user_messages),         
+        recent_all_messages=json.dumps(recent_all_messages),
+        received_date=str(received_date),
+        user_message=request.message,
+        latest_thought=self['thoughts'][-1] or ""
+    )
     
-    timings["alter_personality"] = time.perf_counter() - start
+    delta_json = await get_structured_response([{"role": "user", "content": prompt}], get_personality_delta_schema_lite(), False)
+            
+    if delta_json and delta.get("deltas"):
+        # Convert existing DB personality_matrix -> PersonalityMatrix
+        flat = self["personality"].get("personality_matrix", {})
+        mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
+        
+        # Apply
+        new_mat = apply_deltas_personality(
+            mat, PersonalityDelta(**delta_json), cap=3.0  # personality changes are slower
+        )
+        
+        # Put back into the persisted shape
+        self["personality"]["personality_matrix"] = {
+            k: new_mat.traits[k].model_dump() if k in new_mat.traits else v
+            for k, v in flat.items()
+        }
+    
+    altered_personality = self["personality"]
+    
+    timings["personality_delta"] = time.perf_counter() - start
     step_start = time.perf_counter()
     
-    # Assess emotional response upon first viewing message
-    initial_emotion_query = {
-        "role": "user",
-        "content": (build_initial_emotional_response_prompt(agent_name, altered_personality, self['emotional_status'], username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, received_date, request.message, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, self['thoughts'][-1])),
-    }
-    initial_emotion_response = await get_structured_response([SYSTEM_MESSAGE, initial_emotion_query], get_emotion_status_schema_lite(), False)
+    # ---- 1) Initial Emotional Reaction -------------------------------------------
+    prompt = build_emotion_delta_prompt(
+        agent_name,
+        altered_personality,
+        emotional_status=json.dumps(self["emotional_status"]),        # current values
+        user_name=user[USER_NAME_PROPERTY],
+        user_summary=user.get("summary", ""),
+        intrinsic_relationship=user.get("intrinsic_relationship", ""),
+        extrinsic_relationship=user.get("extrinsic_relationship", ""),
+        recent_user_messages=json.dumps(recent_user_messages),
+        recent_all_messages=json.dumps(recent_all_messages),
+        received_date=str(received_date),
+        user_message=request.message,
+        latest_thought=self['thoughts'][-1] or ""
+    )
     
-    timings["initial_emotion_response"] = time.perf_counter() - step_start
+    delta = await get_structured_response(
+        [{"role": "user", "content": prompt}],
+        get_emotion_delta_schema_lite(),
+        quality=False
+    )
+    if delta and delta.get("deltas"):  # only apply if anything changed
+        current = self["emotional_status"]
+        emo = EmotionalState(
+            emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
+            reason=current.get("reason")
+        )
+        new_state = apply_deltas_emotion(emo, EmotionalDelta(**delta), cap=7.0)
+        # persist back in your DB shape
+        self["emotional_status"]["emotions"] = {
+            k: new_state.emotions[k].model_dump() for k in new_state.emotions
+        }
+        if new_state.reason:
+            self["emotional_status"]["reason"] = new_state.reason
+        # save with your existing DB function
+        await update_agent_emotions(self["name"], self["emotional_status"])
+        
+    current_emotions = self["emotional_status"]    
+    
+    timings["initial_emotion_delta"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
-
-    current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
     
+    # ---- 2) Message Perception -------------------------------------------
     message_queries = [SYSTEM_MESSAGE, {
         "role": "user",
         "content": (
-            build_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_messages, recent_all_messages, request.message, received_date)
+            build_message_perception_prompt(agent_name, altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_user_messages, recent_all_messages, request.message, received_date)
         ),
     }]
     
@@ -377,7 +472,7 @@ async def direct_message(
         "content": json.dumps(message_analysis)
         })
 
-    # Step 7: Determine whether to respond: CLEAR
+    # ---- 3) Decide If Respond -------------------------------------------
     message_queries.append({
         "role": "user",
         "content": (
@@ -395,13 +490,14 @@ async def direct_message(
         "content": json.dumps(response_choice)
         })
     
+    # ---- 4) Respond -------------------------------------------
     if response_choice["response_choice"] == RESPOND_CHOICE:
         memory = get_random_memories(self)
 
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_messages, recent_all_messages, memory, EXPRESSION_LIST)
+                build_response_analysis_prompt(agent_name, altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_user_messages, recent_all_messages, memory, EXPRESSION_LIST)
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())
@@ -464,7 +560,7 @@ async def direct_message(
     step_start = time.perf_counter()
 
     
-    # ---- 0) Save Messages -------------------------------------------
+    # ---- 5) Save Messages -------------------------------------------
     await insert_message_to_conversation(
         username, 
         agent_name, 
@@ -501,7 +597,7 @@ async def direct_message(
             }
         )
     
-    # ---- 1) Sentiment reflection -------------------------------------------
+    # ---- 6) Sentiment reflection -------------------------------------------
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
@@ -521,7 +617,7 @@ async def direct_message(
             
     current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
     
-    # ---- 2) Post-response processing (summary/identity/relationships) ------
+    # ---- 7) Post-response processing (summary/identity/relationships) ------
     message_queries.append({
         "role": USER_ROLE,
         "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
@@ -536,7 +632,7 @@ async def direct_message(
 
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     
-    # ---- 3) Memory worthiness ----------------------------------------------
+    # ---- 8) Memory worthiness ----------------------------------------------
     message_queries.append({
         "role": USER_ROLE,
         "content": (build_memory_worthiness_prompt(agent_name))

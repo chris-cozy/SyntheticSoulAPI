@@ -375,19 +375,29 @@ async def insert_message_to_memory(agent_name, message_request):
     try:
         db = await get_database()
         message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
-        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
 
-        if not message_memory:
+        if not await message_memory_collection.find_one({"agent_name": agent_name}):
             # Create a new message memory object if one doesn't exist
             new_message_memory = {
                 "agent_name": agent_name,
                 "messages": [],
             }
-            result = await message_memory_collection.insert_one(new_message_memory)
-            message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
+            await message_memory_collection.insert_one(new_message_memory)
 
-        message_memory["messages"].append(message_request)
-        message_memory_collection.update_one({"agent_name": agent_name}, { "$set": {"messages": message_memory["messages"] }})
+        await message_memory_collection.update_one(
+            {"agent_name": agent_name}, 
+            { 
+             "$push": 
+                 {
+                     "messages": {
+                         "$each": [message_request],
+                         "$slice": -10000
+                         }
+                     },
+                 "$setOnInsert": {"agent_name": agent_name}
+                 },
+            upsert=True
+        )
     except Exception as e:
         print(e)
         

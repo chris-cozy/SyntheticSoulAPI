@@ -1598,3 +1598,23 @@ def update_summary_identity_relationship_schema():
             },
         },
     }
+    
+def get_personality_delta_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "personality_delta",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "deltas": {
+                        "type": "object",
+                        "additionalProperties": { "type": "number", "minimum": -7, "maximum": 7 }
+                    },
+                    "reason": { "type": "string" },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "required": ["deltas"]
+            }
+        }
+    }

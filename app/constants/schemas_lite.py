@@ -406,3 +406,23 @@ def get_personality_delta_schema_lite():
             }
         }
     }
+    
+def get_sentiment_delta_schema_lite():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "sentiment_delta",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "deltas": {
+                        "type": "object",
+                        "additionalProperties": { "type": "number", "minimum": -5, "maximum": 5 }
+                    },
+                    "reason": { "type": "string" },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "required": ["deltas"]
+            }
+        }
+    }

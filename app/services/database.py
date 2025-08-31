@@ -400,8 +400,19 @@ async def insert_message_to_conversation(
         db = await get_database()
         conversation_collection = db[CONVERSATION_COLLECTION]
         await conversation_collection.update_one(
-        {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
-        { "$push": {"messages": message }})
+            {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+            { 
+            "$push": 
+                {
+                    "messages": {
+                        "$each": [message],
+                        "$slice": -1000 
+                        }
+                    },
+                "$setOnInsert": {USER_NAME_PROPERTY: username, "agent_name": agent_name}
+            },
+            upsert=True
+        )
     except Exception as e:
         print(e)
         

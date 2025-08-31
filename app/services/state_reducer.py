@@ -66,5 +66,5 @@ def apply_deltas_sentiment(mat: SentimentMatrix, delta: SentimentDelta, *, cap=5
         conf = delta.confidence or 0.8
         d *= conf
         d = int(d)
-        new.traits[k] = new.sentiments[k].apply(d)
+        new.sentiments[k] = new.sentiments[k].apply(d)
     return new

@@ -25,11 +25,24 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
             # build a small negative delta only for > min values
             deltas = {}
             for k, t in emo.emotions.items():
-                if t.value > t.min:
-                    deltas[k] = -1.0
+                if int(t.value) > int(t.min):
+                    deltas[k] = -1
             if deltas:
-                decayed = apply_deltas_emotion(emo, EmotionalDelta(deltas=deltas, reason="decay", confidence=1.0), cap=7.0)
-                self["emotional_status"]["emotions"] = {k: decayed.emotions[k].model_dump() for k in decayed.emotions}
+                decayed = apply_deltas_emotion(
+                    emo, 
+                    EmotionalDelta(deltas=deltas, reason="decay", confidence=1.0), cap=7.0
+                )
+                
+                # Persist back as INTs (validator requires bsonType: "int")
+                self["emotional_status"]["emotions"] = {
+                    k: {
+                        **decayed.emotions[k].model_dump(),
+                        "value": int(round(decayed.emotions[k].value)),
+                        "min": int(decayed.emotions[k].min),
+                        "max": int(decayed.emotions[k].max),
+                    }
+                    for k in decayed.emotions
+                }
                 
                 await update_agent_emotions(self["name"], self["emotional_status"])     
     

@@ -2032,7 +2032,7 @@ MESSAGE_MEMORY_VALIDATOR = {
 
 
 USER_LITE_VALIDATOR = {
-
+  "$jsonSchema": {
     "bsonType": "object",
     "required": [
       "username",
@@ -2529,7 +2529,7 @@ USER_LITE_VALIDATOR = {
         "description": "The timestamp of the user's last interaction, required and must be a valid date."
       }
     }
-
+  }
 }
 
 USER_VALIDATOR = {

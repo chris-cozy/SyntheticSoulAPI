@@ -621,7 +621,7 @@ async def direct_message(
         )
         
         # Put back into the persisted shape        
-        self["sentiment_status"]["sentiments"] = {
+        user["sentiment_status"]["sentiments"] = {
             k: new_mat.sentiments[k].model_dump() for k in new_mat.sentiments
         }
         if new_mat.reason:

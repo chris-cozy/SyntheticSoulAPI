@@ -54,8 +54,6 @@ async def _ensure_indexes(db):
     )
     await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
 
-db_client = None
-
 async def init_db() -> None:
     """
     Initialize the global Mongo client and collections once.

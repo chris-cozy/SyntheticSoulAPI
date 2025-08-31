@@ -12,7 +12,7 @@ from app.domain.models import MessageRequest, MessageResponse
 from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
-from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, insert_agent_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
 from app.services.prompting import build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt
 from app.services.utility import get_random_memories
@@ -558,6 +558,7 @@ async def direct_message(
             "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
         })
         check_for_memory_response = await check_for_memory(message_queries)
+        # Sometimes crashes due to no name field
         function = eval(check_for_memory_response.function_call.name)
         params = json.loads(check_for_memory_response.function_call.arguments)
         await function(**params)

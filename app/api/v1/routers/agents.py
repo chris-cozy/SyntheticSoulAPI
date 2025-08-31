@@ -4,6 +4,7 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException
 from bson.json_util import dumps
 
+from app.domain.agent import AgentModel
 from app.services.database import get_all_agents, grab_self
 from app.core.config import BOT_NAME
 
@@ -34,17 +35,13 @@ async def get_agents():
         print(f"Error in agents endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/active")
+@router.get("/active", response_model=AgentModel)
 async def get_active_agent():
     try:
-        '''
-        raw = await grab_self(BOT_NAME)  # whatever your data source returns
+        raw = await grab_self(BOT_NAME)
         shaped = to_aliased_mongo_shape(raw)
-        model = JasmineModel.model_validate(shaped)  # Pydantic v2
-        return model  # FastAPI will serialize using field aliases by default
-        '''
-        response = await grab_self(BOT_NAME)
-        return {"agent": response}
+        model = AgentModel.model_validate(shaped)
+        return model
     except Exception as e:
         print(f"Error in agent endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

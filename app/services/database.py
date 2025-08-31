@@ -248,19 +248,14 @@ async def grab_self(agent_name, lite_mode=True):
     :param agent_name: Name of the bot
     :return: Self object
     """
-    timings: Dict[str, float] = {}
-    t = time.perf_counter()
     db = await get_database()
-    timings["self_get_database"] = time.perf_counter() - t
     if(lite_mode):
         t = time.perf_counter()
         agent_lite_collection = db[AGENT_LITE_COLLECTION]
 
         self = await agent_lite_collection.find_one({"name": agent_name})
-        timings["self_find_agent"] = time.perf_counter() - t
 
         if not self:
-            t = time.perf_counter()
             # Create a new self object if one doesn't exist
             thought = {
                 "thought": "I think, therefore I am.",
@@ -277,7 +272,6 @@ async def grab_self(agent_name, lite_mode=True):
             }
             result = await agent_lite_collection.insert_one(new_self)
             self = await agent_lite_collection.find_one({"_id": result.inserted_id})
-            timings["self_create_agent"] = time.perf_counter() - t
     else:
         agent_collection = db[AGENT_COLLECTION]
 
@@ -299,11 +293,7 @@ async def grab_self(agent_name, lite_mode=True):
             }
             result = await agent_collection.insert_one(new_self)
             self = await agent_collection.find_one({"_id": result.inserted_id})
-
-    print(
-        "Self init timings (s): "
-        + ", ".join(f"{k}={v:.3f}" for k, v in timings.items())
-    )
+            
     return self
 
 async def get_conversation(username, agent_name):

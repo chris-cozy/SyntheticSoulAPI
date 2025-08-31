@@ -18,6 +18,10 @@ class EmotionalState(BaseModel):
 class PersonalityMatrix(BaseModel):
     # Use your lite keys or full keys based on mode
     traits: Dict[str, BoundedTrait]
+    
+class SentimentMatrix(BaseModel):
+    sentiments: Dict[str, BoundedTrait]
+    reason: Optional[str] = None
 
 class EmotionalDelta(BaseModel):
     deltas: Dict[str, int]  # e.g. {"joy": +6, "sadness": -3}
@@ -28,3 +32,11 @@ class PersonalityDelta(BaseModel):
     deltas: Dict[str, int]  # e.g. {"warmth": +2}
     reason: Optional[str] = None
     confidence: Optional[float] = Field(default=0.6, ge=0, le=1)
+    
+class SentimentDelta(BaseModel):
+    deltas: Dict[str, int]  # e.g. {"love": +2}
+    reason: Optional[str] = None
+    confidence: Optional[float] = Field(default=0.8, ge=0, le=1)
+    
+
+    

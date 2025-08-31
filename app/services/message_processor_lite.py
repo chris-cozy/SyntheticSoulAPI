@@ -610,8 +610,11 @@ async def direct_message(
     if delta and delta.get("deltas"):
         # Convert existing DB sentiment_status -> SentimentMatrix
         flat = user["sentiment_status"]
-        mat = SentimentMatrix(sentiments={k: BoundedTrait(**v) for k, v in flat.items()})
-        
+        mat = SentimentMatrix(
+            sentiments={k: BoundedTrait(**v) for k, v in flat["sentiments"].items()},
+            reason=flat.get("reason")
+        )
+                
         # Apply
         new_mat = apply_deltas_sentiment(
             mat, SentimentDelta(**delta), cap=5.0  # sentiment changes are slower

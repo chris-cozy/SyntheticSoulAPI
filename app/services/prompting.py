@@ -148,7 +148,6 @@ def build_emotion_delta_prompt(
     return textwrap.dedent(header + body)
 
 def build_personality_delta_prompt(
-    *,
     agent_name: str,
     personality: str,                 # JSON string (current personality object)
     sentiment_status: str,            # JSON string (current sentiment)

@@ -378,12 +378,12 @@ async def direct_message(
     start = time.perf_counter()
     prompt = build_personality_delta_prompt(
         agent_name,
-        personality=json.dumps(self["personality"]),
-        sentiment_status=json.dumps(user["sentiment_status"]),
+        personality=self["personality"],
+        sentiment_status=user["sentiment_status"],
         user_name=user[USER_NAME_PROPERTY],
         extrinsic_relationship=user['extrinsic_relationship'],
-        recent_messages=json.dumps(recent_user_messages),         
-        recent_all_messages=json.dumps(recent_all_messages),
+        recent_messages=recent_user_messages,         
+        recent_all_messages=recent_all_messages,
         received_date=str(received_date),
         user_message=request.message,
         latest_thought=self['thoughts'][-1] or ""
@@ -416,13 +416,13 @@ async def direct_message(
     prompt = build_emotion_delta_prompt(
         agent_name,
         altered_personality,
-        emotional_status=json.dumps(self["emotional_status"]),        # current values
+        emotional_status=self["emotional_status"],        # current values
         user_name=user[USER_NAME_PROPERTY],
         user_summary=user.get("summary", ""),
         intrinsic_relationship=user.get("intrinsic_relationship", ""),
         extrinsic_relationship=user.get("extrinsic_relationship", ""),
-        recent_user_messages=json.dumps(recent_user_messages),
-        recent_all_messages=json.dumps(recent_all_messages),
+        recent_user_messages=recent_user_messages,
+        recent_all_messages=recent_all_messages,
         received_date=str(received_date),
         user_message=request.message,
         latest_thought=self['thoughts'][-1] or ""

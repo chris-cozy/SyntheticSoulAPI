@@ -462,7 +462,7 @@ async def direct_message(
         ),
     }]
     
-    message_analysis = await get_structured_response(message_queries, get_message_perception_schema())
+    message_analysis = await get_structured_response(message_queries, get_message_perception_schema(), quality=False)
     
     timings["message_analysis"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

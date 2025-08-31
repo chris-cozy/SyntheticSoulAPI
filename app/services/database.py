@@ -439,7 +439,7 @@ async def add_thought(
     except Exception as e:
         print(e)
                
-async def insert_agent_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
+async def create_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
     """Inserts a new general memory
 
     Args:

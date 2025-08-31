@@ -23,3 +23,6 @@ class JobStatusResponse(BaseModel):
     progress: Optional[float] = None
     result: Optional[Any] = None
     error: Optional[str] = None
+    
+class Agent(BaseModel):
+    

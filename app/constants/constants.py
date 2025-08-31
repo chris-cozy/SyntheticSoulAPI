@@ -1484,7 +1484,7 @@ SYSTEM_MESSAGE_DEPRACATED_2 = {"role": "system", "content": f"""
 
 FUNCTION_DESCRIPTIONS = [
   {
-    "name": "insert_agent_memory",
+    "name": "create_memory",
     "description": "Recording a new memory in relation to oneself",
     "parameters": {
       "type": "object",

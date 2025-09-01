@@ -640,7 +640,7 @@ async def direct_message(
         "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
     })
     
-    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
+    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema(), False)
     
     timings["post_response_processing"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -655,7 +655,7 @@ async def direct_message(
         "content": (build_memory_worthiness_prompt(agent_name))
     })
     
-    is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+    is_memory_response = await get_structured_response(message_queries, is_memory_schema(), False)
     
     timings["memory_worthiness"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

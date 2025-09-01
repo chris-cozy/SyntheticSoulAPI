@@ -36,7 +36,7 @@ def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: f
         # 2) confidence-weight (0..1)
         conf = delta.confidence or 0.7
         d *= conf
-
+        print(d)
         # 3) friction near bounds (saturate near min/max)
         d = _friction(new.emotions[k], d)
         print(d)

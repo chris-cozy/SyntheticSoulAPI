@@ -650,6 +650,7 @@ async def direct_message(
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     
     # ---- 8) Memory worthiness ----------------------------------------------
+    '''
     message_queries.append({
         "role": USER_ROLE,
         "content": (build_memory_worthiness_prompt(agent_name))
@@ -664,30 +665,31 @@ async def direct_message(
         "role": BOT_ROLE,
         "content": json.dumps(is_memory_response)
     })
+    '''
     
     # ---- 8) Create memory ----------------------------------------------
-    if (is_memory_response["is_memory"] == "yes"):
-        message_queries.append({
+    message_queries.append({
             "role": USER_ROLE, 
             "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
         })
         
-        memory_response = await get_structured_response(message_queries, get_memory_schema_lite(), quality=False)
+    memory_response = await get_structured_response(message_queries, get_memory_schema_lite(), quality=False)
+    
+    if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
+        mem = Memory(
+            agent_name=agent_name,
+            user=username,
+            event=memory_response["event"],
+            thoughts=memory_response["thoughts"],
+            significance=memory_response.get("significance", "low"),
+            emotional_impact=normalize_emotional_impact_fill_zeros(memory_response.get("emotional_impact")),
+            tags=[t for t in (memory_response.get("tags") or []) if t][:3],
+        )
         
-        if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
-            mem = Memory(
-                agent_name=agent_name,
-                user=username,
-                event=memory_response["event"],
-                thoughts=memory_response["thoughts"],
-                significance=memory_response.get("significance", "low"),
-                emotional_impact=normalize_emotional_impact_fill_zeros(memory_response.get("emotional_impact")),
-                tags=[t for t in (memory_response.get("tags") or []) if t][:3],
-            )
-            
-            await add_memory(mem)
+        await add_memory(mem)
+    
+        timings["memory_creation"] = time.perf_counter() - step_start
         
-            timings["memory_creation"] = time.perf_counter() - step_start
             
         
     await update_agent_emotions(agent_name, current_emotions)

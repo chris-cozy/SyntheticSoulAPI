@@ -25,8 +25,6 @@ def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: f
     '''
     new = state.model_copy(deep=True)
     for k, raw in delta.deltas.items():
-        print(k)
-        print(raw)
         if k not in new.emotions: 
             continue
         d = float(raw)
@@ -36,10 +34,8 @@ def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: f
         # 2) confidence-weight (0..1)
         conf = delta.confidence or 0.7
         d *= conf
-        print(d)
         # 3) friction near bounds (saturate near min/max)
         d = _friction(new.emotions[k], d)
-        print(d)
         new.emotions[k] = new.emotions[k].apply(d)
     if delta.reason:
         new.reason = delta.reason
@@ -70,4 +66,28 @@ def apply_deltas_sentiment(mat: SentimentMatrix, delta: SentimentDelta, *, cap=5
         d *= conf
         d = int(d)
         new.sentiments[k] = new.sentiments[k].apply(d)
+    return new
+
+def apply_deltas_emotional_friction(state: EmotionalState, delta: EmotionalDelta, *, cap: float = 7.0) -> EmotionalState:
+    '''
+    # Optional: cross-trait coupling, e.g., joy vs sadness
+    # new = normalize_pairs(new, pairs=[("joy","sadness")], max_sum=150)
+    '''
+    new = state.model_copy(deep=True)
+    for k, raw in delta.deltas.items():
+        if k not in new.emotions: 
+            continue
+        d = float(raw)
+        # 1) cap
+        d = max(-cap, min(cap, d))
+
+        # 2) confidence-weight (0..1)
+        conf = delta.confidence or 0.7
+        d *= conf
+        # 3) friction near bounds (saturate near min/max)
+        d = int(d)
+        new.emotions[k] = new.emotions[k].apply(d)
+    if delta.reason:
+        new.reason = delta.reason
+    
     return new

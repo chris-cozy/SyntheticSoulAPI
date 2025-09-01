@@ -11,8 +11,8 @@ from app.domain.models import MessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import get_structured_response
-from app.constants.constants import AGENT_NAME, BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXPRESSION_LIST, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MESSAGE_HISTORY_COUNT, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
-from app.services.database import add_memory, get_message_memory, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.constants.constants import AGENT_NAME, BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, DM_TYPE, EXPRESSION_LIST, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MESSAGE_HISTORY_COUNT, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
+from app.services.database import add_memory, get_all_message_memory, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 from app.services.utility import get_random_memories
@@ -28,43 +28,26 @@ async def process_message(request: MessageRequest):
         try:
             timings = {}
             start = time.perf_counter()
+            
             received_date = datetime.now() 
             username = request.username
             self = await grab_self(AGENT_NAME)
             user = await grab_user(username, AGENT_NAME)
             conversation = await get_conversation(username, AGENT_NAME)
-                    
-            await insert_message_to_memory(AGENT_NAME, {
-                "message": request.message,
-                "sender": username,
-                "timestamp": received_date
-            })
-            
-            recent_all_messages = await get_message_memory(AGENT_NAME, MESSAGE_HISTORY_COUNT)
-            
+            recent_all_messages = await get_all_message_memory(AGENT_NAME, MESSAGE_HISTORY_COUNT)
             recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
             timings["message_handling_setup"] = time.perf_counter() - start
             step_start = time.perf_counter()
-
-            if (request.type == GC_TYPE):
-                response = await handle_message(
+            
+            response = await handle_message(
                     self,
                     user,
                     recent_user_messages,
                     recent_all_messages,
                     received_date,
                     request,
-                    False
-                )
-            else:
-                response = await handle_message(
-                    self,
-                    user,
-                    recent_user_messages,
-                    recent_all_messages,
-                    received_date,
-                    request
+                    direct_message=request.type == DM_TYPE
                 )
                 
             timings["message_handling_completion"] = time.perf_counter() - step_start
@@ -178,7 +161,9 @@ async def handle_message(
         # save with your existing DB function
         await update_agent_emotions(self["name"], self["emotional_status"])
         
-    current_emotions = self["emotional_status"]    
+    current_emotions = self["emotional_status"]
+    
+    await update_agent_emotions(AGENT_NAME, current_emotions)    
     
     timings["initial_emotion_delta"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -200,6 +185,23 @@ async def handle_message(
         "role": BOT_ROLE,
         "content": json.dumps(message_analysis)
         })
+    
+    rich_message = {
+            "message": message_analysis["message"],
+            "purpose": message_analysis["purpose"],
+            "tone": message_analysis["tone"],
+            "timestamp": received_date,
+            "sender": username,
+            "from_agent": False
+        }
+    
+    await insert_message_to_conversation(
+        username, 
+        AGENT_NAME, 
+        rich_message
+    )
+    
+    await insert_message_to_message_memory(rich_message)
 
     # ---- 3) Decide If Respond -------------------------------------------
     message_queries.append({
@@ -233,6 +235,23 @@ async def handle_message(
         
         agent_response_message = response_content['message']
         selected_expression = response_content['expression']
+        
+        rich_message = {
+                "message": response_content["message"],
+                "purpose": response_content["purpose"],
+                "tone": response_content["tone"],
+                "timestamp": datetime.now(),
+                "sender": AGENT_NAME,
+                "from_agent": True
+            }
+        
+        await insert_message_to_conversation(
+            username, 
+            AGENT_NAME, 
+            rich_message
+        )
+        
+        await insert_message_to_message_memory(rich_message)
         
         '''
         # Step 9: Evaluate bot's emotional state after responding: CLEAR
@@ -287,46 +306,8 @@ async def handle_message(
         
     timings["response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
-
     
-    # ---- 5) Save Messages -------------------------------------------
-    await insert_message_to_conversation(
-        username, 
-        AGENT_NAME, 
-        {
-            "message": message_analysis["message"],
-            "purpose": message_analysis["purpose"],
-            "tone": message_analysis["tone"],
-            "timestamp": received_date,
-            "sender": username,
-            "from_agent": False
-        }
-    )
-    
-    if response_choice["response_choice"] == RESPOND_CHOICE:
-        await insert_message_to_conversation(
-            username, 
-            AGENT_NAME, 
-            {
-                "message": response_content["message"],
-                "purpose": response_content["purpose"],
-                "tone": response_content["tone"],
-                "timestamp": datetime.now(),
-                "sender": AGENT_NAME,
-                "from_agent": True
-            }
-        )
-        
-        await insert_message_to_memory(
-            AGENT_NAME, 
-            {
-            "message": response_content["message"],
-            "sender": AGENT_NAME,
-            "timestamp": datetime.now()
-            }
-        )
-    
-    # ---- 6) Sentiment reflection -------------------------------------------
+    # ---- 5) Sentiment reflection -------------------------------------------
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
@@ -356,12 +337,12 @@ async def handle_message(
         if new_mat.reason:
             user["sentiment_status"]["reason"] = new_mat.reason
     
-    current_sentiments = user["sentiment_status"]
+    await update_user_sentiment(username, user["sentiment_status"])
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
     
-    # ---- 7) Post-response processing (summary/identity/relationships) ------
+    # ---- 6) Post-response processing (summary/identity/relationships) ------
     message_queries.append({
         "role": USER_ROLE,
         "content": (build_post_response_processing_prompt(AGENT_NAME, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
@@ -376,7 +357,7 @@ async def handle_message(
     timings["post_response_processing"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
     
-    # ---- 8) Create memory ----------------------------------------------
+    # ---- 7) Create memory ----------------------------------------------
     message_queries.append({
             "role": USER_ROLE, 
             "content": build_memory_prompt(AGENT_NAME, self['memory_profile']['all_tags'])
@@ -400,11 +381,8 @@ async def handle_message(
         timings["memory_creation"] = time.perf_counter() - step_start
         
             
-    # ---- 9) Update data ----------------------------------------------
-    await update_agent_emotions(AGENT_NAME, current_emotions)
-    
-    await update_user_sentiment(username, current_sentiments)
-    
+    # ---- 8) Return response ----------------------------------------------
+   
     timings["total_message_handling"] = time.perf_counter() - start
     
     print("\nStep timings (seconds):")

@@ -574,7 +574,6 @@ BASE_SENTIMENT_MATRIX_LITE = {
     "reason": "I don't know this person."
 }
 
-
 BASE_SENTIMENT_MATRIX = {
     "sentiments": {
         "affection": {
@@ -997,6 +996,8 @@ USER_NAME_PROPERTY = "username"
 AGENT_NAME_PROPERTY = "name"
 
 MESSAGE_MEMORY_COLLECTION = "message_memory"
+
+MESSAGE_COLLECTION = "message"
 
 MEMORY_COLLECTION = "memory"
 

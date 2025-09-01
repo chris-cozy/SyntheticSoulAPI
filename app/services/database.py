@@ -3,11 +3,11 @@ from datetime import datetime
 import os
 import time
 from typing import Any, Dict, List, Tuple
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.constants.validators import AGENT_VALIDATOR, MEMORY_VALIDATOR
+from app.constants.validators import AGENT_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import MESSAGE_MEMORY_VALIDATOR
@@ -29,6 +29,7 @@ _VALIDATORS: Dict[str, Dict[str, Any]] = {
     USER_COLLECTION:         USER_VALIDATOR,
     MESSAGE_MEMORY_COLLECTION: MESSAGE_MEMORY_VALIDATOR,
     MEMORY_COLLECTION: MEMORY_VALIDATOR,
+    MESSAGE_COLLECTION: MESSAGES_VALIDATOR
 }
 
 def _client_opts() -> Dict[str, Any]:
@@ -55,6 +56,7 @@ async def _ensure_indexes(db):
         name="username_agent"
     )
     await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
+    await db[MESSAGE_COLLECTION].create_index("sender", name="sender")
     
     await db[MEMORY_COLLECTION].create_index(
         [("agent_name", 1), ("ts_created", -1)],
@@ -380,6 +382,29 @@ async def get_message_memory(agent_name, count):
         return latest_messages
     except Exception as e:
         print(e)
+        
+async def get_all_message_memory(agent_name, count):
+    """
+    Grab the count of past messages in general
+
+    :return: List of messages
+    """
+    try:
+        db = await get_database()
+        message_collection = db[MESSAGE_COLLECTION]
+        
+        cursor = (
+            message_collection
+            .find({"sender": agent_name})
+            .sort([("_id", -1)])   # Sort descending by _id (newest first)
+            .limit(count)
+        )
+        
+        latest_messages = await cursor.to_list(length=count)
+        return latest_messages
+    except Exception as e:
+        print(e)
+        return []
 
 async def insert_message_to_memory(agent_name, message_request):
     """Inserts a new message into the agent's message memory
@@ -439,6 +464,16 @@ async def insert_message_to_conversation(
             },
             upsert=True
         )
+    except Exception as e:
+        print(e)
+
+async def insert_message_to_message_memory(
+    message: dict[str, Any]
+) -> None:
+    try:
+        db = await get_database()
+        messsage_collection = db[MESSAGE_COLLECTION]
+        await messsage_collection.insert_one(message)
     except Exception as e:
         print(e)
         

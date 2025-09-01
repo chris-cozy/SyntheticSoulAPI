@@ -25,6 +25,8 @@ def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: f
     '''
     new = state.model_copy(deep=True)
     for k, raw in delta.deltas.items():
+        print(k)
+        print(raw)
         if k not in new.emotions: 
             continue
         d = float(raw)
@@ -37,6 +39,7 @@ def apply_deltas_emotion(state: EmotionalState, delta: EmotionalDelta, *, cap: f
 
         # 3) friction near bounds (saturate near min/max)
         d = _friction(new.emotions[k], d)
+        print(d)
         new.emotions[k] = new.emotions[k].apply(d)
     if delta.reason:
         new.reason = delta.reason

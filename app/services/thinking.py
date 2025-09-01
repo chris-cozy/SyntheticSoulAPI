@@ -44,4 +44,4 @@ async def periodic_thinking():
             await generate_thought()
         except Exception as e:
             print(f"Error in generate_thought: {e}")
-        await asyncio.sleep(60)
+        await asyncio.sleep(180)

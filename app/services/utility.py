@@ -29,8 +29,6 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
             for k, t in emo.emotions.items():
                 if int(t.value) > int(t.min):
                     deltas[k] = -1
-            print("EMOTION DECAY")
-            print(deltas)
             if deltas:
                 decayed = apply_deltas_emotion(
                     emo, 
@@ -41,6 +39,10 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
                 self["emotional_status"]["emotions"] = {
                     k: decayed.emotions[k].model_dump() for k in decayed.emotions
                 }
+                print("EMOTION DECAY")
+                print(self["emotional_status"]["emotions"])
+                if decayed.reason:
+                    self["emotional_status"]["reason"] = decayed.reason
                 
                 await update_agent_emotions(self["name"], self["emotional_status"])     
     

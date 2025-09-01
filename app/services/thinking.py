@@ -4,10 +4,9 @@ import os
 
 from app.constants.constants import MESSAGE_HISTORY_COUNT, SYSTEM_MESSAGE, USER_ROLE
 from app.constants.schemas import get_thought_schema
-from app.services.database import add_thought, get_message_memory, grab_self
+from app.services.database import add_thought, get_all_message_memory, grab_self
 from app.services.openai import get_structured_response
 from app.services.prompting import build_thought_prompt
-from app.services.utility import get_random_memories
 
 agent_name = os.getenv("BOT_NAME")
 
@@ -15,13 +14,13 @@ async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
     """
-    recent_all_messages = await get_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+    recent_all_messages = await get_all_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
     self = await grab_self(agent_name, True)
     
     thought_prompt = {
         "role": USER_ROLE,
         "content": (
-            build_thought_prompt(self, recent_all_messages, get_random_memories(self))
+            build_thought_prompt(self, recent_all_messages, [])
         )
     }
     

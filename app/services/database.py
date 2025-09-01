@@ -353,32 +353,6 @@ async def get_all_agents():
     all_lite_agents = await cursor.to_list(length=None)  # Convert the cursor to a 
 
     return {"normal": all_agents, "lite": all_lite_agents}
-
-async def get_message_memory(agent_name, count):
-    """
-    Grab the count of past messages in general
-
-    :return: List of messages
-    """
-    try:
-        db = await get_database()
-        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
-        message_memory = await message_memory_collection.find_one({"agent_name": agent_name})
-
-        if not message_memory:
-                # Create a new message memory object if one doesn't exist
-                new_message_memory = {
-                    "agent_name": agent_name,
-                    "messages": [],
-                }
-                result = await message_memory_collection.insert_one(new_message_memory)
-                message_memory = await message_memory_collection.find_one({"_id": result.inserted_id})
-
-
-        latest_messages = message_memory["messages"][-count:]
-        return latest_messages
-    except Exception as e:
-        print(e)
         
 async def get_all_message_memory(agent_name, count):
     """

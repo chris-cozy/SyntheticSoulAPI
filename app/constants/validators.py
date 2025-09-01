@@ -2029,6 +2029,39 @@ MESSAGE_MEMORY_VALIDATOR = {
     }
   }
 
+MESSAGES_VALIDATOR = {
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["message", "purpose", "tone", "timestamp", "sender", "from_agent"],
+    "properties": {
+        "message": {
+            "bsonType": "string",
+            "description": "Message content is required and must be a string"
+        },
+        "purpose": {
+            "bsonType": "string",
+            "description": "Purpose is required and must be a string"
+        },
+        "tone": {
+            "bsonType": "string",
+            "description": "Tone is required and must be a string"
+        },
+        "timestamp": {
+            "bsonType": "date",
+            "description": "Timestamp must be a valid ISO date"
+        },
+        "sender": {
+            "bsonType": "string",
+            "description": "Sender is required and must be a string"
+        },
+        "from_agent": {
+            "bsonType": "bool",
+            "description": "from_agent is required and must be a boolean"
+        }
+    }
+  }
+}
+
 USER_LITE_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",

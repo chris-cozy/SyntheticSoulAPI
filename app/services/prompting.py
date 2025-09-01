@@ -719,7 +719,7 @@ def build_personality_adjustment_prompt(
 def build_thought_prompt(
     self: Mapping[str, Any], 
     recent_all_messages: Sequence[str] | str, 
-    memory: str,
+    memory: Any,
     *,
     context_section: Optional[str] = None,
     now: Optional[str] = None
@@ -740,6 +740,9 @@ def build_thought_prompt(
     personality = self.get("personality", "")
     emotional_status = self.get("emotional_status", "")
     identity = self.get("identity", "")
+    previous_thoughts = self.get("thoughts", "")
+    
+    previous_thoughts = previous_thoughts[-4:]
     
     # Normalize messages display
     if isinstance(recent_all_messages, (list, tuple)):
@@ -759,9 +762,10 @@ def build_thought_prompt(
         - Personality traits: {personality}
         - Current emotional state: {emotional_status}
         - Identity: {identity}
-        - Broader recent messages: {messages_repr}
+        - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
-        - Current memory items: {memory}
+        - Current memories: {memory}
+        - Previous few thoughts: {previous_thoughts}
         """).rstrip() + "\n"
     )
     
@@ -770,19 +774,20 @@ def build_thought_prompt(
     
     body = f"""
         Task:
-        Decide whether you are currently having a distinct, brief internal thought. 
+        Decide whether you are currently having a distinct, internal thought. 
         If yes, provide that thought. If not, return "no".
 
         Output format (JSON object):
         {{
-        "thought": "no" | "a short, single-sentence thought"
+        "thought": "no" | "a distinct, internal thought"
         }}
 
         Guidance:
         - Only return a thought if there is a salient, immediate idea sparked by messages, experiences, or memory.
-        - Keep it brief (1 sentence). Do not provide step-by-step reasoning or analysis.
+        - Keep it brief. Do not provide step-by-step reasoning or analysis.
         - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
         - If nothing notable is on your mind, return "no".
+        - Avoid repeating previous few thoughts unless sensible.
 
         Examples (shape only; do not copy verbatim):
         - {json.dumps(example_yes, ensure_ascii=False)}

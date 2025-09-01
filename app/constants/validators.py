@@ -1,15 +1,15 @@
 AGENT_LITE_VALIDATOR = {
     "$jsonSchema": {
         "bsonType": "object",
-        "required": ["name", "identity", "personality", "memory_profile", "emotional_status", "thoughts"],
+        "required": ["name", "identity", "personality", "memory_tags", "emotional_status", "thoughts", "birthdate"],
         "properties": {
             "name": {
-            "bsonType": "string",
-            "description": "Name of the agent, required and must be a string"
+              "bsonType": "string",
+              "description": "Name of the agent, required and must be a string"
             },
             "identity": {
-            "bsonType": "string",
-            "description": "Identity description of the agent, required and must be a string"
+              "bsonType": "string",
+              "description": "Identity description of the agent, required and must be a string"
             },
             "personality": {
                 "bsonType": "object",
@@ -459,22 +459,22 @@ AGENT_LITE_VALIDATOR = {
 
             },
             "thoughts": {
-            "bsonType": "array",
-            "description": "List of past thoughts, required and must be an array of objects",
-            "items": {
-                "bsonType": "object",
-                "required": ["thought", "timestamp"],
-                "properties": {
-                "thought": {
-                    "bsonType": "string",
-                    "description": "The thought content, required and must be a string (can be empty)"
-                },
-                "timestamp": {
-                    "bsonType": "date",
-                    "description": "Timestamp of the thought, required and must be a valid date"
-                }
-                }
-            }
+              "bsonType": "array",
+              "description": "List of past thoughts, required and must be an array of objects",
+              "items": {
+                  "bsonType": "object",
+                  "required": ["thought", "timestamp"],
+                  "properties": {
+                  "thought": {
+                      "bsonType": "string",
+                      "description": "The thought content, required and must be a string (can be empty)"
+                  },
+                  "timestamp": {
+                      "bsonType": "date",
+                      "description": "Timestamp of the thought, required and must be a valid date"
+                  }
+                  }
+              }
             },
             "birthdate": {
                 "bsonType": "date",

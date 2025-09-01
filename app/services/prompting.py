@@ -317,6 +317,8 @@ def build_message_perception_prompt(
         Guidance:
         - Word choice, context, and current emotions may influence interpretation.
         - Misinterpretations are possible (e.g., sadness may cause positive messages to feel bittersweet, insecurity may cause neutral remarks to feel hostile).
+        - Always return ONE concise interpretation of tone, not a hedge. If the emotional state leans toward the misinterpretation, return that as the tone instead of explaining both.
+        - Always return ONE concise interpretation of purpose, not a hedge. If the emotional state leans toward the misinterpretation, return that as the purpose instead of explaining both.
         - Keep responses concise and natural while staying consistent with the emotional context.
         """
     return textwrap.dedent(header + body)

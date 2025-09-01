@@ -2032,8 +2032,12 @@ MESSAGE_MEMORY_VALIDATOR = {
 MESSAGES_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
-    "required": ["message", "purpose", "tone", "timestamp", "sender", "from_agent"],
+    "required": ["agent", "message", "purpose", "tone", "timestamp", "sender", "from_agent"],
     "properties": {
+        "agent": {
+            "bsonType": "string",
+            "description": "Agent name is required and must be a string"
+        },
         "message": {
             "bsonType": "string",
             "description": "Message content is required and must be a string"

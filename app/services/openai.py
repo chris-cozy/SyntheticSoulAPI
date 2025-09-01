@@ -3,8 +3,6 @@ import json
 import os
 from dotenv import load_dotenv
 
-from app.constants.constants import FUNCTION_DESCRIPTIONS
-
 load_dotenv()
 client = openai.OpenAI()
 

@@ -360,7 +360,7 @@ async def handle_message(
     # ---- 7) Create memory ----------------------------------------------
     message_queries.append({
             "role": USER_ROLE, 
-            "content": build_memory_prompt(AGENT_NAME, self['memory_profile']['all_tags'])
+            "content": build_memory_prompt(AGENT_NAME, self['memory_tags'])
         })
         
     memory_response = await get_structured_response(message_queries, get_memory_schema_lite(), quality=False)

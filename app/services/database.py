@@ -10,7 +10,6 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.constants.validators import AGENT_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
-from app.constants.validators import MESSAGE_MEMORY_VALIDATOR
 from app.constants.validators import USER_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
 from app.domain.memory import Memory

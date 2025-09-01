@@ -12,7 +12,7 @@ from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, Perso
 from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import get_structured_response
 from app.constants.constants import AGENT_NAME, BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, DM_TYPE, EXPRESSION_LIST, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MESSAGE_HISTORY_COUNT, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
-from app.services.database import add_memory, get_all_message_memory, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.services.database import add_memory, get_all_message_memory, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
 from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 from app.services.utility import get_random_memories
@@ -377,6 +377,7 @@ async def handle_message(
         )
         
         await add_memory(mem)
+        await update_tags(memory_response.get("tags") or [])
     
         timings["memory_creation"] = time.perf_counter() - step_start
         

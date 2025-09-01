@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import time
 from typing import Any, Dict, List, Tuple
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -24,10 +24,9 @@ _db_init_done: bool = False
 _VALIDATORS: Dict[str, Dict[str, Any]] = {
     CONVERSATION_COLLECTION: CONVERSATION_VALIDATOR,
     AGENT_LITE_COLLECTION:   AGENT_LITE_VALIDATOR,
-    AGENT_COLLECTION:        AGENT_VALIDATOR,
+    #AGENT_COLLECTION:        AGENT_VALIDATOR,
     USER_LITE_COLLECTION:    USER_LITE_VALIDATOR,
-    USER_COLLECTION:         USER_VALIDATOR,
-    MESSAGE_MEMORY_COLLECTION: MESSAGE_MEMORY_VALIDATOR,
+    #USER_COLLECTION:         USER_VALIDATOR,
     MEMORY_COLLECTION: MEMORY_VALIDATOR,
     MESSAGE_COLLECTION: MESSAGES_VALIDATOR
 }
@@ -283,7 +282,7 @@ async def grab_self(agent_name, lite_mode=True):
                 "name": agent_name,
                 "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
                 "personality": BASE_PERSONALITIES_LITE[1]["traits"],
-                "memory_profile": {"all_tags": [], "memories": []},
+                "memory_tags": [],
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": [thought],
                 "birthdate": datetime.now()
@@ -473,6 +472,7 @@ async def insert_message_to_message_memory(
     try:
         db = await get_database()
         messsage_collection = db[MESSAGE_COLLECTION]
+        message["agent"] = AGENT_NAME
         await messsage_collection.insert_one(message)
     except Exception as e:
         print(e)
@@ -553,6 +553,17 @@ async def add_memory(mem: Memory):
         memory_collection = db[MEMORY_COLLECTION]
         doc = mem.model_dump()
         await memory_collection.insert_one(doc)
+    except Exception as e:
+        print(e)
+        
+async def update_tags(new_tags: List[str]):
+    try:
+        db = await get_database()
+        agent_lite_collection = db[AGENT_LITE_COLLECTION]
+        await agent_lite_collection.update_one(
+            {AGENT_NAME_PROPERTY: AGENT_NAME},
+            {"$addToSet": {"memory_tags": {"$each": new_tags}}}
+        )
     except Exception as e:
         print(e)
       

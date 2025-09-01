@@ -426,3 +426,67 @@ def get_sentiment_delta_schema_lite():
             }
         }
     }
+    
+def get_memory_schema_lite():
+    """
+    Structured output for *creating one episodic memory*.
+
+    Fields mirror the new `memories` collection:
+      - event, thoughts, significance (required)
+      - emotional_impact (optional, compact 0..100 ints)
+      - tags (optional; capped to 3; unique)
+      - embedding_text (optional; if present, use to create the vector)
+
+    Use with get_structured_response(messages, get_memory_schema_lite()).
+    """
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "episodic_memory",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["event", "thoughts", "significance"],
+                "properties": {
+                    "event": {
+                        "type": "string",
+                        "description": "Short, factual summary of what happened (1–2 sentences)."
+                    },
+                    "thoughts": {
+                        "type": "string",
+                        "description": "Agent's internal reflection about why this matters (2–4 sentences, concise)."
+                    },
+                    "significance": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                        "description": "Salience used for ranking/retention."
+                    },
+                    "emotional_impact": {
+                        "type": ["object", "null"],
+                        "additionalProperties": False,
+                        "description": "Optional lightweight affect snapshot (0..100 ints). Omit keys that are not relevant.",
+                        "properties": {
+                            "joy":      {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "sadness":  {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "anger":    {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "fear":     {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "surprise": {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "love":     {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} },
+                            "disgust":  {"type": "object", "properties": {"value": {"type": "integer", "minimum": MIN_EMOTION_VALUE, "maximum": MAX_EMOTION_VALUE}} }
+                        }
+                    },
+                    "tags": {
+                        "type": ["array", "null"],
+                        "description": "0–3 topic keywords. Avoid duplicates and overly general tags.",
+                        "items": {"type": "string"},
+                        "maxItems": 3,
+                        "uniqueItems": True
+                    },
+                    "embedding_text": {
+                        "type": ["string", "null"],
+                        "description": "Optional single sentence to embed; if omitted, embed `event + thoughts`."
+                    }
+                }
+            }
+        }
+    }

@@ -7,13 +7,14 @@ from typing import Dict, Any, List, Mapping, Optional
 from typing import Dict, Any
 from datetime import datetime
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_personality_delta_schema, get_personality_status_schema, get_response_choice_schema, implicitly_addressed_schema, is_memory_schema, update_summary_identity_relationship_schema
-from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotion_status_schema_lite, get_personality_delta_schema_lite, get_personality_status_schema_lite, get_sentiment_delta_schema_lite, get_sentiment_status_schema_lite
+from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotion_status_schema_lite, get_memory_schema_lite, get_personality_delta_schema_lite, get_personality_status_schema_lite, get_sentiment_delta_schema_lite, get_sentiment_status_schema_lite
+from app.domain.memory import Memory
 from app.domain.models import MessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
-from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.services.database import add_memory, get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
 from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
@@ -663,17 +664,31 @@ async def direct_message(
         "content": json.dumps(is_memory_response)
     })
     
+    # ---- 8) Create memory ----------------------------------------------
     if (is_memory_response["is_memory"] == "yes"):
         message_queries.append({
             "role": USER_ROLE, 
             "content": build_memory_prompt(agent_name, self['memory_profile']['all_tags'])
         })
-        check_for_memory_response = await check_for_memory(message_queries)
-        # Sometimes crashes due to no name field
-        function = eval(check_for_memory_response.function_call.name)
-        params = json.loads(check_for_memory_response.function_call.arguments)
-        await function(**params)
-    
+        
+        memory_response = await get_structured_response(message_queries, get_memory_schema_lite(), quality=False)
+        
+        if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
+            mem = Memory(
+                agent_name=agent_name,
+                user=username,
+                event=memory_response["event"],
+                thoughts=memory_response["thoughts"],
+                significance=memory_response.get("significance", "low"),
+                emotional_impact=memory_response.get("emotional_impact"),
+                tags=[t for t in (memory_response.get("tags") or []) if t][:3],
+            )
+            
+            await add_memory(mem)
+        
+            timings["memory_creation"] = time.perf_counter() - step_start
+            
+        
     await update_agent_emotions(agent_name, current_emotions)
     
     await update_user_sentiment(username, current_sentiments)

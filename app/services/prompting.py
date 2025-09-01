@@ -886,7 +886,7 @@ def build_memory_prompt(
     body = f"""
         Task:
         Produce ONE memory object that follows the schema used by the application (fields below).
-        Do not include extra fields. If nothing is worth storing, return an object with empty strings/arrays
+        Do not include extra fields. If nothing is worth storing/remembering, return an object with empty strings/arrays
         for "event", "thoughts", and "tags", and set "significance" to "low".
 
         Output format (JSON object):

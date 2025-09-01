@@ -223,7 +223,7 @@ async def handle_message(
     
     # ---- 4) Respond -------------------------------------------
     if response_choice["response_choice"] == RESPOND_CHOICE:
-        memory = get_random_memories(self)
+        memory = []
 
         message_queries.append({
             "role": USER_ROLE,

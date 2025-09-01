@@ -283,7 +283,7 @@ async def grab_self(agent_name, lite_mode=True):
                 "name": agent_name,
                 "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
                 "personality": BASE_PERSONALITIES_LITE[1]["traits"],
-                "memory_profile": {"all_tags": [], "memories": []},
+                "memory_tags": [],
                 "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
                 "thoughts": [thought],
                 "birthdate": datetime.now()
@@ -554,6 +554,17 @@ async def add_memory(mem: Memory):
         memory_collection = db[MEMORY_COLLECTION]
         doc = mem.model_dump()
         await memory_collection.insert_one(doc)
+    except Exception as e:
+        print(e)
+        
+async def update_tags(new_tags: List[str]):
+    try:
+        db = await get_database()
+        agent_lite_collection = db[AGENT_LITE_COLLECTION]
+        await agent_lite_collection.update_one(
+            {AGENT_NAME_PROPERTY: AGENT_NAME},
+            {"$addToSet": {"memory_tags": {"$each": new_tags}}}
+        )
     except Exception as e:
         print(e)
       

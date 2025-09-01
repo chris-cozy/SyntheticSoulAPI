@@ -618,7 +618,7 @@ def build_post_response_processing_prompt(
         Update the following based on the latest exchange:
         1) A refreshed summary of {username}. If nothing changed, keep it the same.
         2) The extrinsic relationship label between you and {username}. Choose exactly one from the allowed options.
-        3) Your identity (how you currently see yourself). If nothing changed, keep it the same.
+        3) Your identity (how you currently see yourself/what you understand about yourself). If nothing changed, keep it the same.
 
         Output format (JSON object):
         {{
@@ -630,7 +630,7 @@ def build_post_response_processing_prompt(
         Guidance:
         - Allowed extrinsic relationship options (exact match): {options_json}
         - Keep language relaxed and simple; avoid overly structured phrasing.
-        - Be concise (1–3 sentences per field).
+        - Be concise (1–3 sentences per field). Except for identity, which can be longer.
         - Do not invent new fields or categories; use only the keys shown in the output format.
         - If unchanged, return the previous value (as present in the context).
         - Do not reveal private/internal chain-of-thought.
@@ -955,7 +955,7 @@ def build_implicit_addressing_prompt(
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. Evaluate whether the latest message is implicitly directed at you.
+        You are {agent_name}, in a chat with multiple users. Evaluate whether the latest message is implicitly directed at you.
         """).rstrip() + "\n"
     )
     

@@ -1,9 +1,10 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
-# Constants for emotions
-from datetime import datetime
 
+AGENT_NAME = os.getenv("BOT_NAME")
+
+EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
 MIN_EMOTION_VALUE = 0
 MAX_EMOTION_VALUE = 100

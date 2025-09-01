@@ -6,6 +6,8 @@ from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import grab_self, update_agent_emotions
 from app.services.state_reducer import apply_deltas_emotion
 
+agent_name = os.getenv("BOT_NAME")
+
 async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
     '''
         Decrease all emotions by 1
@@ -15,7 +17,7 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
     '''
     while True:
         try:
-            self = await grab_self(os.getenv('BOT_NAME'), lite_mode)
+            self = await grab_self(agent_name, lite_mode)
             
             current = self["emotional_status"]
             emo = EmotionalState(
@@ -27,6 +29,8 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
             for k, t in emo.emotions.items():
                 if int(t.value) > int(t.min):
                     deltas[k] = -1
+            print("EMOTION DECAY")
+            print(deltas)
             if deltas:
                 decayed = apply_deltas_emotion(
                     emo, 
@@ -35,13 +39,7 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
                 
                 # Persist back as INTs (validator requires bsonType: "int")
                 self["emotional_status"]["emotions"] = {
-                    k: {
-                        **decayed.emotions[k].model_dump(),
-                        "value": int(round(decayed.emotions[k].value)),
-                        "min": int(decayed.emotions[k].min),
-                        "max": int(decayed.emotions[k].max),
-                    }
-                    for k in decayed.emotions
+                    k: decayed.emotions[k].model_dump() for k in decayed.emotions
                 }
                 
                 await update_agent_emotions(self["name"], self["emotional_status"])     

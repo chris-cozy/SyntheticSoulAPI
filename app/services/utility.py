@@ -4,7 +4,7 @@ import random
 from app.constants.constants import EMOTIONAL_DECAY_RATE
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import grab_self, update_agent_emotions
-from app.services.state_reducer import apply_deltas_emotion, apply_deltas_emotional_friction
+from app.services.state_reducer import apply_deltas_emotion, apply_deltas_emotional_decay
 
 agent_name = os.getenv("BOT_NAME")
 
@@ -30,7 +30,7 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
                 if int(t.value) > int(t.min):
                     deltas[k] = -1
             if deltas:
-                decayed = apply_deltas_emotional_friction(
+                decayed = apply_deltas_emotional_decay(
                     emo, 
                     EmotionalDelta(deltas=deltas, reason="decay", confidence=1.0), cap=7.0
                 )

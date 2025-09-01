@@ -68,7 +68,7 @@ def apply_deltas_sentiment(mat: SentimentMatrix, delta: SentimentDelta, *, cap=5
         new.sentiments[k] = new.sentiments[k].apply(d)
     return new
 
-def apply_deltas_emotional_friction(state: EmotionalState, delta: EmotionalDelta, *, cap: float = 7.0) -> EmotionalState:
+def apply_deltas_emotional_decay(state: EmotionalState, delta: EmotionalDelta, *, cap: float = 7.0) -> EmotionalState:
     '''
     # Optional: cross-trait coupling, e.g., joy vs sadness
     # new = normalize_pairs(new, pairs=[("joy","sadness")], max_sum=150)

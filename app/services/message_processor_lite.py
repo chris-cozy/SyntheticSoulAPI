@@ -11,6 +11,7 @@ from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_emotio
 from app.domain.memory import Memory
 from app.domain.models import MessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
+from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import check_for_memory, get_structured_response
 import json
 from app.constants.constants import BOT_ROLE, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
@@ -639,7 +640,7 @@ async def direct_message(
         "content": (build_post_response_processing_prompt(agent_name, self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
     })
     
-    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
+    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema(), False)
     
     timings["post_response_processing"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -654,7 +655,7 @@ async def direct_message(
         "content": (build_memory_worthiness_prompt(agent_name))
     })
     
-    is_memory_response = await get_structured_response(message_queries, is_memory_schema())
+    is_memory_response = await get_structured_response(message_queries, is_memory_schema(), False)
     
     timings["memory_worthiness"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -680,7 +681,7 @@ async def direct_message(
                 event=memory_response["event"],
                 thoughts=memory_response["thoughts"],
                 significance=memory_response.get("significance", "low"),
-                emotional_impact=memory_response.get("emotional_impact"),
+                emotional_impact=normalize_emotional_impact_fill_zeros(memory_response.get("emotional_impact")),
                 tags=[t for t in (memory_response.get("tags") or []) if t][:3],
             )
             

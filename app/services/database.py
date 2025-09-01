@@ -3,16 +3,17 @@ from datetime import datetime
 import os
 import time
 from typing import Any, Dict, List, Tuple
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.constants.validators import AGENT_VALIDATOR
+from app.constants.validators import AGENT_VALIDATOR, MEMORY_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import MESSAGE_MEMORY_VALIDATOR
 from app.constants.validators import USER_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
+from app.domain.memory import Memory
 
 load_dotenv()
 
@@ -27,6 +28,7 @@ _VALIDATORS: Dict[str, Dict[str, Any]] = {
     USER_LITE_COLLECTION:    USER_LITE_VALIDATOR,
     USER_COLLECTION:         USER_VALIDATOR,
     MESSAGE_MEMORY_COLLECTION: MESSAGE_MEMORY_VALIDATOR,
+    MEMORY_COLLECTION: MEMORY_VALIDATOR,
 }
 
 def _client_opts() -> Dict[str, Any]:
@@ -53,6 +55,13 @@ async def _ensure_indexes(db):
         name="username_agent"
     )
     await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
+    
+    await db[MEMORY_COLLECTION].create_index(
+        [("agent_name", 1), ("ts_created", -1)],
+        name="agent_time"
+    )
+    await db[MEMORY_COLLECTION].create_index("tags", name="tags")
+    await db[MEMORY_COLLECTION].create_index("recall_count", name="recalls")
 
 async def init_db() -> None:
     """
@@ -502,7 +511,16 @@ async def create_memory(agent_name, event, thoughts, significance, emotional_imp
             agent_lite_collection.update_one({'name': agent_name}, {"$set": {"memory_profile": updated_memory_profile}})
     except Exception as e:
         print(e)
-        
+
+async def add_memory(mem: Memory):
+    try:
+        db = await get_database()
+        memory_collection = db[MEMORY_COLLECTION]
+        doc = mem.model_dump()
+        await memory_collection.insert_one(doc)
+    except Exception as e:
+        print(e)
+      
 async def update_summary_identity_relationship(agent_name, username, summary, extrinsic_relationship, identity, lite_mode=True):
     """Updates the user summary, agent identity, and user extrinsic relationship
 

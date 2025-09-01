@@ -689,7 +689,6 @@ AGENT_LITE_VALIDATOR = {
     }
 }
 
-
 MYERS_BRIGGS_LIST = [
                         "ISTJ",
                         "ISFJ",
@@ -2029,7 +2028,6 @@ MESSAGE_MEMORY_VALIDATOR = {
       }
     }
   }
-
 
 USER_LITE_VALIDATOR = {
   "$jsonSchema": {
@@ -4274,5 +4272,74 @@ USER_VALIDATOR = {
   }
 }
 
-
+MEMORY_VALIDATOR = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["agent_name", "event", "thoughts", "significance", "ts_created"],
+        "additionalProperties": True,
+        "properties": {
+            "agent_name": {
+                "bsonType": "string",
+                "description": "Agent this memory belongs to"
+            },
+            "user": {
+                "bsonType": ["string", "null"],
+                "description": "Optional: username this memory is about"
+            },
+            "event": {
+                "bsonType": "string",
+                "description": "Brief event summary (what happened)"
+            },
+            "thoughts": {
+                "bsonType": "string",
+                "description": "Agent's internal reflection about the event"
+            },
+            "significance": {
+                "enum": ["low", "medium", "high"],
+                "description": "Use small discrete buckets for ranking/boosting"
+            },
+            "emotional_impact": {
+                "bsonType": ["object", "null"],
+                "additionalProperties": False,
+                "properties": {
+                    # keep lightweight; values mirror your 0..100 scales elsewhere
+                    "joy":      {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "sadness":  {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "anger":    {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "fear":     {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "surprise": {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "love":     {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}},
+                    "disgust":  {"bsonType": "object", "properties": {"value": {"bsonType": "int"}}}
+                }
+            },
+            "tags": {
+                "bsonType": ["array", "null"],
+                "items": {"bsonType": "string"},
+                "description": "Keyword/topic tags"
+            },
+            "embedding": {
+                "bsonType": ["array", "null"],
+                "items": {"bsonType": "double"},
+                "description": "Vector embedding for semantic search (optional)"
+            },
+            "recall_count": {
+                "bsonType": "int",
+                "description": "Times this memory was retrieved",
+                "minimum": 0
+            },
+            "ts_created": {
+                "bsonType": "date",
+                "description": "Creation timestamp (UTC)"
+            },
+            "ts_last_accessed": {
+                "bsonType": ["date", "null"],
+                "description": "Last time the memory was retrieved"
+            },
+            "ttl_at": {
+                "bsonType": ["date", "null"],
+                "description": "Optional: time to expire low-value memories"
+            }
+        }
+    }
+}
 

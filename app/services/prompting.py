@@ -845,71 +845,90 @@ def build_memory_worthiness_prompt(
         """
 
     return textwrap.dedent(header + "\n" + body).strip()
-    
+
 def build_memory_prompt(
-    agent_name: str, 
-    tags: Sequence[str] | str,
+    agent_name: str,
+    allowed_tags: Sequence[str] | str,
     *,
     context_section: Optional[str] = None,
+    max_tags: int = 3,
 ) -> str:
     """
-    Generate a structured prompt to extract a concise, long-term memory entry
-    from the latest interaction, with appropriate categorical tags.
-        
-    Returns:
-        str: A dynamically generated prompt.
+    Ask the model to crystallize ONE durable episodic memory using the new schema:
+      {
+        "event": str,                    # required
+        "thoughts": str,                 # required
+        "significance": "low|medium|high",
+        "emotional_impact": {optional compact 0..100 ints},
+        "tags": [<=3 unique strings],
+        "embedding_text": str|null
+      }
+
+    Pair this prompt with get_memory_schema_lite() in get_structured_response(...).
     """
-    # Normalize tags for display in the prompt
-    if isinstance(tags, str):
-        provided_tags = [t.strip() for t in tags.split(",") if t.strip()]
+    # Normalize allowed tag list for display
+    if isinstance(allowed_tags, str):
+        provided_tags = [t.strip() for t in allowed_tags.split(",") if t.strip()]
     else:
-        provided_tags = list(tags)
+        provided_tags = list(allowed_tags)
     tags_json = json.dumps(provided_tags, ensure_ascii=False)
-    
-    # Prefer a shared context block if provided; otherwise minimal header
+
+    # Prefer your shared context block; otherwise a minimal header
     header = (
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. Extract a concise long-term memory from the latest interaction.
+        You are {agent_name}. From the latest interaction, distill a single, durable episodic memory
+        that will be useful in future conversations.
         """).rstrip() + "\n"
     )
-    
-    example_obj = {
-        "memory": "Alex prefers concise summaries and dark mode for docs.",
-        "tags": ["preference", "ux", "work-style"]
-    }
-    
+
     body = f"""
         Task:
-        Write a single, concise memory that would remain useful in future conversations.
+        Produce ONE memory object that follows the schema used by the application (fields below).
+        Do not include extra fields. If nothing is worth storing, return an object with empty strings/arrays
+        for "event", "thoughts", and "tags", and set "significance" to "low".
 
         Output format (JSON object):
         {{
-        "memory": "A short sentence capturing the durable fact/preference/commitment/etc.",
-        "tags": ["tag1", "tag2", "..."]  # apply from allowed list; add only if truly needed
+          "event": "Short, factual summary of what happened (1–2 sentences).",
+          "thoughts": "Why it matters for the agent going forward (2–4 crisp sentences).",
+          "significance": "low" | "medium" | "high",
+          "emotional_impact": {{
+            // OPTIONAL; include only relevant keys; values are integers on a 0..100 scale.
+            // Example:
+            // "joy":      {{ "value": 35 }},
+            // "sadness":  {{ "value": 10 }},
+            // "anger":    {{ "value": 0 }}
+          }} | null,
+          "tags": ["k1","k2","k3"],  // 0–{max_tags} tags, unique, lowercase, concise
+          "embedding_text": "Optional single sentence capturing the essence to embed" | null
         }}
 
         Guidance:
-        - Be specific and durable (e.g., stable user facts, lasting preferences, commitments, boundaries, long-running goals).
-        - Keep it short (one sentence). Avoid chatty phrasing or step-by-step reasoning.
+        - Be specific and durable: lasting preferences, important facts, commitments, boundaries, long-running goals.
+        - Keep it concise. Avoid chain-of-thought or step-by-step reasoning.
         - Tags:
-        • Start with these allowed tags: {tags_json}
-        • Add new tags only if necessary; prefer short, lowercase, hyphenated words.
-        • Deduplicate; avoid synonyms if an existing tag fits.
-        - Privacy & safety:
-        • Only store information the user shared or clearly implied.
-        • Avoid secrets and highly sensitive data unless explicitly relevant and consented.
-        - If there is nothing worth storing, return:
-            {{
-                "memory": "",
-                "tags": []
-            }}
+          • Prefer from the allowed list: {tags_json}
+          • Add a new tag only if truly necessary (short, lowercase, hyphenated).
+          • Max {max_tags}; no duplicates.
+        - Emotional impact:
+          • Only include emotions that are clearly implicated; omit the rest.
+          • Use integers on the global 0–100 scale.
+        - Embedding text:
+          • If present, one tight sentence. If omitted, the app will embed `event + thoughts`.
 
-        Example (shape only; do not copy verbatim):
-        {json.dumps(example_obj, ensure_ascii=False)}
+        If nothing is worth storing, return:
+        {{
+          "event": "",
+          "thoughts": "",
+          "significance": "low",
+          "emotional_impact": null,
+          "tags": [],
+          "embedding_text": null
+        }}
         """
-    
+
     return textwrap.dedent(header + "\n" + body).strip()
     
 def build_implicit_addressing_prompt(

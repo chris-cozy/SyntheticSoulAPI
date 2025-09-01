@@ -40,7 +40,7 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
                     k: decayed.emotions[k].model_dump() for k in decayed.emotions
                 }
                 print("EMOTION DECAY")
-                print(self["emotional_status"]["emotions"])
+                print(decayed)
                 if decayed.reason:
                     self["emotional_status"]["reason"] = decayed.reason
                 

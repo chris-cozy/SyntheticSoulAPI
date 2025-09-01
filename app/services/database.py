@@ -43,18 +43,17 @@ def _client_opts() -> Dict[str, Any]:
 
 async def _ensure_indexes(db):
     await db[AGENT_LITE_COLLECTION].create_index("name", unique=True)
-    await db[AGENT_COLLECTION].create_index("name", unique=True)
+    # await db[AGENT_COLLECTION].create_index("name", unique=True)
     await db[USER_LITE_COLLECTION].create_index(
         [("username", 1), ("agent_perspective", 1)],
         unique=True,
         name="username_agent_perspective"
     )
-    await db[USER_COLLECTION].create_index("username", unique=True)
+    # await db[USER_COLLECTION].create_index("username", unique=True)
     await db[CONVERSATION_COLLECTION].create_index(
         [("username", 1), ("agent_name", 1)],
         name="username_agent"
     )
-    await db[MESSAGE_MEMORY_COLLECTION].create_index("agent_name", name="agent_name")
     await db[MESSAGE_COLLECTION].create_index("sender", name="sender")
     
     await db[MEMORY_COLLECTION].create_index(

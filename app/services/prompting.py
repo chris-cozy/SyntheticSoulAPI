@@ -809,7 +809,7 @@ def build_thought_prompt(
         - Identity: {identity}
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
-        - Current memories: {memory}
+        - Current memory on your mind: {memory}
         - Previous few thoughts: {previous_thoughts}
         """).rstrip() + "\n"
     )

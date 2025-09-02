@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 import os
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITIES_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -12,6 +12,7 @@ from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import USER_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
+from app.domain.agent import ObjectId
 from app.domain.memory import Memory
 
 load_dotenv()
@@ -373,6 +374,37 @@ async def get_all_message_memory(agent_name, count):
         
         latest_messages = await cursor.to_list(length=count)
         return latest_messages
+    except Exception as e:
+        print(e)
+        return []
+    
+async def get_tagged_memories(
+    tag: str,
+    limit: int = 100,
+    before_id: Optional[str] = None
+    )->List[dict[str, Any]]:
+    """
+    Grab memories related to the tag
+
+    :return: List of memories
+    """
+    try:
+        db = await get_database()
+        memory_collection = db[MEMORY_COLLECTION]
+        
+        query: dict[str, Any] = {"tags": tag}
+        if before_id:
+            query["_id"] = {"$lt": ObjectId(before_id)}
+            
+        cursor = (
+            memory_collection
+            .find(query)
+            .sort([("_id", -1)])   # Sort descending by _id (newest first)
+            .limit(limit)
+        )
+        
+        related_memories = await cursor.to_list(length=limit)
+        return related_memories
     except Exception as e:
         print(e)
         return []

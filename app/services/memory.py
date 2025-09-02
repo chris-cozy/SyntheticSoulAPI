@@ -1,9 +1,11 @@
+import random
 from typing import Optional, Dict
 from app.constants.constants import (
     BASE_EMOTIONAL_STATUS_LITE,
     MIN_EMOTION_VALUE,
     MAX_EMOTION_VALUE,
 )
+from app.services.database import get_tagged_memories
 
 EMOTION_KEYS = tuple(BASE_EMOTIONAL_STATUS_LITE["emotions"].keys())
 
@@ -38,3 +40,19 @@ def normalize_emotional_impact_fill_zeros(
         out[k] = {"value": val}
 
     return out
+
+def get_random_memory_tag(self) -> str | None:
+    memory_tags = self.get("memory_tags", [])
+    if not memory_tags:
+        return None
+    return random.choice(memory_tags)
+
+
+async def retrieve_relevant_memory_from_tag(tag: str, count: int = 1):
+    tagged_memories = await get_tagged_memories(tag)
+    
+    if not tagged_memories:
+        return None
+    
+    # For now return random memory from the tag, can expand later
+    return random.choice(tagged_memories)

@@ -1,6 +1,3 @@
-from typing import Optional
-from rq.job import Job
-
 import os
 import ssl
 import json

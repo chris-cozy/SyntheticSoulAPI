@@ -1,12 +1,11 @@
 import asyncio
 from datetime import datetime
-import os
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, LITE_MODE, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, MYERS_BRIGGS_PERSONALITIES, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
-from dotenv import load_dotenv
+from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from motor.motor_asyncio import AsyncIOMotorClient
+from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DEVELOPER_ID, DATABASE_NAME
 
 from app.constants.validators import AGENT_RICH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, USER_RICH_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
@@ -14,8 +13,6 @@ from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
 from app.domain.agent import ObjectId
 from app.domain.memory import Memory
-
-load_dotenv()
 
 # ---- Globals guarded by a simple init flag
 _db_client: AsyncIOMotorClient | None = None
@@ -87,7 +84,7 @@ async def init_db() -> None:
     timings: Dict[str, float] = {}
     t0 = time.perf_counter()
     
-    mongo_uri = os.getenv('MONGO_CONNECTION')
+    mongo_uri = MONGO_CONNECTION
     if not mongo_uri:
         raise RuntimeError("Error - init_db: MONGO_CONNECTION environment variable is not set.")
     
@@ -118,7 +115,7 @@ async def init_db() -> None:
     '''
     
 def _get_db_name() -> str:
-    name = os.getenv("DATABASE_NAME")
+    name = DATABASE_NAME
     if not name:
         raise RuntimeError("Error - get_database: DATABASE_NAME is not set.")
     return name
@@ -208,7 +205,7 @@ async def grab_user(username):
     
     now = datetime.now()
     default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-    if username == os.getenv("DEVELOPER_ID"):
+    if username == DEVELOPER_ID:
         default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
     
     if LITE_MODE:

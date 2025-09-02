@@ -1,10 +1,4 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-AGENT_NAME = os.getenv("BOT_NAME")
-
-LITE_MODE = os.getenv("MODE") == "lite"
+from app.core.config import AGENT_NAME
 
 EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 

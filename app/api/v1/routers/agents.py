@@ -6,7 +6,7 @@ from bson.json_util import dumps
 from fastapi.encoders import jsonable_encoder
 
 from app.services.database import get_all_agents, grab_self
-from app.core.config import BOT_NAME
+from app.core.config import AGENT_NAME
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -22,7 +22,7 @@ async def get_agents():
 @router.get("/active")
 async def get_active_agent():
     try:
-        doc = await grab_self(BOT_NAME)  # e.g. {'_id': ObjectId(...), 'name': 'bot', ...}
+        doc = await grab_self(AGENT_NAME)  # e.g. {'_id': ObjectId(...), 'name': 'bot', ...}
         if not doc:
             raise HTTPException(status_code=404, detail="Agent not found")
 

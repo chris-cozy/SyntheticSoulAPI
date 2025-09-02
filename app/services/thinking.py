@@ -19,7 +19,7 @@ async def generate_thought():
     Generates a thought that the agent is having, and inputs it in the database
     """
     recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
-    self = await grab_self(AGENT_NAME)
+    self = await grab_self()
     thought_queries = [SYSTEM_MESSAGE]
 
     # ---- 0) Retrieve Random Memories -------------------------------------------

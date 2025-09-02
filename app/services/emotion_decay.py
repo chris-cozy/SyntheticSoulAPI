@@ -13,7 +13,7 @@ async def emotion_decay_loop(decay_rate: int = EMOTIONAL_DECAY_RATE):
     '''
     while True:
         try:
-            self = await grab_self(AGENT_NAME)
+            self = await grab_self()
             
             current = self["emotional_status"]
             emo = EmotionalState(

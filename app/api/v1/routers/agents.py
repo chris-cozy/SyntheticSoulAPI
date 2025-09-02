@@ -22,7 +22,7 @@ async def get_agents():
 @router.get("/active")
 async def get_active_agent():
     try:
-        doc = await grab_self(AGENT_NAME)  # e.g. {'_id': ObjectId(...), 'name': 'bot', ...}
+        doc = await grab_self()
         if not doc:
             raise HTTPException(status_code=404, detail="Agent not found")
 

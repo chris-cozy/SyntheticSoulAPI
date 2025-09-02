@@ -261,20 +261,14 @@ async def grab_self():
     self = await agent_collection.find_one({"name": AGENT_NAME})
 
     if not self:
-        thought = {
-            "thought": "I think, therefore I am.",
-            "timestamp": now
-        }
-        new_self = {
+        result = await agent_collection.insert_one({
             "name": AGENT_NAME,
             "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
             "personality": default_personality,
             "memory_tags": [],
             "emotional_status": default_emotional_status,
-            "thoughts": [thought],
             "birthdate": now
-        }
-        result = await agent_collection.insert_one(new_self)
+        })
         self = await agent_collection.find_one({"_id": result.inserted_id})
             
     return self

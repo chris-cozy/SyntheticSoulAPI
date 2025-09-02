@@ -33,6 +33,7 @@ AGENT_LITE_VALIDATOR = {
                             "ENTP",
                             "ESTJ",
                             "ESFJ",
+                            "ENTJ"
                         ],
                         "description": "Myers-briggs personality type"
                     },

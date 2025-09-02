@@ -38,7 +38,7 @@ REDIS_URL = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localh
 
 # Periodic Rates
 EMOTIONAL_DECAY_RATE = 240
-THINKING_RATE = 600
+THINKING_RATE = 300
 
 # Message Retention
 CONVERSATION_MESSAGE_RETENTION_COUNT = 10

@@ -4,7 +4,7 @@ from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import grab_self, update_agent_emotions
 from app.services.state_reducer import apply_deltas_emotional_decay
 
-async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
+async def emotion_decay_loop(decay_rate: int = EMOTIONAL_DECAY_RATE):
     '''
         Decrease all emotions by 1
 
@@ -44,12 +44,6 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
             print(f"Error - Emotional decay: {e}")
 
         await asyncio.sleep(decay_rate)
-
-async def start_emotion_decay():
-    '''
-        Start the emotional decay loop
-    '''
-    await emotion_decay_loop(EMOTIONAL_DECAY_RATE, True)
 
 
 

@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT
+from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory
@@ -123,4 +123,4 @@ async def periodic_thinking():
             await generate_thought()
         except Exception as e:
             print(f"Error in generate_thought: {e}")
-        await asyncio.sleep(180)
+        await asyncio.sleep(THINKING_RATE)

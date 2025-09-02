@@ -4,6 +4,8 @@ load_dotenv()
 
 AGENT_NAME = os.getenv("BOT_NAME")
 
+LITE_MODE = os.getenv("MODE") == "lite"
+
 EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
 MIN_EMOTION_VALUE = 0
@@ -979,11 +981,11 @@ CONVERSATION_COLLECTION = "conversation"
 
 AGENT_LITE_COLLECTION = "agent_lite"
 
-AGENT_COLLECTION = "agent"
+AGENT_RICH_COLLECTION = "agent"
 
 USER_LITE_COLLECTION = "user_lite"
 
-USER_COLLECTION = "user"
+USER_RICH_COLLECTION = "user"
 
 USER_NAME_PROPERTY = "username"
 

@@ -42,7 +42,7 @@ async def emotion_decay_loop(decay_rate: int, lite_mode: bool):
                 if decayed.reason:
                     self["emotional_status"]["reason"] = decayed.reason
                 
-                await update_agent_emotions(self["name"], self["emotional_status"])     
+                await update_agent_emotions(self["emotional_status"])     
     
         except Exception as e:
             print(f"Error - Emotional decay: {e}")

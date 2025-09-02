@@ -11,8 +11,8 @@ from app.domain.models import MessageRequest, MessageResponse
 from app.services.deepseek import get_structured_query_reasoning_response
 from app.services.openai import check_for_memory, get_structured_response
 import json
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
-from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, create_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
+from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BOT_ROLE, CONVERSATION_COLLECTION, CONVERSATION_MESSAGE_RETENTION_COUNT, EXTRINSIC_RELATIONSHIPS, GC_TYPE, IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_SENTIMENT_VALUE, MESSAGE_HISTORY_COUNT, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MAX_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, THINKING_RATE, USER_RICH_COLLECTION, USER_NAME_PROPERTY, USER_ROLE
+from app.services.database import get_message_memory, grab_user, grab_self, get_conversation, get_database, insert_message_to_conversation, insert_message_to_memory, update_agent_emotions, update_summary_identity_relationship, update_user_sentiment
 from dotenv import load_dotenv
 
 from app.services.prompting import  build_final_emotional_response_prompt, build_implicit_addressing_prompt, build_initial_emotional_response_prompt, build_memory_worthiness_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_adjustment_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_analysis_prompt, build_thought_prompt
@@ -34,9 +34,9 @@ async def process_message(request: MessageRequest):
 
             # Step 1: Fetch user and self objects: CLEAR
             self = await grab_self(os.getenv("BOT_NAME"), False)
-            user = await grab_user(request.username, os.getenv("BOT_NAME"), False)
+            user = await grab_user(request.username)
 
-            conversation = await get_conversation(user[USER_NAME_PROPERTY], self[AGENT_NAME_PROPERTY])
+            conversation = await get_conversation(user[USER_NAME_PROPERTY])
             recent_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             received_date = datetime.now() 
 
@@ -84,7 +84,7 @@ async def process_message(request: MessageRequest):
             
             current_emotions = deep_merge(self["emotional_status"], initial_emotion_response)
 
-            db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
+            db[AGENT_RICH_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             # Step 6: Analyze the purpose and tone of the user's message: CLEAR
             message_queries = [{
@@ -162,7 +162,7 @@ async def process_message(request: MessageRequest):
             
                 current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
 
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
+                db[AGENT_RICH_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
                 # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
@@ -186,7 +186,7 @@ async def process_message(request: MessageRequest):
                 })
 
                 current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
-                db[AGENT_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
+                db[AGENT_RICH_COLLECTION].update_one({"name": self[AGENT_NAME_PROPERTY]}, { "$set": {"emotional_status": current_emotions }})
 
             # Step 10: Sentiment Reflection: CLEAR
             sentiment_query = {
@@ -210,7 +210,7 @@ async def process_message(request: MessageRequest):
 
             current_sentiments = deep_merge(user["sentiment_status"], sentiment_response)
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": current_sentiments }})
+            db[USER_RICH_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"sentiment_status": current_sentiments }})
 
             #Step 11:  Summary Reflection: CLEAR
             summary_query = {
@@ -232,7 +232,7 @@ async def process_message(request: MessageRequest):
                 "content": json.dumps(summary_response),
             })
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"summary": summary_response["summary"] }})
+            db[USER_RICH_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"summary": summary_response["summary"] }})
 
             #Step 12: Extrinsic Relationship Reflection: CLEAR
             extrinsic_relationship_query = {
@@ -254,7 +254,7 @@ async def process_message(request: MessageRequest):
                 "content": json.dumps(extrinsic_relationship_response),
             })
 
-            db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"] }})
+            db[USER_RICH_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"extrinsic_relationship": extrinsic_relationship_response["extrinsic_relationship"] }})
 
             #Step 13: Self-Identity Reflection: CLEAR
             identity_query = {
@@ -276,7 +276,7 @@ async def process_message(request: MessageRequest):
                 "content": json.dumps(identity_response),
             })
 
-            db[AGENT_COLLECTION].update_one({AGENT_NAME_PROPERTY: self[AGENT_NAME_PROPERTY]}, { "$set": {"identity": identity_response["identity"] }})
+            db[AGENT_RICH_COLLECTION].update_one({AGENT_NAME_PROPERTY: self[AGENT_NAME_PROPERTY]}, { "$set": {"identity": identity_response["identity"] }})
 
         
             # Update and Save Conversation
@@ -307,13 +307,13 @@ async def process_message(request: MessageRequest):
                 conversation["messages"].append(bot_response_message)
                 db[CONVERSATION_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY], "agent_name": self[AGENT_NAME_PROPERTY]}, { "$set": {"messages": conversation["messages"] }})
 
-                db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
+                db[USER_RICH_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
 
                 return MessageResponse(response = response_content["message"])
 
             elif response_choice["response_choice"] == IGNORE_CHOICE:
 
-                db[USER_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
+                db[USER_RICH_COLLECTION].update_one({USER_NAME_PROPERTY: user[USER_NAME_PROPERTY]}, { "$set": {"last_interaction": datetime.now() }})
 
                 return MessageResponse({"response": f"System: {self[AGENT_NAME_PROPERTY]} has chosen to ignore your message."})
             
@@ -345,8 +345,7 @@ async def process_remaining_steps(
     """
     # ---- 0) Save Messages -------------------------------------------
     await insert_message_to_conversation(
-        username, 
-        agent_name, 
+        username,  
         {
             "message": message_analysis["message"],
             "purpose": message_analysis["purpose"],
@@ -361,7 +360,6 @@ async def process_remaining_steps(
     if response_choice["response_choice"] == RESPOND_CHOICE:
         await insert_message_to_conversation(
             username, 
-            agent_name, 
             {
                 "message": response_content["message"],
                 "purpose": response_content["purpose"],
@@ -373,7 +371,6 @@ async def process_remaining_steps(
         )
         
         await insert_message_to_memory(
-            agent_name, 
             {
             "message": response_content["message"],
             "sender": agent_name,
@@ -409,7 +406,7 @@ async def process_remaining_steps(
     
     post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema())
     
-    await update_summary_identity_relationship(agent_name, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+    await update_summary_identity_relationship(username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     
@@ -439,7 +436,7 @@ async def process_remaining_steps(
         params = json.loads(check_for_memory_response.function_call.arguments)
         await function(**params)
     
-    await update_agent_emotions(agent_name, current_emotions)
+    await update_agent_emotions(current_emotions)
     
     await update_user_sentiment(username, current_sentiments)
             

@@ -4,11 +4,11 @@ import os
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from app.constants.constants import AGENT_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, MYERS_BRIGGS_PERSONALITIES, USER_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, LITE_MODE, MEMORY_COLLECTION, MESSAGE_COLLECTION, MESSAGE_MEMORY_COLLECTION, MYERS_BRIGGS_PERSONALITIES, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.constants.validators import MEMORY_VALIDATOR, MESSAGES_VALIDATOR
+from app.constants.validators import AGENT_RICH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, USER_RICH_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
@@ -21,12 +21,23 @@ load_dotenv()
 _db_client: AsyncIOMotorClient | None = None
 _db_init_done: bool = False
 
+if LITE_MODE:
+    AGENT_COLLECTION = AGENT_LITE_COLLECTION
+    AGENT_VALIDATOR = AGENT_LITE_VALIDATOR
+    
+    USER_COLLECTION = USER_LITE_COLLECTION
+    USER_VALIDATOR = USER_LITE_VALIDATOR
+else:
+    AGENT_COLLECTION = AGENT_RICH_COLLECTION
+    AGENT_VALIDATOR = AGENT_RICH_VALIDATOR
+    
+    USER_COLLECTION = USER_RICH_COLLECTION
+    USER_VALIDATOR = USER_RICH_VALIDATOR
+
 _VALIDATORS: Dict[str, Dict[str, Any]] = {
     CONVERSATION_COLLECTION: CONVERSATION_VALIDATOR,
-    AGENT_LITE_COLLECTION:   AGENT_LITE_VALIDATOR,
-    #AGENT_COLLECTION:        AGENT_VALIDATOR,
-    USER_LITE_COLLECTION:    USER_LITE_VALIDATOR,
-    #USER_COLLECTION:         USER_VALIDATOR,
+    AGENT_COLLECTION:        AGENT_VALIDATOR,
+    USER_COLLECTION:    USER_VALIDATOR,
     MEMORY_COLLECTION: MEMORY_VALIDATOR,
     MESSAGE_COLLECTION: MESSAGES_VALIDATOR
 }
@@ -185,78 +196,49 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     )
     '''
 
-async def grab_user(username, agent_name, lite_mode=True):
+async def grab_user(username):
     """
     Grab user object based on their Discord ID.
     If the user doesn't exist, create a new one with default values.
 
-    :param author_id: Discord ID of the user
-    :param author_name: Username of the user
+    :param username: Username of the user
     :return: User object
     """
     db = await get_database()
-    if (lite_mode):
-        user_lite_collection = db[USER_LITE_COLLECTION]
-
-        user = await user_lite_collection.find_one({"username": username, "agent_perspective": agent_name})
-
-        if not user:
-            intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-
-            if username == os.getenv("DEVELOPER_ID"):
-                intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
-            
-            print(username)
-            now = datetime.now()
-            memory = {
-                "event": "I have just met this person.",
-                "thoughts": "I don't know anything about this person yet.",
-                "timestamp": now,
-            }
-            # Create a new user if one doesn't exist
-            new_lite_user = {
-                "username": username,
-                "agent_perspective": agent_name,
-                "summary": "I don't know anything about this person.",
-                "intrinsic_relationship": intrinsic_relationship,
-                "extrinsic_relationship": "stranger",
-                "memory_profile": [memory],
-                "sentiment_status": BASE_SENTIMENT_MATRIX_LITE,
-                "last_interaction": now
-            }
-            
-            result = await user_lite_collection.insert_one(new_lite_user, bypass_document_validation=True)
-            user = await user_lite_collection.find_one({"_id": result.inserted_id})
-
+    
+    now = datetime.now()
+    default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
+    if username == os.getenv("DEVELOPER_ID"):
+        default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
+    
+    if LITE_MODE:
+        user_collection = db[USER_LITE_COLLECTION]
+        default_sentiments = BASE_SENTIMENT_MATRIX_LITE
     else:
-        users_collection = db[USER_COLLECTION]
+        user_collection = db[USER_RICH_COLLECTION]
+        default_sentiments = BASE_SENTIMENT_MATRIX
+        
+    user = await user_collection.find_one({"username": username, "agent_perspective": AGENT_NAME})
 
-        user = await users_collection.find_one({"username": username})
-
-        if not user:
-            if username == os.getenv("DEVELOPER_ID"):
-                intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
-            else:
-                intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-            
-            now = datetime.now()
-            # Create a new user if one doesn't exist
-            new_user = {
-                "username": username,
-                "summary": "I don't know anything about this person.",
-                "intrinsic_relationship": intrinsic_relationship,
-                "extrinsic_relationship": "stranger",
-                "memory_profile": [],
-                "sentiment_status": BASE_SENTIMENT_MATRIX,
-                "last_interaction": now
-            }
-
-            result = await users_collection.insert_one(new_user)
-            user = await users_collection.find_one({"_id": result.inserted_id})
+    if not user:
+        
+        new_user = {
+            "username": username,
+            "agent_perspective": AGENT_NAME,
+            "summary": "I don't know anything about this person.",
+            "intrinsic_relationship": default_intrinsic_relationship,
+            "extrinsic_relationship": "stranger",
+            "memory_profile": [],
+            "sentiment_status": default_sentiments,
+            "last_interaction": now
+        }
+        
+        result = await user_collection.insert_one(new_user)
+        user = await user_collection.find_one({"_id": result.inserted_id})
 
     return user
 
-async def grab_self(agent_name, lite_mode=True):
+async def grab_self():
     """
     Grab self object based on the agent name.
     If the agent doesn't exist, create one with default values.
@@ -265,54 +247,39 @@ async def grab_self(agent_name, lite_mode=True):
     :return: Self object
     """
     db = await get_database()
-    if(lite_mode):
-        t = time.perf_counter()
-        agent_lite_collection = db[AGENT_LITE_COLLECTION]
-
-        self = await agent_lite_collection.find_one({"name": agent_name})
-
-        if not self:
-            # Create a new self object if one doesn't exist
-            thought = {
-                "thought": "I think, therefore I am.",
-                "timestamp": datetime.now()
-            }
-            new_self = {
-                "name": agent_name,
-                "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
-                "personality": random.choice(MYERS_BRIGGS_PERSONALITIES),
-                "memory_tags": [],
-                "emotional_status": BASE_EMOTIONAL_STATUS_LITE,
-                "thoughts": [thought],
-                "birthdate": datetime.now()
-            }
-            result = await agent_lite_collection.insert_one(new_self)
-            self = await agent_lite_collection.find_one({"_id": result.inserted_id})
+    
+    now = datetime.now()
+    if LITE_MODE:
+        agent_collection = db[AGENT_LITE_COLLECTION]
+        default_personality = random.choice(MYERS_BRIGGS_PERSONALITIES)
+        default_emotional_status = BASE_EMOTIONAL_STATUS_LITE
     else:
-        agent_collection = db[AGENT_COLLECTION]
+        agent_collection = db[AGENT_RICH_COLLECTION]
+        default_personality = BASE_PERSONALITY
+        default_emotional_status = BASE_EMOTIONAL_STATUS
+    
+    self = await agent_collection.find_one({"name": AGENT_NAME})
 
-        self = await agent_collection.find_one({"name": agent_name})
-
-        if not self:
-            # Create a new self object if one doesn't exist
-            thought = {
-                "thought": "I think, therefore I am",
-                "timestamp": datetime.now()
-            }
-            new_self = {
-                "name": agent_name,
-                "identity": "I am a prototype program, designed as a digital replication of the human mind.",
-                "personality": BASE_PERSONALITY,
-                "memory_profile": [],
-                "emotional_status": BASE_EMOTIONAL_STATUS,
-                "thoughts": [thought],
-            }
-            result = await agent_collection.insert_one(new_self)
-            self = await agent_collection.find_one({"_id": result.inserted_id})
+    if not self:
+        thought = {
+            "thought": "I think, therefore I am.",
+            "timestamp": now
+        }
+        new_self = {
+            "name": AGENT_NAME,
+            "identity": f"I am a program designed to simulate human-like thought processes and logical reasoning. I was born on {datetime.now()}",
+            "personality": default_personality,
+            "memory_tags": [],
+            "emotional_status": default_emotional_status,
+            "thoughts": [thought],
+            "birthdate": now
+        }
+        result = await agent_collection.insert_one(new_self)
+        self = await agent_collection.find_one({"_id": result.inserted_id})
             
     return self
 
-async def get_conversation(username, agent_name):
+async def get_conversation(username, agent_name=AGENT_NAME):
     """
     Grab conversation messages based on the username.
     If no conversation exists, create a new conversation object.
@@ -345,7 +312,7 @@ async def get_all_agents():
     :return: List of agent objects
     """
     db = get_database()
-    agent_collection = db[AGENT_COLLECTION]
+    agent_collection = db[AGENT_RICH_COLLECTION]
     cursor = agent_collection.find({}, {"name": 1, "_id": 0})  # This returns an AsyncIOMotorCursor
     all_agents = await cursor.to_list(length=None)  # Convert the cursor to a list of documents
 
@@ -355,7 +322,7 @@ async def get_all_agents():
 
     return {"normal": all_agents, "lite": all_lite_agents}
         
-async def get_all_message_memory(agent_name, count):
+async def get_all_message_memory(count, agent_name=AGENT_NAME):
     """
     Grab the count of past messages in general
 
@@ -409,7 +376,7 @@ async def get_tagged_memories(
         print(e)
         return []
 
-async def insert_message_to_memory(agent_name, message_request):
+async def insert_message_to_memory(message_request, agent_name=AGENT_NAME):
     """Inserts a new message into the agent's message memory
 
     Args:
@@ -447,8 +414,8 @@ async def insert_message_to_memory(agent_name, message_request):
         
 async def insert_message_to_conversation(
     username: str,
-    agent_name: str,
-    message: dict[str, Any]
+    message: dict[str, Any],
+    agent_name: str =AGENT_NAME,
 ) -> None:
     try:
         db = await get_database()
@@ -482,8 +449,8 @@ async def insert_message_to_message_memory(
         print(e)
         
 async def add_thought(
-    agent_name: str,
-    thought: dict[str, Any]
+    thought: dict[str, Any],
+    agent_name: str=AGENT_NAME,
 ) -> None:
     db = await get_database()
     thought_collection = db[AGENT_LITE_COLLECTION]
@@ -505,52 +472,6 @@ async def add_thought(
     except Exception as e:
         print(e)
                
-async def create_memory(agent_name, event, thoughts, significance, emotional_impact, tags, lite_mode=True):
-    """Inserts a new general memory
-
-    Args:
-        agent_name (string): The agent's name
-        event (string): The message to insert
-        thoughts (string): The agent's name
-        significance (string): The significance of the memory. enum (Low, Medium, High)
-        emotional_impact (object): The affect this had on the agent's emotions
-        tags (array): Array of string tags
-    """
-    try:
-        db = await get_database()
-        if(lite_mode):
-            agent_lite_collection = db[AGENT_LITE_COLLECTION]
-
-            self = await agent_lite_collection.find_one({"name": agent_name})
-            
-            all_tags = self['memory_profile']['all_tags']
-            memories = self['memory_profile']['memories']
-            
-            print(tags)
-            for tag in tags:
-                if tag not in all_tags:
-                    all_tags.append(tag)
-            
-            print(all_tags)
-            new_memory = {
-                "event": event,
-                "thoughts": thoughts,
-                "significance": significance,
-                "emotional_impact": emotional_impact,
-                "tags": tags,
-                "timestamp": datetime.now()
-            }
-            
-            memories.append(new_memory)
-            
-            updated_memory_profile = {
-                "all_tags": all_tags,
-                "memories": memories
-            }
-            agent_lite_collection.update_one({'name': agent_name}, {"$set": {"memory_profile": updated_memory_profile}})
-    except Exception as e:
-        print(e)
-
 async def add_memory(mem: Memory):
     try:
         db = await get_database()
@@ -571,7 +492,7 @@ async def update_tags(new_tags: List[str]):
     except Exception as e:
         print(e)
       
-async def update_summary_identity_relationship(agent_name, username, summary, extrinsic_relationship, identity, lite_mode=True):
+async def update_summary_identity_relationship(username, summary, extrinsic_relationship, identity, agent_name=AGENT_NAME):
     """Updates the user summary, agent identity, and user extrinsic relationship
 
     Args:
@@ -583,31 +504,33 @@ async def update_summary_identity_relationship(agent_name, username, summary, ex
     """
     try:
         db = await get_database()
-        if(lite_mode):
-            agent_lite_collection = db[AGENT_LITE_COLLECTION]
-            user_lite_collection = db[USER_LITE_COLLECTION]
+        if LITE_MODE:
+            agent_collection = db[AGENT_LITE_COLLECTION]
+            user_collection = db[USER_LITE_COLLECTION]
 
-            agent_lite_collection.update_one({'name': agent_name}, {"$set": {"identity": identity}})
-            user_lite_collection.update_one({"username": username, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
+        agent_collection.update_one({'name': agent_name}, {"$set": {"identity": identity}})
+        user_collection.update_one({"username": username, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
     except Exception as e:
         print(e)
         
-async def update_agent_emotions(agent_name, emotions, lite_mode=True):
+async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
     try:
         db = await get_database()
-        if(lite_mode):
-            agent_lite_collection = db[AGENT_LITE_COLLECTION]
-            agent_lite_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": emotions }})
+        if LITE_MODE:
+            agent_collection = db[AGENT_LITE_COLLECTION]
+        
+        agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": emotions }})
     
     except Exception as e:
         print(e)
         
-async def update_user_sentiment(username, sentiments, lite_mode=True):
+async def update_user_sentiment(username, sentiments):
     try:
         db = await get_database()
-        if(lite_mode):
-            user_lite_collection = db[USER_LITE_COLLECTION]
-            user_lite_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
+        if LITE_MODE:
+            user_collection = db[USER_LITE_COLLECTION]
+        
+        user_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
     except Exception as e:
         print(e)
         

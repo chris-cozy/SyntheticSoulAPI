@@ -504,7 +504,7 @@ MYERS_BRIGGS_LIST = [
                         "ENFJ",
                     ]
 
-AGENT_VALIDATOR = {
+AGENT_RICH_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
     "required": ["name", "identity", "personality", "memory_profile", "emotional_status", "thoughts"],
@@ -2323,7 +2323,7 @@ USER_LITE_VALIDATOR = {
   }
 }
 
-USER_VALIDATOR = {
+USER_RICH_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
     "required": [

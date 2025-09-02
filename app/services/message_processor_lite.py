@@ -30,10 +30,10 @@ async def process_message(request: MessageRequest):
             
             received_date = datetime.now() 
             username = request.username
-            self = await grab_self(AGENT_NAME)
-            user = await grab_user(username, AGENT_NAME)
-            conversation = await get_conversation(username, AGENT_NAME)
-            recent_all_messages = await get_all_message_memory(AGENT_NAME, MESSAGE_HISTORY_COUNT)
+            self = await grab_self()
+            user = await grab_user(username)
+            conversation = await get_conversation(username)
+            recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
             recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
             timings["message_handling_setup"] = time.perf_counter() - start
@@ -158,11 +158,11 @@ async def handle_message(
         if new_state.reason:
             self["emotional_status"]["reason"] = new_state.reason
         # save with your existing DB function
-        await update_agent_emotions(self["name"], self["emotional_status"])
+        await update_agent_emotions(self["emotional_status"])
         
     current_emotions = self["emotional_status"]
     
-    await update_agent_emotions(AGENT_NAME, current_emotions)    
+    await update_agent_emotions(current_emotions)    
     
     timings["initial_emotion_delta"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -196,7 +196,6 @@ async def handle_message(
     
     await insert_message_to_conversation(
         username, 
-        AGENT_NAME, 
         rich_message
     )
     
@@ -246,7 +245,6 @@ async def handle_message(
         
         await insert_message_to_conversation(
             username, 
-            AGENT_NAME, 
             rich_message
         )
         
@@ -305,7 +303,7 @@ async def handle_message(
     
     post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema(), False)
     
-    await update_summary_identity_relationship(AGENT_NAME, username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+    await update_summary_identity_relationship(username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     

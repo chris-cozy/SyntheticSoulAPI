@@ -20,7 +20,7 @@ async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
     """
-    recent_all_messages = await get_all_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
+    recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
     self = await grab_self(agent_name, True)
     thought_queries = [SYSTEM_MESSAGE]
 
@@ -47,7 +47,6 @@ async def generate_thought():
         return
     
     await add_thought(
-        agent_name, 
         {
             "thought": current_thought['thought'],
             "timestamp": datetime.now()
@@ -90,11 +89,11 @@ async def generate_thought():
         if new_state.reason:
             self["emotional_status"]["reason"] = new_state.reason
         # save with your existing DB function
-        await update_agent_emotions(self["name"], self["emotional_status"])
+        await update_agent_emotions(self["emotional_status"])
         
     current_emotions = self["emotional_status"]
     
-    await update_agent_emotions(AGENT_NAME, current_emotions)
+    await update_agent_emotions(current_emotions)
     
     # ---- 3) Memory Creation -------------------------------------------
     thought_queries.append({

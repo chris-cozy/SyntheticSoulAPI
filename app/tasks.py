@@ -5,7 +5,7 @@ import redis
 from rq import get_current_job
 from typing import Dict, Any
 from app.domain.models import MessageRequest
-from app.services.message_processor_lite import process_message
+from app.services.message_processor import process_message
 from app.services.progress import publish_progress
 
 def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:

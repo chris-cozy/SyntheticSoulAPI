@@ -375,42 +375,6 @@ async def get_tagged_memories(
     except Exception as e:
         print(e)
         return []
-
-async def insert_message_to_memory(message_request, agent_name=AGENT_NAME):
-    """Inserts a new message into the agent's message memory
-
-    Args:
-        agent_name (string): The agent's name
-        message_request (MessageRequest): The message to insert
-    """
-    try:
-        db = await get_database()
-        message_memory_collection = db[MESSAGE_MEMORY_COLLECTION]
-
-        if not await message_memory_collection.find_one({"agent_name": agent_name}):
-            # Create a new message memory object if one doesn't exist
-            new_message_memory = {
-                "agent_name": agent_name,
-                "messages": [],
-            }
-            await message_memory_collection.insert_one(new_message_memory)
-
-        await message_memory_collection.update_one(
-            {"agent_name": agent_name}, 
-            { 
-             "$push": 
-                 {
-                     "messages": {
-                         "$each": [message_request],
-                         "$slice": -10000
-                         }
-                     },
-                 "$setOnInsert": {"agent_name": agent_name}
-                 },
-            upsert=True
-        )
-    except Exception as e:
-        print(e)
         
 async def insert_message_to_conversation(
     username: str,

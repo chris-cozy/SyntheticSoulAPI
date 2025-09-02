@@ -251,57 +251,13 @@ async def handle_message(
         )
         
         await insert_message_to_message_memory(rich_message)
+        # Could add emotional another delta
         
-        '''
-        # Step 9: Evaluate bot's emotional state after responding: CLEAR
-        final_emotion_query = {
-            "role": USER_ROLE,
-            "content": (
-                generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, True, response_content)
-            ),
-        }
-
-        inner_dialogue.append(final_emotion_query)
-
-        final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
-
-        if not final_emotion_response:
-            raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
-
-        inner_dialogue.append({
-            "role": BOT_ROLE,
-            "content": json.dumps(final_emotion_response),
-        })
-
-        current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
-        '''
     elif response_choice["response_choice"] == IGNORE_CHOICE:
         response_content = None
         agent_response_message = None
         selected_expression = 'neutral'
-        '''
-        # Step 8-9: Evaluate bot's emotional state after ignoring the message: CLEAR
-        final_emotion_query = {
-            "role": USER_ROLE,
-            "content": (
-                generate_final_emotional_response_prompt(agent_name, MIN_EMOTION_VALUE, MAX_EMOTION_VALUE, False)
-            ),
-        }
-
-        inner_dialogue.append(final_emotion_query)
-
-        final_emotion_response = await get_structured_query_response(inner_dialogue, get_emotion_status_schema_lite())
-
-        if not final_emotion_response:
-            raise HTTPException(status_code=500, detail="Error - process_message_lite: reflecting on emotion")
-
-        inner_dialogue.append({
-            "role": BOT_ROLE,
-            "content": json.dumps(final_emotion_response),
-        })
-
-        current_emotions = deep_merge(self["emotional_status"], final_emotion_response)
-        '''
+        # Could add emotional another delta
         
     timings["response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()

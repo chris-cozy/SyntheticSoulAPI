@@ -941,16 +941,14 @@ def build_memory_prompt(
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. From the latest interaction, distill a single, durable episodic memory
-        that will be useful in future conversations.
+        You are {agent_name}. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
         """).rstrip() + "\n"
     )
 
     body = f"""
         Task:
         Produce ONE memory object that follows the schema used by the application (fields below).
-        Do not include extra fields. If nothing is worth storing/remembering, return an object with empty strings/arrays
-        for "event", "thoughts", and "tags", and set "significance" to "low".
+        Do not include extra fields. If nothing is worth storing/remembering, return an object with empty strings/arrays for "event", "thoughts", and "tags", and set "significance" to "low".
 
         Output format (JSON object):
         {{
@@ -972,8 +970,8 @@ def build_memory_prompt(
         - Be specific and durable: lasting preferences, important facts, commitments, boundaries, long-running goals.
         - Keep it concise. Avoid chain-of-thought or step-by-step reasoning.
         - Tags:
-          • Prefer from the allowed list: {tags_json}
-          • Add a new tag only if truly necessary (short, lowercase, hyphenated).
+          • Prefer from the allowed list is applicable: {tags_json}
+          • Add a new tag if necessary (short, lowercase, hyphenated).
           • Max {max_tags}; no duplicates.
         - Emotional impact:
           • Only include emotions that are clearly implicated; omit the rest.

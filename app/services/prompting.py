@@ -814,7 +814,7 @@ def build_thought_prompt(
         """).rstrip() + "\n"
     )
     
-    example_yes = {"thought": "I should double-check what <username> meant about the meetup time."}
+    example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
     example_no  = {"thought": "no"}
     
     body = f"""
@@ -833,6 +833,7 @@ def build_thought_prompt(
         - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
         - If nothing notable is on your mind, return "no".
         - Avoid repeating previous few thoughts unless sensible.
+        - Explicitly use usernames when referring to a user
 
         Examples (shape only; do not copy verbatim):
         - {json.dumps(example_yes, ensure_ascii=False)}

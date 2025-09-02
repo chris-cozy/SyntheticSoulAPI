@@ -820,7 +820,6 @@ def build_thought_prompt(
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
         - Current memory on your mind: {memory}
-        - Previous few thoughts: {previous_thoughts}
         """).rstrip() + "\n"
     )
     

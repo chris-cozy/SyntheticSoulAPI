@@ -1,7 +1,7 @@
 AGENT_LITE_VALIDATOR = {
     "$jsonSchema": {
         "bsonType": "object",
-        "required": ["name", "identity", "personality", "memory_tags", "emotional_status", "thoughts", "birthdate"],
+        "required": ["name", "identity", "personality", "memory_tags", "emotional_status", "birthdate"],
         "properties": {
             "name": {
               "bsonType": "string",

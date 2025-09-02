@@ -1,10 +1,9 @@
 import asyncio
 from datetime import datetime
 import json
-import os
 
-from app.constants.constants import BOT_ROLE, MESSAGE_HISTORY_COUNT, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME
+from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
+from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT
 from app.constants.schemas import get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory

@@ -1,8 +1,5 @@
 import asyncio
-import os
-import random
-from app.constants.constants import EMOTIONAL_DECAY_RATE
-from app.core.config import AGENT_NAME
+from app.core.config import AGENT_NAME, EMOTIONAL_DECAY_RATE
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import grab_self, update_agent_emotions
 from app.services.state_reducer import apply_deltas_emotional_decay

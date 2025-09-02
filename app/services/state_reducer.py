@@ -1,5 +1,3 @@
-from math import exp
-
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 '''
 You control realism centrally: tighter caps for personality (slow), looser for emotions (fast).

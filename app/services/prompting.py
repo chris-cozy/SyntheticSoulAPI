@@ -3,81 +3,9 @@ import json
 import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
 
-
-def build_initial_emotional_response_prompt(
-    agent_name: str, 
-    altered_personality: str, 
-    emotional_status: str, 
-    user_name: str, 
-    user_summary: str, 
-    intrinsic_relationship: str, 
-    extrinsic_relationship: str, 
-    recent_messages: str, 
-    recent_all_messages: str, 
-    received_date: str, 
-    user_message: str, 
-    min_emotional_value: int, 
-    max_emotional_value: int, 
-    latest_thought: str
-) -> str:
-    """
-    Generate a structured prompt for modeling the agent's emotional response.
-
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        altered_personality (str): The agent's current personality traits.
-        emotional_status (str): The agent's current emotional state.
-        user_name (str): The user's name.
-        user_summary (str): Information the agent knows about the user.
-        intrinsic_relationship (str): The intrinsic relationship between the agent and the user.
-        extrinsic_relationship (str): The extrinsic relationship between the agent and the user.
-        recent_messages (str): The recent conversation messages.
-        recent_all_messages (str): The past ten remembered messages overall.
-        received_date (str): The date of the interaction.
-        user_message (str): The latest message sent by the user.
-        min_sentiment_value (int): The minimum sentiment value scale.
-        max_sentiment_value (int): The maximum sentiment value scale.
-
-    Returns:
-        str: A clean, dynamic prompt string.
-    """
-    header = _format_shared_context(
-        agent_name=agent_name,
-        altered_personality=altered_personality,
-        emotional_status=emotional_status,
-        user_name=user_name,
-        user_summary=user_summary,
-        intrinsic_relationship=intrinsic_relationship,
-        extrinsic_relationship=extrinsic_relationship,
-        recent_messages=recent_messages,
-        recent_all_messages=recent_all_messages,
-        received_date=received_date,
-        user_message=user_message,
-        latest_thought=latest_thought,
-    )
-    
-    body = f"""
-        Task:
-        Determine how this message affects your emotional state.
-
-        Output format:
-        1. An updated emotional state object, listing only emotions that changed.
-            - Use a scale from {min_emotional_value} (lowest intensity) to {max_emotional_value} (highest intensity).
-            - Emotions change gradually unless triggered by major events.
-        2. Reasoning in plain, relaxed language. Keep it conversational, not overly structured.
-
-        Guidance:
-        - If sadness is high and the user’s message is positive, sadness may decrease.
-        - If joy is already high, further positive input may simply maintain the current level.
-        - Focus only on the most relevant changes.
-        - Keep the emotional trajectory consistent with the scale.
-        - Focus on speed
-        """
-    
-    return textwrap.dedent(header + body)
+from app.core.config import AGENT_NAME
 
 def build_emotion_delta_prompt(
-    agent_name: str, 
     altered_personality: str, 
     emotional_status: str, 
     user_name: str, 
@@ -89,6 +17,7 @@ def build_emotion_delta_prompt(
     received_date: str, 
     user_message: str, 
     latest_thought: str,
+    agent_name: str = AGENT_NAME, 
     typical_cap: int = 7
 ) -> str:
     """
@@ -150,11 +79,11 @@ def build_emotion_delta_prompt(
         """
     return textwrap.dedent(header + body)
 
-def build_emotion_delta_prompt_thinking(
-    agent_name: str, 
+def build_emotion_delta_prompt_thinking( 
     personality: str, 
     emotional_status: str, 
     latest_thought: str,
+    agent_name: str = AGENT_NAME,
     typical_cap: int = 7
 ) -> str:
     """
@@ -197,9 +126,7 @@ def build_emotion_delta_prompt_thinking(
         """
     return textwrap.dedent(body)
 
-
 def build_personality_delta_prompt(
-    agent_name: str,
     personality: str,                 # JSON string (current personality object)
     sentiment_status: str,            # JSON string (current sentiment)
     user_name: str,
@@ -209,6 +136,7 @@ def build_personality_delta_prompt(
     received_date: str = "",
     user_message: str = "",
     latest_thought: str = "",
+    agent_name: str = AGENT_NAME,
     typical_cap: int = 3              # small, slow movement for personality
 ) -> str:
     """
@@ -253,7 +181,6 @@ def build_personality_delta_prompt(
     return textwrap.dedent(header + body)
 
 def build_sentiment_delta_prompt(
-    agent_name: str, 
     username: str, 
     sentiments: str,
     typical_cap: int = 4,
@@ -306,8 +233,7 @@ def build_sentiment_delta_prompt(
         
     return textwrap.dedent(header + "\n" + body).strip()
 
-def build_message_perception_prompt(
-    agent_name: str, 
+def build_message_perception_prompt( 
     altered_personality: str, 
     emotional_status: str, 
     user_name: str, 
@@ -317,7 +243,8 @@ def build_message_perception_prompt(
     recent_messages: str,
     recent_all_messages: str, 
     user_message: str, 
-    received_date: str
+    received_date: str,
+    agent_name: str = AGENT_NAME,
 ) -> str:
     """
     Generate a structured prompt for analyzing the purpose and tone of a user's message
@@ -378,10 +305,10 @@ def build_message_perception_prompt(
         """
     return textwrap.dedent(header + body)
 
-def build_response_choice_prompt(
-    agent_name: str, 
+def build_response_choice_prompt( 
     user_name: str,
     *,
+    agent_name: str = AGENT_NAME,
     implicit: bool = True,
     context_section: Optional[str] = None
 ) -> str:
@@ -451,8 +378,7 @@ def build_response_choice_prompt(
         
     return textwrap.dedent(header + "\n" + body).strip()
 
-def build_response_analysis_prompt(
-    agent_name: str, 
+def build_response_analysis_prompt( 
     altered_personality: str, 
     current_emotions: str, 
     personality_language_guide: str, 
@@ -463,6 +389,7 @@ def build_response_analysis_prompt(
     memory: str,
     expressions: List[str],
     *,
+    agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
 ) -> str:
     """
@@ -580,62 +507,13 @@ def build_final_emotional_response_prompt(
     
     return textwrap.dedent(header + "\n" + key_details_block + "\n\n" + body).strip()
 
-def build_sentiment_analysis_prompt(
-    agent_name: str, 
-    username: str, 
-    min_sentiment_value: int, 
-    max_sentiment_value: int,
-    *,
-    context_section: Optional[str] = None,
-) -> str:
-    """
-    Generate a structured prompt to analyze the agent's sentiments toward the user
-    after the most recent message exchange.
-
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        username (str): The name of the user.
-        min_sentiment_value (int): The minimum value on the sentiment intensity scale.
-        max_sentiment_value (int): The maximum value on the sentiment intensity scale.
-
-    Returns:
-        str: A dynamically generated prompt.
-    """
-    # Prefer the shared "Key details" block for consistency; otherwise provide a minimal header.
-    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""
-    You are {agent_name}. Below are the key details of the evaluation:
-    - Evaluation focus: sentiments toward {username} after the latest exchange
-    """).rstrip() + "\n"
-    
-    body = f"""
-        Task:
-        Assess how your sentiments toward {username} have changed after this exchange.
-
-        Output format (JSON object):
-        {{
-        "updated_sentiments": {{"<sentiment>": <new_intensity>, "...": ...}},  # include only sentiments whose values changed
-        "reason": "1–2 sentences explaining the change in relaxed, simple language"
-        }}
-
-        Guidance:
-        - Use the scale from {min_sentiment_value} (lowest intensity) to {max_sentiment_value} (highest intensity).
-        - Changes are typically incremental (about ±5 points or less). Larger shifts (more than 5 points) should occur only after significant events (e.g., major shocks, breakthroughs).
-        - Do not add new sentiment categories; update only existing ones.
-        - If nothing meaningfully changed, return an empty object for "updated_sentiments" and briefly explain why.
-        - Keep language natural and avoid overly structured phrasing.
-        - Do not reveal private/internal chain-of-thought.
-        - Focus on speed
-        """
-        
-    return textwrap.dedent(header + "\n" + body).strip()
-
-def build_post_response_processing_prompt(
-    agent_name: str, 
+def build_post_response_processing_prompt( 
     current_identity: str, 
     username: str, 
     extrinsic_relationship_options: Sequence[str], 
     current_summary: str,
     *,
+    agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
 ) -> str:
     """
@@ -691,82 +569,6 @@ def build_post_response_processing_prompt(
         - Do not invent new fields or categories; use only the keys shown in the output format.
         - If unchanged, return the previous value (as present in the context).
         - Do not reveal private/internal chain-of-thought.
-        """
-    
-    return textwrap.dedent(header + "\n" + body).strip()
-
-def build_personality_adjustment_prompt(
-    agent_name: str,
-    personality: str, 
-    sentiment: str, 
-    user_name: str, 
-    extrinsic_relationship: str, 
-    min_personality_value: int, 
-    max_personality_value: int, 
-    max_range: int,
-    *,
-    context_section: Optional[str] = None
-) -> str:
-    """
-    Generate a structured prompt to adjust the agent's personality trait intensities
-    toward the user, influenced by current sentiment and the extrinsic relationship.
-
-    Parameters:
-        agent_name (str): The AI agent's name.
-        personality (str): The agent's current personality traits (and/or trait map).
-        sentiment (str): The agent's current sentiments toward the user.
-        user_name (str): The user's name.
-        extrinsic_relationship (str): The relationship label between agent and user.
-        min_personality_value (int): Minimum value for trait intensity.
-        max_personality_value (int): Maximum value for trait intensity.
-        max_range (int): Maximum allowed change (±) per trait in this step.
-        context_section (Optional[str]): Optional shared "Key details" section from
-                                         `_format_shared_context(...)`.
-
-    Returns:
-        str: A clean, dynamic prompt string.
-    """
-    header = (
-        (context_section.rstrip() + "\n")
-        if context_section
-        else textwrap.dedent(f"""
-        You are {agent_name}. Below are the key details of your current stance toward {user_name}:
-
-        - Personality traits (current): {personality}
-        - Sentiment toward {user_name}: {sentiment}
-        - Extrinsic relationship with {user_name}: {extrinsic_relationship}
-        """).rstrip() + "\n"
-    )
-    
-    example_obj = {
-        "updated_personality": {
-            "patience": 42,
-            "cooperation": 58
-        },
-        "reason": "Relationship feels strained right now, so patience dips a little; cooperation stays moderate but trends down slightly."
-    }
-    
-    body = f"""
-        Task:
-        Determine how your current sentiment and extrinsic relationship with {user_name} should adjust your personality trait intensities toward them.
-
-        Output format (JSON object):
-        {{
-        "updated_personality": {{"<trait>": <new_intensity>, "...": ...}},  # include only traits that changed
-        "reason": "Brief, natural explanation of how sentiment/relationship drove the changes"
-        }}
-
-        Guidance:
-        - Use the scale from {min_personality_value} (lowest/weakest) to {max_personality_value} (highest/strongest).
-        - Each trait may change by at most ±{max_range} in this step.
-        - Personality should evolve gradually; avoid large jumps unless strongly justified by context.
-        - Do not add brand-new traits; only update existing/known ones. If nothing changes, return an empty object for "updated_personality" and explain why.
-        - Keep language relaxed and simple; avoid overly structured phrasing.
-        - Do not reveal private/internal chain-of-thought.
-        - Focus on speed
-
-        Example (shape only, not a suggestion to copy):
-        {json.dumps(example_obj, ensure_ascii=False)}
         """
     
     return textwrap.dedent(header + "\n" + body).strip()
@@ -851,8 +653,8 @@ def build_thought_prompt(
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_memory_worthiness_prompt(
-    agent_name: str,
     *,
+    agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
 ) -> str:
     """
@@ -909,9 +711,9 @@ def build_memory_worthiness_prompt(
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_memory_prompt(
-    agent_name: str,
     allowed_tags: Sequence[str] | str,
     *,
+    agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
     max_tags: int = 3,
 ) -> str:
@@ -991,11 +793,11 @@ def build_memory_prompt(
 
     return textwrap.dedent(header + "\n" + body).strip()
     
-def build_implicit_addressing_prompt(
-    agent_name: str, 
+def build_implicit_addressing_prompt( 
     message_memory: Sequence[str] | str, 
     new_message_request: str,
     *,
+    agent_name: str=AGENT_NAME,
     context_section: Optional[str] = None,
 ) -> str:
     """
@@ -1058,7 +860,7 @@ def build_implicit_addressing_prompt(
 
 def _format_shared_context(
     *,
-    agent_name: str,
+    agent_name: str = AGENT_NAME,
     altered_personality: str,
     emotional_status: str,
     user_name: str,

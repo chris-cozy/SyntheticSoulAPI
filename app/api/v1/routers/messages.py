@@ -1,9 +1,13 @@
+from datetime import datetime
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Response
 from bson.json_util import dumps
+from fastapi.encoders import jsonable_encoder
 from rq import Queue
 
 from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
+from app.services.database import get_conversation
 from app.tasks import send_message_task
 
 
@@ -32,4 +36,28 @@ async def submit_message(request: MessageRequest):
         )
         return response
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/conversation/{username}")
+async def get_user_conversation(username: str):
+    try:
+        doc = await get_conversation(username)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # make a copy, expose id as string, drop Mongo's _id key (optional but common)
+        doc = dict(doc)
+        if "_id" in doc:
+            doc["id"] = str(doc.pop("_id"))
+
+        payload = jsonable_encoder(
+            doc,
+            custom_encoder={
+                ObjectId: str,
+                datetime: lambda d: d.isoformat()
+            },
+        )
+        return {"conversation": payload}
+    except Exception as e:
+        print(f"Error in conversation endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

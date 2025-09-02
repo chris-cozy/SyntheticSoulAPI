@@ -1,8 +1,4 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-AGENT_NAME = os.getenv("BOT_NAME")
+from app.core.config import AGENT_NAME
 
 EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
@@ -37,8 +33,6 @@ INTRINSIC_RELATIONSHIPS = [
     "daughter",
     "none",
 ]
-
-CONVERSATION_MESSAGE_RETENTION_COUNT = 10
 
 RESPOND_CHOICE = "respond"
 IGNORE_CHOICE = "ignore"
@@ -979,11 +973,11 @@ CONVERSATION_COLLECTION = "conversation"
 
 AGENT_LITE_COLLECTION = "agent_lite"
 
-AGENT_COLLECTION = "agent"
+AGENT_RICH_COLLECTION = "agent"
 
 USER_LITE_COLLECTION = "user_lite"
 
-USER_COLLECTION = "user"
+USER_RICH_COLLECTION = "user"
 
 USER_NAME_PROPERTY = "username"
 
@@ -995,11 +989,7 @@ MESSAGE_COLLECTION = "message"
 
 MEMORY_COLLECTION = "memory"
 
-EMOTIONAL_DECAY_RATE = 240
-
-MESSAGE_HISTORY_COUNT = 10
-
-THINKING_RATE = 600
+THOUGHT_COLLECTION = "thought"
 
 MYERS_BRIGGS_PERSONALITIES = [
   {

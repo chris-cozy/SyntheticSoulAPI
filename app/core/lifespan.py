@@ -3,7 +3,7 @@ import asyncio
 from fastapi import FastAPI
 
 from app.services.database import init_db, _db_client
-from app.services.utility import start_emotion_decay
+from app.services.emotion_decay import emotion_decay_loop
 from app.services.thinking import periodic_thinking
 
 @asynccontextmanager
@@ -12,7 +12,7 @@ async def app_lifespan(app: FastAPI):
     await init_db()
 
     print("Starting emotional decay...")
-    decay_task = asyncio.create_task(start_emotion_decay())
+    decay_task = asyncio.create_task(emotion_decay_loop())
 
     print("Starting to think...")
     asyncio.create_task(periodic_thinking())

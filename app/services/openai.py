@@ -1,12 +1,11 @@
 import openai
 import json
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.config import OPENAI_KEY, GPT_FAST, GPT_QUALITY
+
 client = openai.OpenAI()
 
-openai.api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = OPENAI_KEY
 
 async def get_structured_response(messages, schema, quality = True):
     """
@@ -16,9 +15,9 @@ async def get_structured_response(messages, schema, quality = True):
     :param schema: Schema for structuring the result (as JSON)
     :return: Parsed response as a Python dictionary, or None on error
     """
-    gpt_model = os.getenv('GPT_FAST_MODEL')
+    gpt_model = GPT_FAST
     if quality:
-        gpt_model = os.getenv('GPT_QUALITY_MODEL')
+        gpt_model = GPT_QUALITY
     try:
         response = client.beta.chat.completions.parse(
             model= gpt_model,   
@@ -33,27 +32,4 @@ async def get_structured_response(messages, schema, quality = True):
         return parsed_content
     except Exception as error:
         print(f"Error - get_structured_query_response: {error}")
-        return None
-    
-
-async def check_for_memory(message_queries):
-    """
-    Queries the OpenAI API to call a function for adding a memory to the database.
-
-    :param message_queries: message query list
-    :return: Parsed response as a Python dictionary, or None on error
-    """
-    try:
-        response = client.beta.chat.completions.parse(
-            model = os.getenv('GPT_MODEL'),
-            messages=message_queries,
-            functions=FUNCTION_DESCRIPTIONS,
-            function_call='auto'
-        )
-
-        content_json = response.choices[0].message
-               
-        return content_json
-    except Exception as error:
-        print(f"Error - check_for_memory: {error}")
         return None

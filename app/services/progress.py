@@ -1,13 +1,11 @@
-from typing import Optional
-from rq.job import Job
-
-import os
 import ssl
 import json
 import redis
 
+from app.core.config import REDIS_URL
+
 def _redis_from_env():
-    url = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    url = REDIS_URL
     if url.startswith("rediss://"):
         return redis.from_url(url, ssl_cert_reqs=ssl.CERT_NONE)
     return redis.from_url(url)

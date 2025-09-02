@@ -1,9 +1,9 @@
 import asyncio
 from datetime import datetime
 import json
-import os
 
-from app.constants.constants import AGENT_NAME, BOT_ROLE, MESSAGE_HISTORY_COUNT, SYSTEM_MESSAGE, USER_ROLE
+from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
+from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory
@@ -14,14 +14,12 @@ from app.services.openai import get_structured_response
 from app.services.prompting import build_emotion_delta_prompt_thinking, build_memory_prompt, build_thought_prompt
 from app.services.state_reducer import apply_deltas_emotion
 
-agent_name = os.getenv("BOT_NAME")
-
 async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
     """
-    recent_all_messages = await get_all_message_memory(agent_name, MESSAGE_HISTORY_COUNT)
-    self = await grab_self(agent_name, True)
+    recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
+    self = await grab_self()
     thought_queries = [SYSTEM_MESSAGE]
 
     # ---- 0) Retrieve Random Memories -------------------------------------------
@@ -47,7 +45,6 @@ async def generate_thought():
         return
     
     await add_thought(
-        agent_name, 
         {
             "thought": current_thought['thought'],
             "timestamp": datetime.now()
@@ -59,9 +56,8 @@ async def generate_thought():
         "role": USER_ROLE,
         "content": (
             build_emotion_delta_prompt_thinking(
-                AGENT_NAME,
                 personality=self["personality"],
-                emotional_status=self["emotional_status"],        # current values
+                emotional_status=self["emotional_status"],
                 latest_thought=current_thought['thought']
             )
         )
@@ -90,16 +86,16 @@ async def generate_thought():
         if new_state.reason:
             self["emotional_status"]["reason"] = new_state.reason
         # save with your existing DB function
-        await update_agent_emotions(self["name"], self["emotional_status"])
+        await update_agent_emotions(self["emotional_status"])
         
     current_emotions = self["emotional_status"]
     
-    await update_agent_emotions(AGENT_NAME, current_emotions)
+    await update_agent_emotions(current_emotions)
     
     # ---- 3) Memory Creation -------------------------------------------
     thought_queries.append({
             "role": USER_ROLE, 
-            "content": build_memory_prompt(AGENT_NAME, self['memory_tags'])
+            "content": build_memory_prompt(self['memory_tags'])
         })
         
     memory_response = await get_structured_response(thought_queries, get_memory_schema_lite(), quality=False)
@@ -127,4 +123,4 @@ async def periodic_thinking():
             await generate_thought()
         except Exception as e:
             print(f"Error in generate_thought: {e}")
-        await asyncio.sleep(180)
+        await asyncio.sleep(THINKING_RATE)

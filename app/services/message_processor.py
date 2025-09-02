@@ -13,7 +13,7 @@ from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import get_structured_response
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXPRESSION_LIST, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_NAME_PROPERTY, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
-from app.services.database import add_memory, get_all_message_memory, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
+from app.services.database import add_memory, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
 from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
@@ -76,6 +76,7 @@ async def handle_message(
     implicitly_addressed = True
     timings = {}
     start = time.perf_counter()
+    latest_thoughts = await get_thoughts(1)
     
     # ---- -1) Group Message: Check if Implicity Addressed -------------------------------------------   
     if not direct_message:
@@ -87,7 +88,9 @@ async def handle_message(
         timings["implicit_check"] = time.perf_counter() - start
         step_start = time.perf_counter()
     
-    # ---- 0) Customize Personality -------------------------------------------    
+    # ---- 0) Customize Personality ------------------------------------------- 
+    
+       
     prompt = build_personality_delta_prompt(
         personality=self["personality"],
         sentiment_status=user["sentiment_status"],
@@ -97,7 +100,7 @@ async def handle_message(
         recent_all_messages=recent_all_messages,
         received_date=str(received_date),
         user_message=request.message,
-        latest_thought=self['thoughts'][-1] or ""
+        latest_thought=latest_thoughts
     )
     
     delta = await get_structured_response([{"role": "user", "content": prompt}], get_personality_delta_schema_lite(), False)
@@ -135,7 +138,7 @@ async def handle_message(
         recent_all_messages=recent_all_messages,
         received_date=str(received_date),
         user_message=request.message,
-        latest_thought=self['thoughts'][-1] or ""
+        latest_thought=latest_thoughts
     )
     
     delta = await get_structured_response(
@@ -225,7 +228,7 @@ async def handle_message(
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, self['thoughts'][-1], username, recent_user_messages, recent_all_messages, memory, EXPRESSION_LIST)
+                build_response_analysis_prompt(altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, latest_thoughts, username, recent_user_messages, recent_all_messages, memory, EXPRESSION_LIST)
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())

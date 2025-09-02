@@ -459,30 +459,33 @@ AGENT_LITE_VALIDATOR = {
                 }
 
             },
-            "thoughts": {
-              "bsonType": "array",
-              "description": "List of past thoughts, required and must be an array of objects",
-              "items": {
-                  "bsonType": "object",
-                  "required": ["thought", "timestamp"],
-                  "properties": {
-                  "thought": {
-                      "bsonType": "string",
-                      "description": "The thought content, required and must be a string (can be empty)"
-                  },
-                  "timestamp": {
-                      "bsonType": "date",
-                      "description": "Timestamp of the thought, required and must be a valid date"
-                  }
-                  }
-              }
-            },
             "birthdate": {
                 "bsonType": "date",
                 "description": "Timestamp of birth"
             }
         }
     }
+}
+
+THOUGHT_VALIDATOR = {
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["agent_name","thought", "timestamp"],
+    "properties": {
+      "agent_name": {
+          "bsonType": "string",
+          "description": "Agent this thought belongs to"
+      },
+      "thought": {
+          "bsonType": "string",
+          "description": "The thought content, required and must be a string (can be empty)"
+      },
+      "timestamp": {
+          "bsonType": "date",
+          "description": "Timestamp of the thought, required and must be a valid date"
+      }
+    }
+  }
 }
 
 MYERS_BRIGGS_LIST = [

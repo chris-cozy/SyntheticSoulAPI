@@ -3,11 +3,11 @@ from datetime import datetime
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, THOUGHT_COLLECTION, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DEVELOPER_ID, DATABASE_NAME
 
-from app.constants.validators import AGENT_RICH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, USER_RICH_VALIDATOR
+from app.constants.validators import AGENT_RICH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, THOUGHT_VALIDATOR, USER_RICH_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
@@ -36,7 +36,8 @@ _VALIDATORS: Dict[str, Dict[str, Any]] = {
     AGENT_COLLECTION:        AGENT_VALIDATOR,
     USER_COLLECTION:    USER_VALIDATOR,
     MEMORY_COLLECTION: MEMORY_VALIDATOR,
-    MESSAGE_COLLECTION: MESSAGES_VALIDATOR
+    MESSAGE_COLLECTION: MESSAGES_VALIDATOR,
+    THOUGHT_COLLECTION: THOUGHT_VALIDATOR
 }
 
 def _client_opts() -> Dict[str, Any]:
@@ -70,6 +71,8 @@ async def _ensure_indexes(db):
     )
     await db[MEMORY_COLLECTION].create_index("tags", name="tags")
     await db[MEMORY_COLLECTION].create_index("recall_count", name="recalls")
+    
+    await db[THOUGHT_COLLECTION].create_index("agent_name", name="agent_name")
 
 async def init_db() -> None:
     """
@@ -413,23 +416,33 @@ async def add_thought(
     thought: dict[str, Any],
     agent_name: str=AGENT_NAME,
 ) -> None:
-    db = await get_database()
-    thought_collection = db[AGENT_LITE_COLLECTION]
     try:
-        await thought_collection.update_one(
-            {AGENT_NAME_PROPERTY: agent_name}, 
-            { 
-             "$push": 
-                 {
-                     "thoughts": {
-                         "$each": [thought],
-                         "$slice": -100
-                         }
-                     },
-                 "$setOnInsert": {AGENT_NAME_PROPERTY: agent_name}
-            },
-            upsert=True
+        db = await get_database()
+        thought_collection = db[THOUGHT_COLLECTION]
+        
+        thought["agent_name"] = agent_name
+        
+        await thought_collection.insert_one(thought)
+    except Exception as e:
+        print(e)
+        
+async def get_thoughts(
+    count,
+    agent_name: str=AGENT_NAME,
+) -> None:
+    try:
+        db = await get_database()
+        thought_collection = db[THOUGHT_COLLECTION]
+        
+        cursor = (
+            thought_collection
+            .find({"agent_name": agent_name})
+            .sort([("_id", -1)])   # Sort descending by _id (newest first)
+            .limit(count)
         )
+        
+        latest_thoughts = await cursor.to_list(length=count)
+        return latest_thoughts
     except Exception as e:
         print(e)
                

@@ -141,7 +141,7 @@ def build_emotion_delta_prompt(
         }}
 
         Guidance:
-        - Possible emotion keys: {emotion_keys}
+        - Possible emotion keys: {emotion_keys}. Use only these keys.
         - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
         - Stay consistent with current values; avoid abrupt reversals without cause.
         - Do not output absolute values; output **deltas** only.
@@ -188,7 +188,7 @@ def build_emotion_delta_prompt_thinking(
         }}
 
         Guidance:
-        - Possible emotion keys: {emotion_keys}
+        - Possible emotion keys: {emotion_keys}. Use only these keys.
         - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
         - Stay consistent with current values; avoid abrupt reversals without cause.
         - Do not output absolute values; output **deltas** only.
@@ -244,7 +244,7 @@ def build_personality_delta_prompt(
     }}
 
     Guidance:
-    - Possible personality keys: {personality_keys}
+    - Possible personality keys: {personality_keys}. Use only these keys.
     - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
     - Do **not** output absolute values—only **deltas** to apply to current values.
     - If nothing should change, return an empty "deltas" object.
@@ -296,7 +296,7 @@ def build_sentiment_delta_prompt(
         }}
 
         Guidance:
-        - Possible sentiment keys: {sentiment_keys}
+        - Possible sentiment keys: {sentiment_keys}. Use only these keys.
         - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
         - Include only sentiments that meaningfully changed; omit everything else.
         - Be consistent with prior context; avoid abrupt, contradictory swings without justification.

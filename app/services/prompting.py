@@ -147,6 +147,51 @@ def build_emotion_delta_prompt(
         """
     return textwrap.dedent(header + body)
 
+def build_emotion_delta_prompt_thinking(
+    agent_name: str, 
+    personality: str, 
+    emotional_status: str, 
+    latest_thought: str,
+    typical_cap: int = 7
+) -> str:
+    """
+    Generate a structured prompt for modeling the agent's emotional response.
+
+    Parameters:
+        agent_name (str): The name of the AI agent.
+        personality (str): The agent's current personality traits.
+        emotional_status (str): The agent's current emotional state.
+        latest_thought (str): The latest thought that the agent had.
+        
+    Returns:
+        str: A clean, dynamic prompt string.
+    """
+    body = f"""
+        You are {agent_name}. Below are the key details of your current state and context:
+        - Personality traits: {personality}
+        - Current emotional state: {emotional_status}
+        - Latest thought: {latest_thought}
+        
+        Task:
+        Propose small **deltas** to the current emotional state in response to the latest thought.
+
+        Output format (JSON):
+        {{
+            "deltas": {{ "<emotion>": number, ... }},  // only include keys that should change
+            "reason": "brief natural explanation",
+            "confidence": 0.0 - 1.0
+        }}
+
+        Guidance:
+        - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
+        - Stay consistent with current values; avoid abrupt reversals without cause.
+        - Do not output absolute values; output **deltas** only.
+        - If nothing should change, return an empty "deltas" object.
+        - Focus on speed
+        """
+    return textwrap.dedent(body)
+
+
 def build_personality_delta_prompt(
     agent_name: str,
     personality: str,                 # JSON string (current personality object)
@@ -764,7 +809,7 @@ def build_thought_prompt(
         - Identity: {identity}
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
-        - Current memories: {memory}
+        - Current memory on your mind: {memory}
         - Previous few thoughts: {previous_thoughts}
         """).rstrip() + "\n"
     )

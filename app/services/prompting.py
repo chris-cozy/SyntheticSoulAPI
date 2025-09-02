@@ -127,6 +127,8 @@ def build_emotion_delta_prompt(
         latest_thought=latest_thought,
     )
     
+    emotion_keys = list(emotional_status["emotions"].keys())
+    
     body = f"""
         Task:
         Propose small **deltas** to the current emotional state in response to the latest message.
@@ -139,6 +141,7 @@ def build_emotion_delta_prompt(
         }}
 
         Guidance:
+        - Possible emotion keys: {emotion_keys}
         - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
         - Stay consistent with current values; avoid abrupt reversals without cause.
         - Do not output absolute values; output **deltas** only.
@@ -166,6 +169,8 @@ def build_emotion_delta_prompt_thinking(
     Returns:
         str: A clean, dynamic prompt string.
     """
+    emotion_keys = list(emotional_status["emotions"].keys())
+    
     body = f"""
         You are {agent_name}. Below are the key details of your current state and context:
         - Personality traits: {personality}
@@ -183,6 +188,7 @@ def build_emotion_delta_prompt_thinking(
         }}
 
         Guidance:
+        - Possible emotion keys: {emotion_keys}
         - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
         - Stay consistent with current values; avoid abrupt reversals without cause.
         - Do not output absolute values; output **deltas** only.
@@ -225,6 +231,7 @@ def build_personality_delta_prompt(
         latest_thought=latest_thought,
     )
 
+    personality_keys = list(personality["personality_matrix"].keys())
     body = f"""
     Task:
     Propose small **deltas** to the current personality matrix in response to the latest interaction and overall context.
@@ -237,6 +244,7 @@ def build_personality_delta_prompt(
     }}
 
     Guidance:
+    - Possible personality keys: {personality_keys}
     - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
     - Do **not** output absolute values—only **deltas** to apply to current values.
     - If nothing should change, return an empty "deltas" object.
@@ -274,6 +282,7 @@ def build_sentiment_delta_prompt(
         - Evaluate how your sentiments toward {username} changed after the most recent exchange.
     """).rstrip() + "\n"
     
+    sentiment_keys = list(sentiments["sentiments"].keys())
     body = f"""
         Task:
         Suggest small, realistic changes (deltas) to your sentiments toward {username}.
@@ -287,6 +296,7 @@ def build_sentiment_delta_prompt(
         }}
 
         Guidance:
+        - Possible sentiment keys: {sentiment_keys}
         - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
         - Include only sentiments that meaningfully changed; omit everything else.
         - Be consistent with prior context; avoid abrupt, contradictory swings without justification.

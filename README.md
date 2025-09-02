@@ -159,7 +159,7 @@ Response:
     },
     "error": null
 }
-
+```
 
 ### Get Active Agent
 ```http

@@ -146,6 +146,20 @@ Response:
 GET /jobs/abc123
 ```
 
+Response:
+```json
+{
+"job_id": "8bbf5e53-a9b5-4020-bf2d-bde3026a26e4",
+    "status": "succeeded",
+    "progress": 100.0,
+    "result": {
+        "response": "I’m doing really well, thank you — that made my day to hear! I’m so happy we’ve been chatting ♡",
+        "time": 22,
+        "expression": "happy"
+    },
+    "error": null
+}
+
 
 ### Get Active Agent
 ```http

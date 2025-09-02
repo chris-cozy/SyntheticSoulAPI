@@ -27,6 +27,8 @@ DEVELOPER_ID = os.getenv("DEVELOPER_ID")
 
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 
+WINDOWS_ENV = os.getenv("ENVIRONMENT") == 'windows'
+
 # CORS
 ALLOWED_ORIGINS = [
 "http://localhost:5173",

@@ -742,7 +742,7 @@ def build_memory_prompt(
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
+        You are {agent_name}. Decide if this interaction contains information that should be stored in long-term memory. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
         """).rstrip() + "\n"
     )
 
@@ -766,8 +766,21 @@ def build_memory_prompt(
           "tags": ["k1","k2","k3"],  // 0–{max_tags} tags, unique, lowercase, concise
           "embedding_text": "Optional single sentence capturing the essence to embed" | null
         }}
+        
+        Guidance for if memory is worth creating:
+        - Store ("yes") if it includes:
+            • Stable user facts (name, role, location, background details)
+            • Lasting preferences (likes/dislikes, style, accessibility needs)
+            • Commitments, plans, or deadlines the agent/user will revisit
+            • Relationship changes or boundaries (e.g., new status, trust level)
+            • Important corrections to prior assumptions
+            • Long-running projects, objectives, or constraints
+        - Do NOT store ("no") for:
+            • Small talk, one-off jokes, pleasantries
+            • Transient emotions or fleeting context unlikely to matter later
+            • Redundant details already in memory without meaningful change
 
-        Guidance:
+        Guidance for creating a memory:
         - Be specific and durable: lasting preferences, important facts, commitments, boundaries, long-running goals.
         - Keep it concise. Avoid chain-of-thought or step-by-step reasoning.
         - Tags:

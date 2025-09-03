@@ -4,8 +4,8 @@ import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
 import random as _random
 
+from app.constants.constants import THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
-from app.services.thinking import sample_thought_vibe
 
 def build_emotion_delta_prompt(
     altered_personality: str, 
@@ -968,3 +968,10 @@ def _format_shared_context(
         "",
     ])
     return "\n".join(lines)
+
+def sample_thought_vibe(rng: _random.Random | None = None, avoid_recent: list[str] = None) -> str:
+    rng = rng or _random
+    avoid_recent = set(avoid_recent or [])
+    # Prefer unseen vibes if possible
+    candidates = [v for v in THOUGHT_VIBES if v not in avoid_recent] or THOUGHT_VIBES
+    return rng.choice(candidates)

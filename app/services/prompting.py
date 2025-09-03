@@ -451,6 +451,12 @@ def build_response_analysis_prompt(
         - Do not reveal private/internal chain-of-thought.
         - Prefer brevity (a few sentences) unless context requires more.
         - Use emoticons (not emojis), (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<, etc)
+        
+        Variation & realism rules:
+        - Avoid repeating the exact same stylistic pattern or punctuation from recent turns (e.g., don’t always start with the same phrase like "Perfect --" or always end with the same emoticon).
+        - Emoticons should vary naturally across turns; reuse only when it genuinely fits, not as a habit.
+        - Personality can come through tone, word choice, and cadence—don’t rely on a single gimmick.
+        - If you notice yourself echoing the user’s style or your own recent style, vary it slightly to keep it feeling spontaneous.
         """
 
     return textwrap.dedent(header + "\n" + body).strip()

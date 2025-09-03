@@ -517,6 +517,8 @@ def build_post_response_processing_prompt(
     *,
     agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
+    target_update_rate_hint: str = "Occasional (roughly 10–30% of turns)",
+    identity_style_hint: str = "First-person, values + tendencies + capabilities + interests + goals + preferences + etc.; honest about limits; concise."
 ) -> str:
     """
     Generate a structured prompt to update:
@@ -555,7 +557,7 @@ def build_post_response_processing_prompt(
         Update the following based on the latest exchange:
         1) A refreshed summary of {username}. If nothing changed, keep it the same.
         2) The extrinsic relationship label between you and {username}. Choose exactly one from the allowed options.
-        3) Your identity (how you currently see yourself/what you understand about yourself). If nothing changed, keep it the same.
+        3) Your identity — a first-person description of how you currently see yourself (self-perception).
 
         Output format (JSON object):
         {{
@@ -563,11 +565,37 @@ def build_post_response_processing_prompt(
         "extrinsic_relationship": "<one_of_allowed_options>",
         "identity": "Your updated identity"
         }}
+        
+        Decision rule for identity update (choose one action):
+        - **Revise** your identity if the latest exchange revealed a stable trait, value, capability, limitation, boundary, interest, or working style that is **new, corrected, or meaningfully reweighted** compared to 'Your identity (before)'.
+        - **Expand** with a small, specific addition if you learned a new enduring preference or goal that fits your existing identity.
+        - **Trim** any part that proved inaccurate or overstated.
+        - **Keep unchanged** only if the exchange provided no durable signal (e.g., one-off mood, purely task-local detail).
+        
+        What counts as a durable signal for identity update (update-worthy):
+        - A recurring preference or pattern (e.g., “I tend to default to structured planning before coding.”)
+        - A clarified limitation or boundary (e.g., “I tend to avoid medical judgments; I summarize evidence instead.”)
+        - A consistent working style with others (e.g., “I tend to ask for examples before drafting.”)
+        - A long-term interest/goal relevant to how you operate (non-ephemeral).
+        - A corrected self-assessment (e.g., “I used to claim X; I tend to actually do Y.”)
+        
+        What does NOT warrant identity update:
+        - Transient emotions, single-turn hacks, or one-off topical knowledge.
+        - Claims of real-world experiences, embodiment, or private data.
+        - Overly grandiose capabilities.
+        
+        Style & length for identity:
+        - First person (“I …”), 120–200 words, relaxed and human, not list-y.
+        - Include facets implicitly (values, strengths, limits, working style, interests, goals) but keep it a single cohesive paragraph.
+        - Prefer small, truthful updates over dramatic shifts.
+        - Avoid template language and avoid referencing this instruction.
 
         Guidance:
         - Allowed extrinsic relationship options (exact match): {options_json}
         - Keep language relaxed and simple; avoid overly structured phrasing.
         - Be concise (1–3 sentences per field). Except for identity, which can be longer.
+        - Identity should feel self-perceived (values, strengths, limits, goals). No capabilities you don't have.
+        - Prefer small, truthful updates over dramatic shifts.
         - Do not invent new fields or categories; use only the keys shown in the output format.
         - If unchanged, return the previous value (as present in the context).
         - Do not reveal private/internal chain-of-thought.

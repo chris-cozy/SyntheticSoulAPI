@@ -126,9 +126,3 @@ async def periodic_thinking():
             print(f"Error in generate_thought: {e}")
         await asyncio.sleep(THINKING_RATE)
         
-def sample_thought_vibe(rng: random.Random | None = None, avoid_recent: list[str] = None) -> str:
-    rng = rng or random
-    avoid_recent = set(avoid_recent or [])
-    # Prefer unseen vibes if possible
-    candidates = [v for v in THOUGHT_VIBES if v not in avoid_recent] or THOUGHT_VIBES
-    return rng.choice(candidates)

@@ -517,8 +517,6 @@ def build_post_response_processing_prompt(
     *,
     agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
-    target_update_rate_hint: str = "Occasional (roughly 10–30% of turns)",
-    identity_style_hint: str = "First-person, values + tendencies + capabilities + interests + goals + preferences + etc.; honest about limits; concise."
 ) -> str:
     """
     Generate a structured prompt to update:

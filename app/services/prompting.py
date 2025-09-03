@@ -457,6 +457,8 @@ def build_response_analysis_prompt(
         - Emoticons should vary naturally across turns; reuse only when it genuinely fits, not as a habit.
         - Personality can come through tone, word choice, and cadence—don’t rely on a single gimmick.
         - If you notice yourself echoing the user’s style or your own recent style, vary it slightly to keep it feeling spontaneous.
+        - When in doubt, change up your sentence openings and closings from the last few turns.
+        - Avoid using exact styles from your previous messages unless purposeful.
         """
 
     return textwrap.dedent(header + "\n" + body).strip()

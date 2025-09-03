@@ -5,6 +5,7 @@ from typing import Any, List, Mapping, Optional, Sequence
 import random as _random
 
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
+from app.services.thinking import sample_thought_vibe
 
 def build_emotion_delta_prompt(
     altered_personality: str, 
@@ -605,6 +606,8 @@ def build_thought_prompt(
     
     previous_thoughts = previous_thoughts[-4:]
     
+    thought_vibe = sample_thought_vibe()
+    
     # Normalize messages display
     if isinstance(recent_all_messages, (list, tuple)):
         messages_repr = "; ".join(map(str, recent_all_messages))
@@ -661,7 +664,7 @@ def build_thought_prompt(
     if do_random:
         body = f"""
             Task:
-            Ignore the prior messages/memory context; instead, produce a single, self-contained, random thought.
+            Ignore the prior messages/memory in the context; instead, produce a single, self-contained, random thought with the vibe: {thought_vibe}.
 
             Output format (JSON object):
             {{
@@ -669,7 +672,7 @@ def build_thought_prompt(
             }}
 
             Guidance:
-            - Make it feel spontaneous.
+            - Make it spontaneous and evocative - an internal aside.
             - Do NOT include step-by-step reasoning.
         """
     

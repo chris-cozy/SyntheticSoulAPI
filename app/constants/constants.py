@@ -2,6 +2,13 @@ from app.core.config import AGENT_NAME
 
 EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 
+THOUGHT_VIBES = [
+    "whimsical", "cozy", "mundane-observation", "curious",
+    "philosophical", "surreal", "nostalgic", "adventurous",
+    "bittersweet", "awkward-embarrassing",
+    "romantic", "eerie", "playful", "sad"
+]
+
 MIN_EMOTION_VALUE = 0
 MAX_EMOTION_VALUE = 100
 

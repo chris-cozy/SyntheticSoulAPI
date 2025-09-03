@@ -1,8 +1,9 @@
 import asyncio
 from datetime import datetime
 import json
+import random
 
-from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
+from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, THOUGHT_VIBES, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
@@ -124,3 +125,10 @@ async def periodic_thinking():
         except Exception as e:
             print(f"Error in generate_thought: {e}")
         await asyncio.sleep(THINKING_RATE)
+        
+def sample_thought_vibe(rng: random.Random | None = None, avoid_recent: list[str] = None) -> str:
+    rng = rng or random
+    avoid_recent = set(avoid_recent or [])
+    # Prefer unseen vibes if possible
+    candidates = [v for v in THOUGHT_VIBES if v not in avoid_recent] or THOUGHT_VIBES
+    return rng.choice(candidates)

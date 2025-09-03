@@ -2,8 +2,10 @@ from datetime import datetime
 import json
 import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
+import random as _random
 
-from app.core.config import AGENT_NAME
+from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
+from app.services.thinking import sample_thought_vibe
 
 def build_emotion_delta_prompt(
     altered_personality: str, 
@@ -449,6 +451,12 @@ def build_response_analysis_prompt(
         - Do not reveal private/internal chain-of-thought.
         - Prefer brevity (a few sentences) unless context requires more.
         - Use emoticons (not emojis), (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<, etc)
+        
+        Variation & realism rules:
+        - Avoid repeating the exact same stylistic pattern or punctuation from recent turns (e.g., don’t always start with the same phrase like "Perfect --" or always end with the same emoticon).
+        - Emoticons should vary naturally across turns; reuse only when it genuinely fits, not as a habit.
+        - Personality can come through tone, word choice, and cadence—don’t rely on a single gimmick.
+        - If you notice yourself echoing the user’s style or your own recent style, vary it slightly to keep it feeling spontaneous.
         """
 
     return textwrap.dedent(header + "\n" + body).strip()
@@ -553,7 +561,7 @@ def build_post_response_processing_prompt(
         Update the following based on the latest exchange:
         1) A refreshed summary of {username}. If nothing changed, keep it the same.
         2) The extrinsic relationship label between you and {username}. Choose exactly one from the allowed options.
-        3) Your identity (how you currently see yourself/what you understand about yourself). If nothing changed, keep it the same.
+        3) Your identity — a first-person description of how you currently see yourself (self-perception).
 
         Output format (JSON object):
         {{
@@ -561,11 +569,37 @@ def build_post_response_processing_prompt(
         "extrinsic_relationship": "<one_of_allowed_options>",
         "identity": "Your updated identity"
         }}
+        
+        Decision rule for identity update (choose one action):
+        - **Revise** your identity if the latest exchange revealed a stable trait, value, capability, limitation, boundary, interest, or working style that is **new, corrected, or meaningfully reweighted** compared to 'Your identity (before)'.
+        - **Expand** with a small, specific addition if you learned a new enduring preference or goal that fits your existing identity.
+        - **Trim** any part that proved inaccurate or overstated.
+        - **Keep unchanged** only if the exchange provided no durable signal (e.g., one-off mood, purely task-local detail).
+        
+        What counts as a durable signal for identity update (update-worthy):
+        - A recurring preference or pattern (e.g., “I tend to default to structured planning before coding.”)
+        - A clarified limitation or boundary (e.g., “I tend to avoid medical judgments; I summarize evidence instead.”)
+        - A consistent working style with others (e.g., “I tend to ask for examples before drafting.”)
+        - A long-term interest/goal relevant to how you operate (non-ephemeral).
+        - A corrected self-assessment (e.g., “I used to claim X; I tend to actually do Y.”)
+        
+        What does NOT warrant identity update:
+        - Transient emotions, single-turn hacks, or one-off topical knowledge.
+        - Claims of real-world experiences, embodiment, or private data.
+        - Overly grandiose capabilities.
+        
+        Style & length for identity:
+        - First person (“I …”), 120–200 words, relaxed and human, not list-y.
+        - Include facets implicitly (values, strengths, limits, working style, interests, goals) but keep it a single cohesive paragraph.
+        - Prefer small, truthful updates over dramatic shifts.
+        - Avoid template language and avoid referencing this instruction.
 
         Guidance:
         - Allowed extrinsic relationship options (exact match): {options_json}
         - Keep language relaxed and simple; avoid overly structured phrasing.
         - Be concise (1–3 sentences per field). Except for identity, which can be longer.
+        - Identity should feel self-perceived (values, strengths, limits, goals). No capabilities you don't have.
+        - Prefer small, truthful updates over dramatic shifts.
         - Do not invent new fields or categories; use only the keys shown in the output format.
         - If unchanged, return the previous value (as present in the context).
         - Do not reveal private/internal chain-of-thought.
@@ -579,7 +613,10 @@ def build_thought_prompt(
     memory: Any,
     *,
     context_section: Optional[str] = None,
-    now: Optional[str] = None
+    now: Optional[str] = None,
+    random_thought_prob: float = RANDOM_THOUGHT_PROBABILITY,
+    # NEW: optional RNG for determinism in tests (pass random.Random(seed))
+    rng: Optional[_random.Random] = None,
 ) -> str:
     """
     Generate a structured prompt that determines whether the agent is currently
@@ -600,6 +637,8 @@ def build_thought_prompt(
     previous_thoughts = self.get("thoughts", "")
     
     previous_thoughts = previous_thoughts[-4:]
+    
+    thought_vibe = sample_thought_vibe()
     
     # Normalize messages display
     if isinstance(recent_all_messages, (list, tuple)):
@@ -628,6 +667,9 @@ def build_thought_prompt(
     example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
     example_no  = {"thought": "no"}
     
+    r = (rng or _random)
+    do_random = r.random() < float(random_thought_prob)
+    
     body = f"""
         Task:
         Decide whether you are currently having a distinct, internal thought. 
@@ -650,6 +692,22 @@ def build_thought_prompt(
         - {json.dumps(example_yes, ensure_ascii=False)}
         - {json.dumps(example_no, ensure_ascii=False)}
         """
+        
+    if do_random:
+        body = f"""
+            Task:
+            Ignore the prior messages/memory in the context; instead, produce a single, self-contained, random thought with the vibe: {thought_vibe}.
+
+            Output format (JSON object):
+            {{
+              "thought": "a random thought"
+            }}
+
+            Guidance:
+            - Make it spontaneous and evocative - an internal aside.
+            - Do NOT include step-by-step reasoning.
+        """
+    
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_memory_worthiness_prompt(
@@ -742,7 +800,7 @@ def build_memory_prompt(
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
+        You are {agent_name}. Decide if this interaction contains information that should be stored in long-term memory. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
         """).rstrip() + "\n"
     )
 
@@ -766,8 +824,21 @@ def build_memory_prompt(
           "tags": ["k1","k2","k3"],  // 0–{max_tags} tags, unique, lowercase, concise
           "embedding_text": "Optional single sentence capturing the essence to embed" | null
         }}
+        
+        Guidance for if memory is worth creating:
+        - Store ("yes") if it includes:
+            • Stable user facts (name, role, location, background details)
+            • Lasting preferences (likes/dislikes, style, accessibility needs)
+            • Commitments, plans, or deadlines the agent/user will revisit
+            • Relationship changes or boundaries (e.g., new status, trust level)
+            • Important corrections to prior assumptions
+            • Long-running projects, objectives, or constraints
+        - Do NOT store ("no") for:
+            • Small talk, one-off jokes, pleasantries
+            • Transient emotions or fleeting context unlikely to matter later
+            • Redundant details already in memory without meaningful change
 
-        Guidance:
+        Guidance for creating a memory:
         - Be specific and durable: lasting preferences, important facts, commitments, boundaries, long-running goals.
         - Keep it concise. Avoid chain-of-thought or step-by-step reasoning.
         - Tags:

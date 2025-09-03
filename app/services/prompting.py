@@ -2,8 +2,9 @@ from datetime import datetime
 import json
 import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
+import random as _random
 
-from app.core.config import AGENT_NAME
+from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
 
 def build_emotion_delta_prompt(
     altered_personality: str, 
@@ -579,7 +580,10 @@ def build_thought_prompt(
     memory: Any,
     *,
     context_section: Optional[str] = None,
-    now: Optional[str] = None
+    now: Optional[str] = None,
+    random_thought_prob: float = RANDOM_THOUGHT_PROBABILITY,
+    # NEW: optional RNG for determinism in tests (pass random.Random(seed))
+    rng: Optional[_random.Random] = None,
 ) -> str:
     """
     Generate a structured prompt that determines whether the agent is currently
@@ -628,6 +632,9 @@ def build_thought_prompt(
     example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
     example_no  = {"thought": "no"}
     
+    r = (rng or _random)
+    do_random = r.random() < float(random_thought_prob)
+    
     body = f"""
         Task:
         Decide whether you are currently having a distinct, internal thought. 
@@ -650,6 +657,22 @@ def build_thought_prompt(
         - {json.dumps(example_yes, ensure_ascii=False)}
         - {json.dumps(example_no, ensure_ascii=False)}
         """
+        
+    if do_random:
+        body = f"""
+            Task:
+            Ignore the prior messages/memory context; instead, produce a single, self-contained, random thought.
+
+            Output format (JSON object):
+            {{
+              "thought": "a random thought"
+            }}
+
+            Guidance:
+            - Make it feel spontaneous.
+            - Do NOT include step-by-step reasoning.
+        """
+    
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_memory_worthiness_prompt(

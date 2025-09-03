@@ -802,14 +802,14 @@ def build_memory_prompt(
         (context_section.rstrip() + "\n")
         if context_section
         else textwrap.dedent(f"""
-        You are {agent_name}. Decide if this interaction contains information that should be stored in long-term memory. If the latest interaction is worth remembering, distill a single, durable episodic memory that will be useful in future conversations.
+        You are {agent_name}. Decide if this interaction contains information that should be stored in long-term memory. If so, distill a single, durable episodic memory that will be useful in future conversations.
         """).rstrip() + "\n"
     )
 
     body = f"""
         Task:
-        Produce ONE memory object that follows the schema used by the application (fields below).
-        Do not include extra fields. If nothing is worth storing/remembering, return an object with empty strings/arrays for "event", "thoughts", and "tags", and set "significance" to "low".
+        If this interaction contains information that should be stored in long-term memory, produce ONE memory object that follows the schema used by the application (fields below).
+        Do not include extra fields. If not, return an object with empty strings/arrays for "event", "thoughts", and "tags", and set "significance" to "low".
 
         Output format (JSON object):
         {{
@@ -819,15 +819,15 @@ def build_memory_prompt(
           "emotional_impact": {{
             // OPTIONAL; include only relevant keys; values are integers on a 0..100 scale.
             // Example:
-            // "joy":      {{ "value": 35 }},
-            // "sadness":  {{ "value": 10 }},
-            // "anger":    {{ "value": 0 }}
+            // "joy":      {{ "value": 4 }},
+            // "sadness":  {{ "value": 6 }},
+            // "anger":    {{ "value": 3 }}
           }} | null,
           "tags": ["k1","k2","k3"],  // 0–{max_tags} tags, unique, lowercase, concise
           "embedding_text": "Optional single sentence capturing the essence to embed" | null
         }}
         
-        Guidance for if memory is worth creating:
+        Guidance for if information is worth storing:
         - Store ("yes") if it includes:
             • Stable user facts (name, role, location, background details)
             • Lasting preferences (likes/dislikes, style, accessibility needs)
@@ -853,7 +853,7 @@ def build_memory_prompt(
         - Embedding text:
           • If present, one tight sentence. If omitted, the app will embed `event + thoughts`.
 
-        If nothing is worth storing, return:
+        If no information is worth storing, return:
         {{
           "event": "",
           "thoughts": "",

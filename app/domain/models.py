@@ -3,7 +3,8 @@ from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
     message: str
-    username: str
+    username: Optional[str] = None   # still accepted for legacy clients
+    user_id: Optional[str] = None 
     type: str
 
 class MessageResponse(BaseModel):

@@ -32,7 +32,7 @@ async def process_message(request: MessageRequest):
             received_date = datetime.now() 
             username = request.username
             self = await grab_self()
-            user = await grab_user(username)
+            user = await grab_user(request.user_id)
             conversation = await get_conversation(username)
             recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
             recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []

@@ -1829,6 +1829,7 @@ USER_LITE_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
     "required": [
+      "user_id",
       "username",
       "agent_perspective",
       "summary",
@@ -1839,6 +1840,10 @@ USER_LITE_VALIDATOR = {
       "last_interaction"
     ],
     "properties": {
+      "user_id": {
+        "bsonType": "string",
+        "description": "Stable auth identity id; prefer this over username for lookups."
+      },
       "username": {
         "bsonType": "string",
         "description": "The username of the user, required and must be a string."
@@ -4137,5 +4142,55 @@ MEMORY_VALIDATOR = {
             }
         }
     }
+}
+
+SESSIONS_VALIDATOR = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["_id", "user_id", "username", "refresh_hash",
+                     "created_at", "expires_at", "revoked"],
+        "additionalProperties": True,
+        "properties": {
+            "_id":          {"bsonType": "string"},  # session_id (uuid)
+            "user_id":      {"bsonType": "string"},
+            "username":     {"bsonType": "string"},
+            "refresh_hash": {"bsonType": "string"},
+            "created_at":   {"bsonType": "date"},
+            "last_used":    {"bsonType": ["date", "null"]},
+            "expires_at":   {"bsonType": "date"},
+            "revoked":      {"bsonType": "bool"},
+            "reused_at":    {"bsonType": ["date", "null"]},  # for replay detection
+            "ua":           {"bsonType": ["string", "null"]},
+            "ip":           {"bsonType": ["string", "null"]},
+        }
+    }
+}
+
+AUTH_VALIDATOR = {
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["_id", "username", "created_at", "auth"],
+    "properties": {
+      "_id":        {"bsonType": "string", "description": "user_id"},
+      "username":   {"bsonType": "string"},
+      "email":      {"bsonType": ["string","null"]},
+      "password_hash": {"bsonType": ["string","null"]},
+      "created_at": {"bsonType": "date"},
+      "last_login": {"bsonType": ["date","null"]},
+      "auth": {
+        "bsonType": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {"enum": ["guest","password","oauth"]},
+          "upgraded_at": {"bsonType": ["date","null"]},
+          "provider": {"bsonType": ["string","null"]},  # future oauth
+        }
+      },
+      "roles": {
+        "bsonType": ["array","null"],
+        "items": {"bsonType": "string"}
+      }
+    }
+  }
 }
 

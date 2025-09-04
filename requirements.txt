@@ -24,3 +24,5 @@ typing_extensions==4.12.2
 uvicorn==0.34.0
 redis==5.0.7
 rq==1.16.2
+pyjwt>=2.8
+passlib[argon2]>=1.7

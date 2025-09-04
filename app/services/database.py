@@ -3,11 +3,11 @@ from datetime import datetime
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, THOUGHT_COLLECTION, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
+from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, AUTH_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, SESSIONS_COLLECTION, THOUGHT_COLLECTION, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DEVELOPER_ID, DATABASE_NAME
 
-from app.constants.validators import AGENT_RICH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, THOUGHT_VALIDATOR, USER_RICH_VALIDATOR
+from app.constants.validators import AGENT_RICH_VALIDATOR, AUTH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, SESSIONS_VALIDATOR, THOUGHT_VALIDATOR, USER_RICH_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
 from app.constants.validators import CONVERSATION_VALIDATOR
 from app.constants.validators import USER_LITE_VALIDATOR
@@ -37,7 +37,9 @@ _VALIDATORS: Dict[str, Dict[str, Any]] = {
     USER_COLLECTION:    USER_VALIDATOR,
     MEMORY_COLLECTION: MEMORY_VALIDATOR,
     MESSAGE_COLLECTION: MESSAGES_VALIDATOR,
-    THOUGHT_COLLECTION: THOUGHT_VALIDATOR
+    THOUGHT_COLLECTION: THOUGHT_VALIDATOR,
+    SESSIONS_COLLECTION: SESSIONS_VALIDATOR,
+    AUTH_COLLECTION: AUTH_VALIDATOR
 }
 
 def _client_opts() -> Dict[str, Any]:
@@ -51,14 +53,23 @@ def _client_opts() -> Dict[str, Any]:
     }
 
 async def _ensure_indexes(db):
-    await db[AGENT_LITE_COLLECTION].create_index("name", unique=True)
-    # await db[AGENT_COLLECTION].create_index("name", unique=True)
-    await db[USER_LITE_COLLECTION].create_index(
+    await db[AGENT_COLLECTION].create_index("name", unique=True)
+    await db[USER_COLLECTION].create_index(
         [("username", 1), ("agent_perspective", 1)],
         unique=True,
         name="username_agent_perspective"
     )
-    # await db[USER_COLLECTION].create_index("username", unique=True)
+    
+    await db[AUTH_COLLECTION].create_index("email", unique=True, sparse=True, name="email_unique")
+    await db[AUTH_COLLECTION].create_index("username", unique=False, name="username")
+    
+    await db[USER_COLLECTION].create_index(
+        [("user_id", 1), ("agent_perspective", 1)],
+        unique=True,
+        sparse=True,             # so old docs without user_id don't conflict
+        name="user_id_agent_perspective"
+    )
+    
     await db[CONVERSATION_COLLECTION].create_index(
         [("username", 1), ("agent_name", 1)],
         name="username_agent"
@@ -73,6 +84,11 @@ async def _ensure_indexes(db):
     await db[MEMORY_COLLECTION].create_index("recall_count", name="recalls")
     
     await db[THOUGHT_COLLECTION].create_index("agent_name", name="agent_name")
+    
+    # Sessions
+    await db[SESSIONS_COLLECTION].create_index("_id", name="sid_unique")
+    await db[SESSIONS_COLLECTION].create_index([("user_id", 1), ("revoked", 1)], name="user_revoked")
+    await db[SESSIONS_COLLECTION].create_index("expires_at", expireAfterSeconds=0, name="expires_ttl")
 
 async def init_db() -> None:
     """
@@ -196,7 +212,7 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     )
     '''
 
-async def grab_user(username):
+async def grab_user(user_id):
     """
     Grab user object based on their Discord ID.
     If the user doesn't exist, create a new one with default values.
@@ -206,37 +222,15 @@ async def grab_user(username):
     """
     db = await get_database()
     
-    now = datetime.now()
-    default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-    if username == DEVELOPER_ID:
-        default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
-    
     if LITE_MODE:
         user_collection = db[USER_LITE_COLLECTION]
-        default_sentiments = BASE_SENTIMENT_MATRIX_LITE
     else:
         user_collection = db[USER_RICH_COLLECTION]
-        default_sentiments = BASE_SENTIMENT_MATRIX
         
-    user = await user_collection.find_one({"username": username, "agent_perspective": AGENT_NAME})
-
-    if not user:
-        
-        new_user = {
-            "username": username,
-            "agent_perspective": AGENT_NAME,
-            "summary": "I don't know anything about this person.",
-            "intrinsic_relationship": default_intrinsic_relationship,
-            "extrinsic_relationship": "stranger",
-            "memory_profile": [],
-            "sentiment_status": default_sentiments,
-            "last_interaction": now
-        }
-        
-        result = await user_collection.insert_one(new_user)
-        user = await user_collection.find_one({"_id": result.inserted_id})
-
-    return user
+    if user_id:
+        doc = await db[user_collection].find_one({"user_id": user_id, "agent_perspective": AGENT_NAME})
+        if doc: return doc
+    return None
 
 async def grab_self():
     """
@@ -501,5 +495,57 @@ async def update_user_sentiment(username, sentiments):
         user_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
     except Exception as e:
         print(e)
+        
+async def ensure_user_and_profile(user_id: str, username: str, agent_name: str = AGENT_NAME):
+    """
+    idempotent: ensure 'users' identity + 'user_lite' perspective doc
+    """
+    db = await get_database()
+    now = datetime.now()
+
+    # 1) identity (users)
+    await db[AUTH_COLLECTION].update_one(
+        {"_id": user_id},
+        {
+            "$setOnInsert": {
+                "_id": user_id,
+                "username": username,
+                "created_at": now,
+                "auth": {"type": "guest"},
+                "roles": ["user"],
+            }
+        },
+        upsert=True,
+    )
+
+    # 2) perspective (user_lite)
+    default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
+    if username == DEVELOPER_ID:
+        default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
+    
+    if LITE_MODE:
+        user_collection = db[USER_LITE_COLLECTION]
+        default_sentiments = BASE_SENTIMENT_MATRIX_LITE
+    else:
+        user_collection = db[USER_RICH_COLLECTION]
+        default_sentiments = BASE_SENTIMENT_MATRIX
+
+    doc = await db[USER_LITE_COLLECTION].find_one({"user_id": user_id, "agent_perspective": agent_name})
+    if not doc:
+        new_user_lite = {
+            "user_id": user_id,
+            "username": username,           # keep for compat / display
+            "agent_perspective": agent_name,
+            "summary": "I don't know anything about this person.",
+            "intrinsic_relationship": default_intrinsic_relationship,
+            "extrinsic_relationship": "stranger",
+            "memory_profile": [],          # legacy; you can keep until you fully externalize memories
+            "sentiment_status": default_sentiments,
+            "last_interaction": now,
+        }
+        await db[USER_LITE_COLLECTION].insert_one(new_user_lite)
+        doc = new_user_lite
+
+    return doc
         
         

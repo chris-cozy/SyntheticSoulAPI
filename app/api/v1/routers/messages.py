@@ -1,13 +1,14 @@
 from datetime import datetime
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from bson.json_util import dumps
 from fastapi.encoders import jsonable_encoder
 from rq import Queue
 
+from app.api.v1.routers.auth import get_current_identity
 from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
-from app.services.database import get_conversation
+from app.services.database import ensure_user_and_profile, get_conversation
 from app.tasks import send_message_task
 
 
@@ -15,7 +16,16 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 
 
 @router.post("/submit")
-async def submit_message(request: MessageRequest):
+async def submit_message(request: MessageRequest, ident = Depends(get_current_identity)):
+    if ident:
+        user_id, token_username = ident
+        request.user_id = user_id
+        request.username = token_username
+        
+    # Ensure the identity + perspective exists (idempotent)
+    if request.user_id and request.username:
+        await ensure_user_and_profile(request.user_id, request.username)
+        
     try:
         q: Queue = get_queue()
         job = q.enqueue(

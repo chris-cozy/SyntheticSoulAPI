@@ -148,3 +148,44 @@ async def require_auth(
 
     return (user_id, username, sid)
     
+    
+async def auth_guard(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    check_session: bool = True,
+):
+    """Router-level guard: validate access token, optionally check session,
+    and stash identity into request.state.identity. Returns nothing."""
+    if not creds:
+        raise HTTPException(status_code=401, detail="missing_token")
+    try:
+        payload = jwt.decode(
+            creds.credentials, JWT_SECRET_ENV,
+            algorithms=["HS256"],
+            audience=JWT_AUD,
+            issuer=JWT_ISS,
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid_token")
+
+    user_id = payload["sub"]; username = payload["username"]; sid = payload["sid"]
+
+    if check_session:
+        db = await get_database()
+        sess = await db[SESSIONS_COLLECTION].find_one({"_id": sid})
+        if not sess or sess.get("revoked"):
+            raise HTTPException(status_code=401, detail="session_revoked")
+        if sess.get("expires_at") and sess["expires_at"] <= datetime.utcnow():
+            raise HTTPException(status_code=401, detail="session_expired")
+
+    # stash for later
+    request.state.identity = (user_id, username, sid)
+
+async def identity(request: Request):
+    """Endpoint-level helper: read identity stashed by auth_guard.
+    If used without auth_guard, you can optionally fallback or throw."""
+    ident = getattr(request.state, "identity", None)
+    if not ident:
+        # optionally: parse token here as a fallback; most apps just error:
+        raise HTTPException(status_code=500, detail="identity_unavailable")
+    return ident

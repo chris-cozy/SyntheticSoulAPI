@@ -1835,7 +1835,6 @@ USER_LITE_VALIDATOR = {
       "summary",
       "intrinsic_relationship",
       "extrinsic_relationship",
-      "memory_profile",
       "sentiment_status",
       "last_interaction"
     ],
@@ -1881,28 +1880,6 @@ USER_LITE_VALIDATOR = {
           "best friend"
         ],
         "description": "The extrinsic relationship type, must be one of the predefined values."
-      },
-      "memory_profile": {
-        "bsonType": "array",
-        "description": "List of memory entries, required and must be an array of objects",
-        "items": {
-          "bsonType": "object",
-          "required": ["event", "thoughts", "timestamp"],
-          "properties": {
-            "event": {
-              "bsonType": "string",
-              "description": "Description of the event, required and must be a string"
-            },
-            "thoughts": {
-              "bsonType": "string",
-              "description": "Thoughts related to the memory, required and must be a string"
-            },
-            "timestamp": {
-              "bsonType": "date",
-              "description": "Timestamp of the memory, required and must be a valid date"
-            }
-          }
-        }
       },
       "sentiment_status": {
         "bsonType": "object",

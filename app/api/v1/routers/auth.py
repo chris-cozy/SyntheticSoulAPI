@@ -1,16 +1,13 @@
-
-
-from typing import Optional, Tuple
 import uuid
-import argon2
+from passlib.hash import argon2
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 
 from app.constants.constants import AUTH_COLLECTION, JWT_AUD, JWT_ISS, SESSIONS_COLLECTION, USER_LITE_COLLECTION
 from app.domain.auth import ClaimRequest, LoginRequest, TokenReply
-from app.services.auth import ARGON2_PEPPER_ENV, JWT_SECRET_ENV, _clear_refresh_cookies, _create_session, _now, _ratelimit, _read_refresh_cookies, _revoke_all_user_sessions, _revoke_session, _verify_refresh
-from app.services.database import get_database
+from app.services.auth import ARGON2_PEPPER_ENV, JWT_SECRET_ENV, _clear_refresh_cookies, _create_session, _now, _ratelimit, _read_refresh_cookies, _revoke_all_user_sessions, _revoke_session, _verify_refresh, auth_guard
+from app.services.database import ensure_user_and_profile, get_database
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,6 +27,7 @@ async def guest(req: Request, resp: Response):
         "created_at": _now(),
         "auth": {"type": "guest"},
     })
+    await ensure_user_and_profile(user_id, username)
     return await _create_session(db, user_id, username, req, resp)
 
 @router.post("/login", response_model=TokenReply)
@@ -37,11 +35,11 @@ async def login(req: Request, resp: Response, body: LoginRequest):
     await _ratelimit(f"rl:login:{req.client.host}", limit=20, window_sec=60)
     db = await get_database()
     user = await db[AUTH_COLLECTION].find_one({"email": body.email})
-    if not user or not user.get("password_hash") or not argon2.verify_password(body.password + ARGON2_PEPPER_ENV, user["password_hash"]):
+    if not user or not user.get("password_hash") or not argon2.verify(body.password + ARGON2_PEPPER_ENV, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid_credentials")
     return await _create_session(db, user["_id"], user["username"], req, resp)
 
-@router.post("/claim", response_model=TokenReply)
+@router.post("/claim", response_model=TokenReply, dependencies=[Depends(auth_guard)])
 async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAuthorizationCredentials | None = Depends(bearer)):
     await _ratelimit(f"rl:claim:{req.client.host}", limit=10, window_sec=60)
     if not creds:
@@ -61,16 +59,23 @@ async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAut
         {"$set": {
             "email": body.email,
             "username": body.username,
-            "password_hash": argon2.hash_password(body.password + ARGON2_PEPPER_ENV),
+            "password_hash": argon2.hash(body.password + ARGON2_PEPPER_ENV),
             "auth.type": "password",
             "auth.upgraded_at": _now(),
         }}
     )
+    
+    await db[USER_COLLECTION].update_one(
+        {"user_id": payload["sub"]},
+        {"$set": {
+            "username": body.username,
+        }}
+    )
     # rotate session: revoke old, mint new
     await _revoke_session(db, payload["sid"])
-    return await _create_session(db, payload["sub"], payload["username"], req, resp)
+    return await _create_session(db, payload["sub"], body.username, req, resp)
 
-@router.post("/refresh", response_model=TokenReply)
+@router.post("/refresh", response_model=TokenReply, dependencies=[Depends(auth_guard)])
 async def refresh(req: Request, resp: Response):
     db = await get_database()
     sid, rtok = _read_refresh_cookies(req)
@@ -116,7 +121,7 @@ async def logout(req: Request, resp: Response, creds: HTTPAuthorizationCredentia
     return {"ok": True}
 
 # Optional: whoami
-@router.get("/me")
+@router.get("/me", dependencies=[Depends(auth_guard)])
 async def me(creds: HTTPAuthorizationCredentials | None = Depends(bearer)):
     if not creds:
         raise HTTPException(status_code=401, detail="no_token")

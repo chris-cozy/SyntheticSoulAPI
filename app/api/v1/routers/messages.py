@@ -48,7 +48,7 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/conversation")
-async def get_user_conversation(username: str, ident = Depends(identity)):
+async def get_user_conversation(ident = Depends(identity)):
     user_id, token_username, _sid = ident
     username = token_username
         

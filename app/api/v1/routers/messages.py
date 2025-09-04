@@ -5,22 +5,21 @@ from bson.json_util import dumps
 from fastapi.encoders import jsonable_encoder
 from rq import Queue
 
-from app.api.v1.routers.auth import get_current_identity
 from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
+from app.services.auth import auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
 from app.tasks import send_message_task
 
 
-router = APIRouter(prefix="/messages", tags=["messages"])
+router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(auth_guard)])
 
 
 @router.post("/submit")
-async def submit_message(request: MessageRequest, ident = Depends(get_current_identity)):
-    if ident:
-        user_id, token_username = ident
-        request.user_id = user_id
-        request.username = token_username
+async def submit_message(request: MessageRequest, ident = Depends(identity)):
+    user_id, token_username, _sid = ident
+    request.user_id = user_id
+    request.username = token_username
         
     # Ensure the identity + perspective exists (idempotent)
     if request.user_id and request.username:
@@ -48,8 +47,15 @@ async def submit_message(request: MessageRequest, ident = Depends(get_current_id
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.get("/conversation/{username}")
-async def get_user_conversation(username: str):
+@router.get("/conversation")
+async def get_user_conversation(username: str, ident = Depends(identity)):
+    user_id, token_username, _sid = ident
+    username = token_username
+        
+    # Ensure the identity + perspective exists (idempotent)
+    if username:
+        await ensure_user_and_profile(user_id, username)
+        
     try:
         doc = await get_conversation(username)
         if not doc:

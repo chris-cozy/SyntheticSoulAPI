@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Any
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from bson.json_util import dumps
 from fastapi.encoders import jsonable_encoder
 
+from app.services.auth import auth_guard
 from app.services.database import get_all_agents, grab_self
 from app.core.config import AGENT_NAME
 
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(prefix="/agents", tags=["agents"], dependencies=[Depends(auth_guard)])
 
 @router.get("/all")
 async def get_agents():

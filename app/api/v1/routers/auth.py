@@ -37,7 +37,7 @@ async def login(req: Request, resp: Response, body: LoginRequest):
     await _ratelimit(f"rl:login:{req.client.host}", limit=20, window_sec=60)
     db = await get_database()
     user = await db[AUTH_COLLECTION].find_one({"email": body.email})
-    if not user or not user.get("password_hash") or not argon2.verify(body.password + ARGON2_PEPPER_ENV, user["password_hash"]):
+    if not user or not user.get("password_hash") or not argon2.verify_password(body.password + ARGON2_PEPPER_ENV, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid_credentials")
     return await _create_session(db, user["_id"], user["username"], req, resp)
 
@@ -61,7 +61,7 @@ async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAut
         {"$set": {
             "email": body.email,
             "username": body.username,
-            "password_hash": argon2.hash(body.password + ARGON2_PEPPER_ENV),
+            "password_hash": argon2.hash_password(body.password + ARGON2_PEPPER_ENV),
             "auth.type": "password",
             "auth.upgraded_at": _now(),
         }}

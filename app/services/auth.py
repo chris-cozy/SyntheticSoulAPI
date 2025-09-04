@@ -2,9 +2,10 @@ import uuid, secrets
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from passlib.hash import argon2
-from fastapi import HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response
 
 from app.core.redis_queue import get_redis
 from app.domain.auth import TokenReply
@@ -16,6 +17,8 @@ from app.constants.constants import (
 )
 
 from app.core.config import JWT_SECRET_ENV, ARGON2_PEPPER_ENV, ACCESS_TTL_MIN, REFRESH_TTL_DAYS
+
+bearer = HTTPBearer(auto_error=False)
 
 # --- Redis (rate limiting) ---
 _r = get_redis()
@@ -77,7 +80,7 @@ async def _create_session(db, user_id: str, username: str, req: Request, resp: R
         "ip": (req.client.host if req.client else None),
     })
     _set_refresh_cookies(resp, sid, refresh)
-    return TokenReply(access_token=_mint_access(sid, user_id, username), username=username)
+    return TokenReply(access_token=_mint_access(sid, user_id, username), username=username, expires_in=(ACCESS_TTL_MIN * 60))
 
 async def _revoke_session(db, sid: str, *, reused: bool = False):
     fields = {"revoked": True}
@@ -101,4 +104,47 @@ async def _ratelimit(key: str, limit: int, window_sec: int):
     if cur > limit:
         ttl = _r.ttl(key) or window_sec
         raise HTTPException(status_code=429, detail=f"rate_limited retry_in={ttl}s")
+    
+    
+async def get_current_identity(creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Optional[Tuple[str, str]]:
+    if not creds:
+        return None
+    try:
+        payload = jwt.decode(creds.credentials, JWT_SECRET_ENV, algorithms=["HS256"], audience=JWT_AUD, issuer=JWT_ISS)
+        return (payload["sub"], payload["username"])
+    except Exception:
+        return None
+
+async def require_auth(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    check_session: bool = True,  # set False if you don't want DB hit per request
+):
+    """Hard-require a valid access token. Returns (user_id, username, sid)."""
+    if not creds:
+        raise HTTPException(status_code=401, detail="missing_token")
+
+    try:
+        payload = jwt.decode(
+            creds.credentials,  # access token
+            JWT_SECRET_ENV,
+            algorithms=["HS256"],
+            audience=JWT_AUD,
+            issuer=JWT_ISS,
+        )
+        user_id = payload["sub"]
+        username = payload["username"]
+        sid = payload["sid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid_token")
+
+    if check_session:
+        db = await get_database()
+        sess = await db[SESSIONS_COLLECTION].find_one({"_id": sid})
+        # Treat missing/revoked/expired as unauthorized
+        if not sess or sess.get("revoked"):
+            raise HTTPException(status_code=401, detail="session_revoked")
+        if sess.get("expires_at") and sess["expires_at"] <= datetime.now():
+            raise HTTPException(status_code=401, detail="session_expired")
+
+    return (user_id, username, sid)
     

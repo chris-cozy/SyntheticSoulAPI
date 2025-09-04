@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 
-from app.constants.constants import JWT_AUD, JWT_ISS, SESSIONS_COLLECTION, USER_LITE_COLLECTION
+from app.constants.constants import AUTH_COLLECTION, JWT_AUD, JWT_ISS, SESSIONS_COLLECTION, USER_LITE_COLLECTION
 from app.domain.auth import ClaimRequest, LoginRequest, TokenReply
 from app.services.auth import ARGON2_PEPPER_ENV, JWT_SECRET_ENV, _clear_refresh_cookies, _create_session, _now, _ratelimit, _read_refresh_cookies, _revoke_all_user_sessions, _revoke_session, _verify_refresh
 from app.services.database import get_database
@@ -24,7 +24,7 @@ async def guest(req: Request, resp: Response):
     db = await get_database()
     user_id = str(uuid.uuid4())
     username = f"guest_{user_id}"
-    await db[USER_COLLECTION].insert_one({
+    await db[AUTH_COLLECTION].insert_one({
         "_id": user_id,
         "username": username,
         "created_at": _now(),
@@ -36,7 +36,7 @@ async def guest(req: Request, resp: Response):
 async def login(req: Request, resp: Response, body: LoginRequest):
     await _ratelimit(f"rl:login:{req.client.host}", limit=20, window_sec=60)
     db = await get_database()
-    user = await db[USER_COLLECTION].find_one({"email": body.email})
+    user = await db[AUTH_COLLECTION].find_one({"email": body.email})
     if not user or not user.get("password_hash") or not argon2.verify(body.password + ARGON2_PEPPER_ENV, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid_credentials")
     return await _create_session(db, user["_id"], user["username"], req, resp)
@@ -52,14 +52,15 @@ async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAut
         raise HTTPException(status_code=401, detail="invalid_token")
 
     db = await get_database()
-    if await db[USER_COLLECTION].find_one({"email": body.email}):
+    if await db[AUTH_COLLECTION].find_one({"email": body.email}):
         raise HTTPException(status_code=409, detail="email_in_use")
 
     # upgrade current user
-    await db[USER_COLLECTION].update_one(
+    await db[AUTH_COLLECTION].update_one(
         {"_id": payload["sub"]},
         {"$set": {
             "email": body.email,
+            "username": body.username,
             "password_hash": argon2.hash(body.password + ARGON2_PEPPER_ENV),
             "auth.type": "password",
             "auth.upgraded_at": _now(),
@@ -125,11 +126,3 @@ async def me(creds: HTTPAuthorizationCredentials | None = Depends(bearer)):
         raise HTTPException(status_code=401, detail="invalid_token")
     return {"user_id": payload["sub"], "username": payload["username"], "sid": payload["sid"]}
 
-async def get_current_identity(creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Optional[Tuple[str, str]]:
-    if not creds:
-        return None
-    try:
-        payload = jwt.decode(creds.credentials, JWT_SECRET_ENV, algorithms=["HS256"], audience=JWT_AUD, issuer=JWT_ISS)
-        return (payload["sub"], payload["username"])
-    except Exception:
-        return None

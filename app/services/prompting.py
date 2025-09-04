@@ -433,7 +433,7 @@ def build_response_analysis_prompt(
     
     body = """
         Task:
-        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal. Include the emote that fits the agent state.
+        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal.
 
         Output format (JSON object):
         {

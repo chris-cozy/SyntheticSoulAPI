@@ -65,6 +65,60 @@ The AI is named **Jasmine**—short for *Just a Simulation Modeling Interactive 
 ---
 
 
+## 🔐 Authentication
+
+
+### Features
+- **Guest sessions**: `POST /v1/auth/guest` → creates an anonymous but tokenized identity (guest_<uuid>).
+
+- **Claim account**: `POST /v1/auth/claim` → upgrade a guest with email, username, and password.
+
+- **Login**: `POST /v1/auth/login` → authenticate existing accounts.
+
+- **Refresh**: `POST /v1/auth/refresh` → rotate refresh + access tokens (refresh stored in HttpOnly cookie).
+
+- **Logout**: `POST /v1/auth/logout` → revoke current session.
+
+- **Tokens**:
+
+-  - Access tokens (JWT): short-lived, carry `user_id`, `username`, `sid`.
+
+- - Refresh tokens: opaque, session-bound, rotated on each use.
+
+- **Password storage**: Argon2id with per-user salt + optional global pepper.
+  
+### Using Tokens in Postman
+1. Call `/auth/guest` or `/auth/login` to get an access_token.
+2. In Postman → Authorization tab → Type: **Bearer Token** → paste the access token.
+3. Now protected endpoints will work.
+
+### Protected vs Public Endpoints
+Public
+- /v1/meta/ping
+- /v1/meta/version
+- /v1/auth/login
+- /v1/auth/guest
+- /v1/auth/logout
+
+Auth-required (guest or user)
+- /v1/messages/*
+- /v1/jobs/*
+- /v1/agents/*
+- /v1/auth/claim
+- /v1/auth/me
+- /v1/auth/refresh
+
+### Summary
+- All user-related endpoints now require at least a guest token.
+
+- Tokens are short-lived; refresh flow handles rotation.
+
+- Passwords are hashed with Argon2id + pepper.
+
+- Sessions and refresh tokens are stored/revoked server-side.
+  
+---
+
 ## ⚙️ Configuration
 Configuration is managed via environment variables (`.env`).
 
@@ -77,6 +131,12 @@ Configuration is managed via environment variables (`.env`).
 - `MONGO_CONNECTION`, `DATABASE_NAME` – MongoDB connection.
 - `REDIS_URL` or `REDIS_TLS_URL` – Redis connection string.
 - `WEB_UI_DOMAIN` – Allowed frontend domain.
+- `JWT_SECRET`=your-long-random-secret # e.g., `openssl rand -base64 64`
+- `PASSWORD_PEPPER`=your-random-pepper # e.g., `openssl rand -base64 32`
+- `JWT_AUD`=synthetic-soul # audience claim
+- `JWT_ISS`=synthetic-soul-api # issuer claim
+- `ACCESS_TOKEN_TTL`=900 # seconds (15 minutes typical)
+- `REFRESH_TOKEN_TTL`=604800 # seconds (7 days typical)
 
 
 ### Rates & Retention
@@ -121,6 +181,49 @@ rq worker
 
 ## 📡 Usage
 
+### Authentication Flow
+1. Guest session
+   ```http
+    POST /auth/guest
+    ```
+
+    Response
+    ```http
+    {
+    "access_token": "...",
+    "username": "guest_123..."
+    }
+    ```
+
+2. Claim account
+    ```http
+    POST /auth/claim
+    {
+    "email": "me@example.com"
+    "username": "alice",
+    "password": "secret123"
+    }
+    ```
+
+3. Login
+    ```http
+    POST /auth/login
+    {
+    "email": "me@example.com"
+    "password": "secret123"
+    }
+    ```
+4. Refresh
+   ```http
+    POST /auth/refresh
+    ```
+    (Uses HttpOnly refresh cookie; server rotates both refresh + access tokens.)
+
+5. Logout
+   ```http
+    POST /auth/logout
+    ```
+    Revokes session and clears refresh cookie.
 
 ### Submit a Message
 ```http

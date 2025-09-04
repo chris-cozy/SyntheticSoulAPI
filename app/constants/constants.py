@@ -1,4 +1,15 @@
 from app.core.config import AGENT_NAME
+# Sessions / Auth
+SESSIONS_COLLECTION = "sessions"
+AUTH_COLLECTION = "auth"
+
+# JWT / Cookies
+JWT_ISS = "synthetic-soul-api"        # adjust if you want to be explicit
+JWT_AUD = "synthetic-soul-client"     # adjust if you need audience checks
+
+# Cookies (refresh only; access stays in Authorization header)
+REFRESH_COOKIE_NAME = "rtoken"
+SESSION_COOKIE_NAME = "sid"
 
 EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
 

@@ -1,11 +1,12 @@
 from datetime import datetime
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 
+from app.services.auth import auth_guard
 from app.services.database import get_thoughts
 
-router = APIRouter(prefix="/thoughts", tags=["thoughts"])
+router = APIRouter(prefix="/thoughts", tags=["thoughts"], dependencies=[Depends(auth_guard)])
     
 @router.get("/latest")
 async def get_latest_thought():

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from rq.job import Job
 
 from app.core.redis_queue import get_redis
 from app.domain.models import JobStatusResponse
+from app.services.auth import auth_guard
 
-router = APIRouter(prefix="/jobs", tags=["jobs"])
+router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(auth_guard)])
 
 @router.get("/{job_id}", response_model=JobStatusResponse)
 async def job_status(job_id: str):

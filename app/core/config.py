@@ -1,9 +1,7 @@
 from dotenv import load_dotenv
 import os
 
-
 load_dotenv()
-
 
 API_VERSION = "1.0.0"
 
@@ -28,6 +26,19 @@ DEVELOPER_ID = os.getenv("DEVELOPER_ID")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 
 WINDOWS_ENV = os.getenv("ENVIRONMENT") == 'windows'
+
+# Optional Argon2 pepper (extra secret in env)
+ARGON2_PEPPER_ENV = os.getenv("ARGON2_PEPPER_ENV", "dev-change-me")
+
+JWT_SECRET_ENV = os.getenv("JWT_SECRET_ENV", "dev-change-me")
+
+# Token TTLs (env override)
+ACCESS_TTL_MIN_DEFAULT = 15
+REFRESH_TTL_DAYS_DEFAULT = 90
+
+ACCESS_TTL_MIN = int(os.getenv("ACCESS_TTL_MIN", ACCESS_TTL_MIN_DEFAULT))
+
+REFRESH_TTL_DAYS = int(os.getenv("REFRESH_TTL_DAYS", REFRESH_TTL_DAYS_DEFAULT))
 
 # CORS
 ALLOWED_ORIGINS = [

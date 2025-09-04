@@ -1829,16 +1829,20 @@ USER_LITE_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
     "required": [
+      "user_id",
       "username",
       "agent_perspective",
       "summary",
       "intrinsic_relationship",
       "extrinsic_relationship",
-      "memory_profile",
       "sentiment_status",
       "last_interaction"
     ],
     "properties": {
+      "user_id": {
+        "bsonType": "string",
+        "description": "Stable auth identity id; prefer this over username for lookups."
+      },
       "username": {
         "bsonType": "string",
         "description": "The username of the user, required and must be a string."
@@ -1876,28 +1880,6 @@ USER_LITE_VALIDATOR = {
           "best friend"
         ],
         "description": "The extrinsic relationship type, must be one of the predefined values."
-      },
-      "memory_profile": {
-        "bsonType": "array",
-        "description": "List of memory entries, required and must be an array of objects",
-        "items": {
-          "bsonType": "object",
-          "required": ["event", "thoughts", "timestamp"],
-          "properties": {
-            "event": {
-              "bsonType": "string",
-              "description": "Description of the event, required and must be a string"
-            },
-            "thoughts": {
-              "bsonType": "string",
-              "description": "Thoughts related to the memory, required and must be a string"
-            },
-            "timestamp": {
-              "bsonType": "date",
-              "description": "Timestamp of the memory, required and must be a valid date"
-            }
-          }
-        }
       },
       "sentiment_status": {
         "bsonType": "object",
@@ -4137,5 +4119,55 @@ MEMORY_VALIDATOR = {
             }
         }
     }
+}
+
+SESSIONS_VALIDATOR = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["_id", "user_id", "username", "refresh_hash",
+                     "created_at", "expires_at", "revoked"],
+        "additionalProperties": True,
+        "properties": {
+            "_id":          {"bsonType": "string"},  # session_id (uuid)
+            "user_id":      {"bsonType": "string"},
+            "username":     {"bsonType": "string"},
+            "refresh_hash": {"bsonType": "string"},
+            "created_at":   {"bsonType": "date"},
+            "last_used":    {"bsonType": ["date", "null"]},
+            "expires_at":   {"bsonType": "date"},
+            "revoked":      {"bsonType": "bool"},
+            "reused_at":    {"bsonType": ["date", "null"]},  # for replay detection
+            "ua":           {"bsonType": ["string", "null"]},
+            "ip":           {"bsonType": ["string", "null"]},
+        }
+    }
+}
+
+AUTH_VALIDATOR = {
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["_id", "username", "created_at", "auth"],
+    "properties": {
+      "_id":        {"bsonType": "string", "description": "user_id"},
+      "username":   {"bsonType": "string"},
+      "email":      {"bsonType": ["string","null"]},
+      "password_hash": {"bsonType": ["string","null"]},
+      "created_at": {"bsonType": "date"},
+      "last_login": {"bsonType": ["date","null"]},
+      "auth": {
+        "bsonType": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {"enum": ["guest","password","oauth"]},
+          "upgraded_at": {"bsonType": ["date","null"]},
+          "provider": {"bsonType": ["string","null"]},  # future oauth
+        }
+      },
+      "roles": {
+        "bsonType": ["array","null"],
+        "items": {"bsonType": "string"}
+      }
+    }
+  }
 }
 

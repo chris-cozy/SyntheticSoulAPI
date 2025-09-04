@@ -520,8 +520,6 @@ async def ensure_user_and_profile(user_id: str, username: str, agent_name: str =
 
     # 2) perspective (user_lite)
     default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[-1]
-    if username == DEVELOPER_ID:
-        default_intrinsic_relationship = INTRINSIC_RELATIONSHIPS[0]
     
     if LITE_MODE:
         user_collection = db[USER_LITE_COLLECTION]
@@ -530,7 +528,7 @@ async def ensure_user_and_profile(user_id: str, username: str, agent_name: str =
         user_collection = db[USER_RICH_COLLECTION]
         default_sentiments = BASE_SENTIMENT_MATRIX
 
-    doc = await db[USER_LITE_COLLECTION].find_one({"user_id": user_id, "agent_perspective": agent_name})
+    doc = await user_collection.find_one({"user_id": user_id, "agent_perspective": agent_name})
     if not doc:
         new_user_lite = {
             "user_id": user_id,
@@ -539,11 +537,10 @@ async def ensure_user_and_profile(user_id: str, username: str, agent_name: str =
             "summary": "I don't know anything about this person.",
             "intrinsic_relationship": default_intrinsic_relationship,
             "extrinsic_relationship": "stranger",
-            "memory_profile": [],          # legacy; you can keep until you fully externalize memories
             "sentiment_status": default_sentiments,
             "last_interaction": now,
         }
-        await db[USER_LITE_COLLECTION].insert_one(new_user_lite)
+        await user_collection.insert_one(new_user_lite)
         doc = new_user_lite
 
     return doc

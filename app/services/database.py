@@ -58,11 +58,7 @@ async def _ensure_indexes(db):
     await db[AUTH_COLLECTION].create_index("email", unique=True, sparse=True, name="email_unique")
     await db[AUTH_COLLECTION].create_index("_id", name="user_id")
     
-    await db[USER_COLLECTION].create_index(
-        [("user_id", 1), ("agent_perspective", 1)],
-        unique=True,
-        name="user_id_agent_perspective"
-    )
+    await db[USER_COLLECTION].create_index([("user_id", 1), ("agent_perspective", 1)],unique=True,name="user_id_agent_perspective")
     
     await db[CONVERSATION_COLLECTION].create_index(
         [("user_id", 1), ("agent_name", 1)],
@@ -215,14 +211,9 @@ async def grab_user(user_id: str):
     :return: User object
     """
     db = await get_database()
-    
-    if LITE_MODE:
-        user_collection = db[USER_LITE_COLLECTION]
-    else:
-        user_collection = db[USER_RICH_COLLECTION]
         
     if user_id:
-        doc = await db[user_collection].find_one({"user_id": user_id, "agent_perspective": AGENT_NAME})
+        doc = await db[USER_COLLECTION].find_one({"user_id": user_id, "agent_perspective": AGENT_NAME})
         if doc: return doc
     return None
 
@@ -238,13 +229,14 @@ async def grab_self():
     
     now = datetime.now()
     if LITE_MODE:
-        agent_collection = db[AGENT_LITE_COLLECTION]
+
         default_personality = random.choice(MYERS_BRIGGS_PERSONALITIES)
         default_emotional_status = BASE_EMOTIONAL_STATUS_LITE
     else:
-        agent_collection = db[AGENT_RICH_COLLECTION]
         default_personality = BASE_PERSONALITY
         default_emotional_status = BASE_EMOTIONAL_STATUS
+        
+    agent_collection = db[AGENT_COLLECTION]
     
     self = await agent_collection.find_one({"name": AGENT_NAME})
 

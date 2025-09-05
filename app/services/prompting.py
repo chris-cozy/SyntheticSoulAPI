@@ -91,7 +91,7 @@ def build_emotion_delta_prompt_thinking(
     emotion_keys = list(agent["emotional_status"]["emotions"].keys())
     
     body = f"""
-        You are {agent.name}. Below are the key details of your current state and context:
+        You are {agent["name"]}. Below are the key details of your current state and context:
         - Personality traits: {agent["personality"]}
         - Current emotional state: {agent["emotional_status"]}
         - Latest thought: {latest_thought}

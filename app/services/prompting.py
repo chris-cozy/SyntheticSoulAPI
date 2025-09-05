@@ -258,7 +258,7 @@ def build_message_perception_prompt(
     
     body = f"""
         Task:
-        Interpret the purpose and tone of the latest message from {user.user_id}.
+        Interpret the purpose and tone of the latest message from {user["user_id"]}.
         Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
 
         Output format (JSON object):

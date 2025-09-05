@@ -684,6 +684,64 @@ def build_thought_prompt(
     
     return textwrap.dedent(header + "\n" + body).strip()
 
+def build_message_thought_prompt(
+    self: Mapping[str, Any],
+    latest_thought: str,
+    *,
+    context_section: Optional[str] = None,
+    now: Optional[str] = None,
+) -> str:
+    """
+    Generate a structured prompt that determines whether the agent is currently
+    "thinking" and, if so, what that thought is (concise). Designed to be used
+    with JSON mode for clean machine-readable output.
+
+    Parameters:
+        self (object): The object of the AI agent.
+        recent_all_messages (array): The list of the last ten messages the AI read
+        
+    Returns:
+        str: A dynamically generated prompt.
+    """
+    agent_name = self.get("name", "the agent")
+    
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details of your current state and context:
+        - Previous thought: {latest_thought}
+        """).rstrip() + "\n"
+    )
+    
+    example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
+    example_no  = {"thought": "no"}
+    
+    body = f"""
+        Task:
+        Decide whether this interaction has caused a new distinct, internal thought. 
+        If yes, provide that thought. If not, return "no".
+
+        Output format (JSON object):
+        {{
+        "thought": "no" | "a distinct, internal thought"
+        }}
+
+        Guidance:
+        - Only return a thought if there is a salient, immediate idea sparked by the messages/experience.
+        - Keep it brief. Do not provide step-by-step reasoning or analysis.
+        - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
+        - If nothing notable is on your mind, return "no".
+        - Avoid repeating previous few thoughts unless sensible.
+        - Explicitly use usernames when referring to a user
+
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_yes, ensure_ascii=False)}
+        - {json.dumps(example_no, ensure_ascii=False)}
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+
 def build_memory_worthiness_prompt(
     *,
     agent_name: str = AGENT_NAME,

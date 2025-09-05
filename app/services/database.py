@@ -61,7 +61,6 @@ async def _ensure_indexes(db):
     await db[USER_COLLECTION].create_index(
         [("user_id", 1), ("agent_perspective", 1)],
         unique=True,
-        sparse=True,             # so old docs without user_id don't conflict
         name="user_id_agent_perspective"
     )
     
@@ -207,7 +206,7 @@ async def _initialize_collections(client: AsyncIOMotorClient) -> None:
     )
     '''
 
-async def grab_user(user_id):
+async def grab_user(user_id: str):
     """
     Grab user object based on their Discord ID.
     If the user doesn't exist, create a new one with default values.

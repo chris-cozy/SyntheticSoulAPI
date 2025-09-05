@@ -141,7 +141,7 @@ def build_personality_delta_prompt(
         latest_thought=latest_thought,
     )
 
-    personality_keys = list(agent.personality["personality_matrix"].keys())
+    personality_keys = list(agent["personality"]["personality_matrix"].keys())
     body = f"""
     Task:
     Propose small **deltas** to the current personality matrix in response to the latest interaction and overall context.

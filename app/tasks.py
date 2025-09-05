@@ -4,7 +4,7 @@ import json
 import redis
 from rq import get_current_job
 from typing import Dict, Any
-from app.domain.models import MessageRequest
+from app.domain.models import InternalMessageRequest
 from app.services.message_processor import process_message
 from app.services.progress import publish_progress
 
@@ -20,7 +20,7 @@ def send_message_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
     publish_progress(job.id, 0)
 
     # Build your Pydantic input from dict (mirrors your current endpoint)
-    message_req = MessageRequest(**request_payload)
+    message_req = InternalMessageRequest(**request_payload)
     
     async def _run():
         return await process_message(message_req)

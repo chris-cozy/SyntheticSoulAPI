@@ -48,7 +48,7 @@ def build_emotion_delta_prompt(
         latest_thought=latest_thought,
     )
     
-    emotion_keys = list(agent.emotional_status["emotions"].keys())
+    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
     
     body = f"""
         Task:
@@ -88,12 +88,12 @@ def build_emotion_delta_prompt_thinking(
     Returns:
         str: A clean, dynamic prompt string.
     """
-    emotion_keys = list(agent.emotional_status["emotions"].keys())
+    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
     
     body = f"""
         You are {agent.name}. Below are the key details of your current state and context:
-        - Personality traits: {agent.personality}
-        - Current emotional state: {agent.emotional_status}
+        - Personality traits: {agent["personality"]}
+        - Current emotional state: {agent["emotional_status"]}
         - Latest thought: {latest_thought}
         
         Task:
@@ -158,7 +158,7 @@ def build_personality_delta_prompt(
     - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
     - Do **not** output absolute values—only **deltas** to apply to current values.
     - If nothing should change, return an empty "deltas" object.
-    - Keep changes coherent with existing values and the relationship with {user.user_id}.
+    - Keep changes coherent with existing values and the relationship with {user["user_id"]}.
     """
     return textwrap.dedent(header + body)
 
@@ -186,15 +186,15 @@ def build_sentiment_delta_prompt(
     header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(
         f"""
         Context:
-        - {user.user_id} goes by {user.username}
-        - Your current sentiments toward {user.user_id} are: {user.sentiment_status}
-        - Evaluate how your sentiments toward {user.user_id} changed after the most recent exchange.
+        - {user["user_id"]} goes by {user["username"]}
+        - Your current sentiments toward {user["user_id"]} are: {user["sentiment_status"]}
+        - Evaluate how your sentiments toward {user["user_id"]} changed after the most recent exchange.
     """).rstrip() + "\n"
     
-    sentiment_keys = list(user.sentiment_status["sentiments"].keys())
+    sentiment_keys = list(user["sentiment_status"]["sentiments"].keys())
     body = f"""
         Task:
-        Suggest small, realistic changes (deltas) to your sentiments toward {user.user_id}.
+        Suggest small, realistic changes (deltas) to your sentiments toward {user["user_id"]}.
         Do not output absolute values; output only integer deltas per changed sentiment.
         
         Output format (JSON):
@@ -921,21 +921,21 @@ def _format_shared_context(
     Safely quotes user_message and keeps consistent bullet ordering/labels.
     """
     lines = [
-        f"You are {agent.name}. Below are the key details of your current state and context:",
+        f"You are {agent["name"]}. Below are the key details of your current state and context:",
         "",
-        f"- Personality traits: {agent.personality}",
-        f"- Current emotional state: {agent.emotional_status}",
-        f"- Current sentiment toward {user.user_id}: {user.sentiment_status}",
-        f"- Your perspective of {user.user_id}: {user.summary}",
-        f"- Relationship with {user.user_id} (intrinsic): {user.intrinsic_relationship}",
-        f"- Relationship with {user.user_id} (extrinsic): {user.extrinsic_relationship}",
-        f"- {user.user_id} goes by: {user.username}",
+        f"- Personality traits: {agent["personality"]}",
+        f"- Current emotional state: {agent["emotional_status"]}",
+        f"- Current sentiment toward {user["user_id"]}: {user["sentiment_status"]}",
+        f"- Your perspective of {user["user_id"]}: {user["summary"]}",
+        f"- Relationship with {user["user_id"]} (intrinsic): {user["intrinsic_relationship"]}",
+        f"- Relationship with {user["user_id"]} (extrinsic): {user["extrinsic_relationship"]}",
+        f"- {user["user_id"]} goes by: {user["username"]}",
         
     ]
     if latest_thought:
         lines.append(f"- Latest thought: {latest_thought}")
     lines.extend([
-        f"- Recent conversation with {user.user_id}: {recent_messages}",
+        f"- Recent conversation with {user["user_id"]}: {recent_messages}",
         f"- Broader recent messages: {recent_all_messages}",
         f"- Date: {received_date}",
         f'- Latest user message: "{user_message}"',

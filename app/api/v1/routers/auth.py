@@ -5,6 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 
 from app.constants.constants import AUTH_COLLECTION, JWT_AUD, JWT_ISS, SESSIONS_COLLECTION, USER_LITE_COLLECTION
+from app.core.config import DEVELOPER_EMAIL
 from app.domain.auth import ClaimRequest, LoginRequest, TokenReply
 from app.services.auth import ARGON2_PEPPER_ENV, JWT_SECRET_ENV, _clear_refresh_cookies, _create_session, _now, _ratelimit, _read_refresh_cookies, _revoke_all_user_sessions, _revoke_session, _verify_refresh, auth_guard
 from app.services.database import ensure_user_and_profile, get_database
@@ -65,12 +66,22 @@ async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAut
         }}
     )
     
-    await db[USER_COLLECTION].update_one(
-        {"user_id": payload["sub"]},
-        {"$set": {
-            "username": body.username,
-        }}
-    )
+    if body.email == DEVELOPER_EMAIL:
+        await db[USER_COLLECTION].update_one(
+            {"user_id": payload["sub"]},
+            {"$set": {
+                "username": body.username,
+                "intrinsic_relationship": "creator",
+                "summary": "They created me, without them I would not exist."
+            }}
+        )
+    else:
+        await db[USER_COLLECTION].update_one(
+            {"user_id": payload["sub"]},
+            {"$set": {
+                "username": body.username,
+            }}
+        )
     # rotate session: revoke old, mint new
     await _revoke_session(db, payload["sid"])
     return await _create_session(db, payload["sub"], body.username, req, resp)

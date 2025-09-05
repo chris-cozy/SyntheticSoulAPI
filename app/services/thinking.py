@@ -57,8 +57,7 @@ async def generate_thought():
         "role": USER_ROLE,
         "content": (
             build_emotion_delta_prompt_thinking(
-                personality=self["personality"],
-                emotional_status=self["emotional_status"],
+                agent=self,
                 latest_thought=current_thought['thought']
             )
         )

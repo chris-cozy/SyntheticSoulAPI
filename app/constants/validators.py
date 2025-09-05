@@ -1739,11 +1739,11 @@ AGENT_RICH_VALIDATOR = {
 CONVERSATION_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
-    "required": ["username", "agent_name", "messages"],
+    "required": ["user_id", "agent_name", "messages"],
     "properties": {
-      "username": {
+      "user_id": {
         "bsonType": "string",
-        "description": "Username is required and must be a string"
+        "description": "User_id is required and must be a string"
       },
       "agent_name": {
         "bsonType": "string",

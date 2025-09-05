@@ -7,7 +7,7 @@ from datetime import datetime
 from app.constants.schemas import get_message_perception_schema, get_message_schema, get_response_choice_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite, get_personality_delta_schema_lite, get_sentiment_delta_schema_lite
 from app.domain.memory import Memory
-from app.domain.models import MessageRequest, MessageResponse
+from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import get_structured_response
@@ -18,7 +18,7 @@ from app.services.prompting import build_emotion_delta_prompt, build_implicit_ad
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
 
-async def process_message(request: MessageRequest):
+async def process_message(request: InternalMessageRequest):
         """
         Process a user message and return the bot's response.
 
@@ -30,10 +30,10 @@ async def process_message(request: MessageRequest):
             start = time.perf_counter()
             
             received_date = datetime.now() 
-            username = request.username
             self = await grab_self()
             user = await grab_user(request.user_id)
-            conversation = await get_conversation(username)
+            username = user.username
+            conversation = await get_conversation(request.user_id)
             recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
             recent_user_messages = conversation["messages"][-CONVERSATION_MESSAGE_RETENTION_COUNT:] if "messages" in conversation else []
             
@@ -69,9 +69,10 @@ async def handle_message(
     recent_user_messages: Any,
     recent_all_messages: Any,
     received_date: datetime,
-    request: Any,
+    request: InternalMessageRequest,
     direct_message: bool = True,
 ) -> MessageResponse: 
+    user_id = user["user_id"]
     username = user['username']
     implicitly_addressed = True
     timings = {}
@@ -80,7 +81,12 @@ async def handle_message(
     
     # ---- -1) Group Message: Check if Implicity Addressed -------------------------------------------   
     if not direct_message:
-        prompt = build_implicit_addressing_prompt(recent_all_messages, request)
+        prompt = build_implicit_addressing_prompt(
+            message_memory=recent_all_messages, 
+            new_message=request.message, 
+            sender_id=user_id, 
+            sender_username=username
+        )
         implicit_addressing_result = await get_structured_response([{"role": USER_ROLE, "content": prompt}], implicitly_addressed_schema())
         
         implicitly_addressed = implicit_addressing_result["implicitly_addressed"] == 'yes'
@@ -92,10 +98,8 @@ async def handle_message(
     
        
     prompt = build_personality_delta_prompt(
-        personality=self["personality"],
-        sentiment_status=user["sentiment_status"],
-        user_name=user[USER_NAME_PROPERTY],
-        extrinsic_relationship=user['extrinsic_relationship'],
+        agent=self,
+        user=user,
         recent_messages=recent_user_messages,         
         recent_all_messages=recent_all_messages,
         received_date=str(received_date),
@@ -128,12 +132,8 @@ async def handle_message(
     
     # ---- 1) Initial Emotional Reaction -------------------------------------------
     prompt = build_emotion_delta_prompt(
-        altered_personality,
-        emotional_status=self["emotional_status"],        # current values
-        user_name=user[USER_NAME_PROPERTY],
-        user_summary=user.get("summary", ""),
-        intrinsic_relationship=user.get("intrinsic_relationship", ""),
-        extrinsic_relationship=user.get("extrinsic_relationship", ""),
+        user=user,
+        agent=self,
         recent_user_messages=recent_user_messages,
         recent_all_messages=recent_all_messages,
         received_date=str(received_date),
@@ -173,7 +173,14 @@ async def handle_message(
     message_queries = [SYSTEM_MESSAGE, {
         "role": "user",
         "content": (
-            build_message_perception_prompt(altered_personality, current_emotions, username, user['summary'], user["intrinsic_relationship"], user['extrinsic_relationship'], recent_user_messages, recent_all_messages, request.message, received_date)
+            build_message_perception_prompt(
+                agent=self,
+                user=user,
+                recent_messages=recent_user_messages, 
+                recent_all_messages=recent_all_messages, 
+                user_message=request.message, 
+                received_date=received_date
+            )
         ),
     }]
     
@@ -192,7 +199,7 @@ async def handle_message(
             "purpose": message_analysis["purpose"],
             "tone": message_analysis["tone"],
             "timestamp": received_date,
-            "sender": username,
+            "sender": user_id,
             "from_agent": False
         }
     
@@ -207,7 +214,7 @@ async def handle_message(
     message_queries.append({
         "role": "user",
         "content": (
-            build_response_choice_prompt(username, implicit=implicitly_addressed)
+            build_response_choice_prompt(user_id, username, implicit=implicitly_addressed)
         ),
     })
 
@@ -228,7 +235,18 @@ async def handle_message(
         message_queries.append({
             "role": USER_ROLE,
             "content": (
-                build_response_analysis_prompt(altered_personality, current_emotions, PERSONALITY_LANGUAGE_GUIDE, latest_thoughts, username, recent_user_messages, recent_all_messages, memory, EXPRESSION_LIST)
+                build_response_analysis_prompt(
+                    user_id=user_id,
+                    username=username,
+                    personality=altered_personality, 
+                    current_emotions=current_emotions, 
+                    personality_language_guide=PERSONALITY_LANGUAGE_GUIDE, 
+                    latest_thought=latest_thoughts, 
+                    recent_messages=recent_user_messages, 
+                    recent_all_messages=recent_all_messages, 
+                    memory=memory, 
+                    expressions=EXPRESSION_LIST
+                )
             ),
         })
         response_content = await get_structured_response(message_queries, get_message_schema())
@@ -266,7 +284,7 @@ async def handle_message(
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
-                    build_sentiment_delta_prompt(username, user["sentiment_status"])
+                    build_sentiment_delta_prompt(user)
                 ),
             })
     
@@ -292,7 +310,7 @@ async def handle_message(
         if new_mat.reason:
             user["sentiment_status"]["reason"] = new_mat.reason
     
-    await update_user_sentiment(username, user["sentiment_status"])
+    await update_user_sentiment(user_id, user["sentiment_status"])
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -300,12 +318,17 @@ async def handle_message(
     # ---- 6) Post-response processing (summary/identity/relationships) ------
     message_queries.append({
         "role": USER_ROLE,
-        "content": (build_post_response_processing_prompt(self["identity"], username, EXTRINSIC_RELATIONSHIPS, user["summary"]))
+        "content": (build_post_response_processing_prompt(
+            current_identity=self["identity"], 
+            user_id=user_id, 
+            extrinsic_relationship_options=EXTRINSIC_RELATIONSHIPS, 
+            current_summary=user["summary"]
+            ))
     })
     
     post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema(), False)
     
-    await update_summary_identity_relationship(username, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+    await update_summary_identity_relationship(user_id, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
 
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
     
@@ -323,7 +346,7 @@ async def handle_message(
     if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
         mem = Memory(
             agent_name=AGENT_NAME,
-            user=username,
+            user_id=user_id,
             event=memory_response["event"],
             thoughts=memory_response["thoughts"],
             significance=memory_response.get("significance", "low"),

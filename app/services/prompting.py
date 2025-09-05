@@ -8,18 +8,13 @@ from app.constants.constants import THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
 
 def build_emotion_delta_prompt(
-    altered_personality: str, 
-    emotional_status: str, 
-    user_name: str, 
-    user_summary: str, 
-    intrinsic_relationship: str, 
-    extrinsic_relationship: str, 
+    user: Any,
+    agent: Any,
     recent_user_messages: str, 
     recent_all_messages: str, 
     received_date: str, 
     user_message: str, 
     latest_thought: str,
-    agent_name: str = AGENT_NAME, 
     typical_cap: int = 7
 ) -> str:
     """
@@ -44,13 +39,8 @@ def build_emotion_delta_prompt(
         str: A clean, dynamic prompt string.
     """
     header = _format_shared_context(
-        agent_name=agent_name,
-        altered_personality=altered_personality,
-        emotional_status=emotional_status,
-        user_name=user_name,
-        user_summary=user_summary,
-        intrinsic_relationship=intrinsic_relationship,
-        extrinsic_relationship=extrinsic_relationship,
+        agent=agent,
+        user=user,
         recent_messages=recent_user_messages,
         recent_all_messages=recent_all_messages,
         received_date=received_date,
@@ -58,7 +48,7 @@ def build_emotion_delta_prompt(
         latest_thought=latest_thought,
     )
     
-    emotion_keys = list(emotional_status["emotions"].keys())
+    emotion_keys = list(agent.emotional_status["emotions"].keys())
     
     body = f"""
         Task:
@@ -81,11 +71,9 @@ def build_emotion_delta_prompt(
         """
     return textwrap.dedent(header + body)
 
-def build_emotion_delta_prompt_thinking( 
-    personality: str, 
-    emotional_status: str, 
+def build_emotion_delta_prompt_thinking(
+    agent: Any, 
     latest_thought: str,
-    agent_name: str = AGENT_NAME,
     typical_cap: int = 7
 ) -> str:
     """
@@ -100,12 +88,12 @@ def build_emotion_delta_prompt_thinking(
     Returns:
         str: A clean, dynamic prompt string.
     """
-    emotion_keys = list(emotional_status["emotions"].keys())
+    emotion_keys = list(agent.emotional_status["emotions"].keys())
     
     body = f"""
-        You are {agent_name}. Below are the key details of your current state and context:
-        - Personality traits: {personality}
-        - Current emotional state: {emotional_status}
+        You are {agent.name}. Below are the key details of your current state and context:
+        - Personality traits: {agent.personality}
+        - Current emotional state: {agent.emotional_status}
         - Latest thought: {latest_thought}
         
         Task:
@@ -129,17 +117,14 @@ def build_emotion_delta_prompt_thinking(
     return textwrap.dedent(body)
 
 def build_personality_delta_prompt(
-    personality: str,                 # JSON string (current personality object)
-    sentiment_status: str,            # JSON string (current sentiment)
-    user_name: str,
-    extrinsic_relationship: str,
-    recent_messages: str = "[]",      # JSON string (optional)
-    recent_all_messages: str = "[]",  # JSON string (optional)
+    agent: Any,
+    user: Any,
+    recent_messages: str = "[]",
+    recent_all_messages: str = "[]",
     received_date: str = "",
     user_message: str = "",
     latest_thought: str = "",
-    agent_name: str = AGENT_NAME,
-    typical_cap: int = 3              # small, slow movement for personality
+    typical_cap: int = 3
 ) -> str:
     """
     Ask the model for *deltas* to the personality matrix (not absolute values).
@@ -147,13 +132,8 @@ def build_personality_delta_prompt(
     """
     # Reuse your shared context block (same helper used by build_initial_emotional_response_prompt)
     header = _format_shared_context(
-        agent_name=agent_name,
-        altered_personality=personality,
-        emotional_status=sentiment_status,     # you can also pass "" if you prefer
-        user_name=user_name,
-        user_summary="",                        # optional
-        intrinsic_relationship="",              # optional
-        extrinsic_relationship=extrinsic_relationship,
+        agent=agent,
+        user=user,
         recent_messages=recent_messages,
         recent_all_messages=recent_all_messages,
         received_date=received_date,
@@ -161,7 +141,7 @@ def build_personality_delta_prompt(
         latest_thought=latest_thought,
     )
 
-    personality_keys = list(personality["personality_matrix"].keys())
+    personality_keys = list(agent.personality["personality_matrix"].keys())
     body = f"""
     Task:
     Propose small **deltas** to the current personality matrix in response to the latest interaction and overall context.
@@ -178,13 +158,12 @@ def build_personality_delta_prompt(
     - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
     - Do **not** output absolute values—only **deltas** to apply to current values.
     - If nothing should change, return an empty "deltas" object.
-    - Keep changes coherent with existing values and the relationship with {user_name}.
+    - Keep changes coherent with existing values and the relationship with {user.user_id}.
     """
     return textwrap.dedent(header + body)
 
 def build_sentiment_delta_prompt(
-    username: str, 
-    sentiments: str,
+    user: Any,
     typical_cap: int = 4,
     *,
     max_step: int = 15,
@@ -207,14 +186,15 @@ def build_sentiment_delta_prompt(
     header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(
         f"""
         Context:
-        - Your current sentiments toward {username} are: {sentiments}
-        - Evaluate how your sentiments toward {username} changed after the most recent exchange.
+        - {user.user_id} goes by {user.username}
+        - Your current sentiments toward {user.user_id} are: {user.sentiment_status}
+        - Evaluate how your sentiments toward {user.user_id} changed after the most recent exchange.
     """).rstrip() + "\n"
     
-    sentiment_keys = list(sentiments["sentiments"].keys())
+    sentiment_keys = list(user.sentiment_status["sentiments"].keys())
     body = f"""
         Task:
-        Suggest small, realistic changes (deltas) to your sentiments toward {username}.
+        Suggest small, realistic changes (deltas) to your sentiments toward {user.user_id}.
         Do not output absolute values; output only integer deltas per changed sentiment.
         
         Output format (JSON):
@@ -236,17 +216,12 @@ def build_sentiment_delta_prompt(
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_message_perception_prompt( 
-    altered_personality: str, 
-    emotional_status: str, 
-    user_name: str, 
-    user_summary: str,
-    intrinsic_relationship: str, 
-    extrinsic_relationship: str, 
+    agent: Any,
+    user: Any,
     recent_messages: str,
     recent_all_messages: str, 
     user_message: str, 
     received_date: str,
-    agent_name: str = AGENT_NAME,
 ) -> str:
     """
     Generate a structured prompt for analyzing the purpose and tone of a user's message
@@ -269,13 +244,8 @@ def build_message_perception_prompt(
         str: A clean, dynamic prompt string for message perception analysis.
     """
     header = _format_shared_context(
-        agent_name=agent_name,
-        altered_personality=altered_personality,
-        emotional_status=emotional_status,
-        user_name=user_name,
-        user_summary=user_summary,
-        intrinsic_relationship=intrinsic_relationship,
-        extrinsic_relationship=extrinsic_relationship,
+        agent=agent,
+        user=user,
         recent_messages=recent_messages,
         recent_all_messages=recent_all_messages,
         received_date=received_date,
@@ -288,7 +258,7 @@ def build_message_perception_prompt(
     
     body = f"""
         Task:
-        Interpret the purpose and tone of the latest message from {user_name}.
+        Interpret the purpose and tone of the latest message from {user.user_id}.
         Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
 
         Output format (JSON object):
@@ -308,7 +278,8 @@ def build_message_perception_prompt(
     return textwrap.dedent(header + body)
 
 def build_response_choice_prompt( 
-    user_name: str,
+    user_id: str,
+    username: str,
     *,
     agent_name: str = AGENT_NAME,
     implicit: bool = True,
@@ -332,16 +303,16 @@ def build_response_choice_prompt(
     header = context_section or textwrap.dedent(f"""
     You are {agent_name}. Below are the key details of your current state and context:
 
-    - Latest user referenced: {user_name}
+    - Latest user referenced: {user_id} (goes by {username})
     - Names that begin with 'guest_' and have a unique id appended are anonymous users.
     """)
     
     # Branch-specific bullets
     if implicit:
-        scenario = f"- {agent_name} must decide whether to respond to or ignore the new message from {user_name}"
+        scenario = f"- {agent_name} must decide whether to respond to or ignore the new message from {user_id}"
         etiquette = None
     else:
-        scenario = f"- {agent_name} must decide whether to respond to a message from {user_name}"
+        scenario = f"- {agent_name} must decide whether to respond to a message from {user_id}"
         etiquette = (
             "- If the message was not directed to you there is no obligation to respond\n"
             "- Responding to messages not addressed to you can be rude unless there is a good reason"
@@ -352,7 +323,7 @@ def build_response_choice_prompt(
         bullets.append(etiquette)
         
     # JSON schema (kept tiny; your JSON mode will enforce structure)
-    example_respond = {"response_choice": "respond", "reason": f"Even though it wasn't addressed to {agent_name}, {user_name}'s comment warranted a brief clarification."}
+    example_respond = {"response_choice": "respond", "reason": f"Even though it wasn't addressed to {agent_name}, {user_id}'s comment warranted a brief clarification."}
     example_ignore  = {"response_choice": "ignore",  "reason": "It was not addressed to the agent and engaging would be intrusive."}
     
     body = f"""
@@ -360,7 +331,7 @@ def build_response_choice_prompt(
         - {'\n- '.join(bullets)}
 
         Task:
-        Decide whether to respond or ignore. Consider {agent_name}'s emotional state, personality traits, relationship/perception of {user_name}, and recent interactions.
+        Decide whether to respond or ignore. Consider {agent_name}'s emotional state, personality traits, relationship/perception of {user_id}, and recent interactions.
 
         Output format (JSON object):
         {{
@@ -380,12 +351,13 @@ def build_response_choice_prompt(
         
     return textwrap.dedent(header + "\n" + body).strip()
 
-def build_response_analysis_prompt( 
-    altered_personality: str, 
+def build_response_analysis_prompt(
+    user_id: str,
+    username: str,
+    personality: str, 
     current_emotions: str, 
     personality_language_guide: str, 
     latest_thought: str, 
-    user_name: str, 
     recent_messages: str, 
     recent_all_messages: str, 
     memory: str,
@@ -421,10 +393,10 @@ def build_response_analysis_prompt(
         header = textwrap.dedent(f"""
         You are {agent_name}. Below are the key details of your current state and context:
 
-        - Personality traits: {altered_personality}
+        - Personality traits: {personality}
         - Current emotional state: {current_emotions}
         - Latest thought: {latest_thought}
-        - Recent conversation with {user_name}: {recent_messages}
+        - Recent conversation with {user_id} (goes by {username}): {recent_messages}
         - Broader recent messages: {recent_all_messages}
         - Current memory items: {memory}
         - Personality language guide: {personality_language_guide}
@@ -519,7 +491,7 @@ def build_final_emotional_response_prompt(
 
 def build_post_response_processing_prompt( 
     current_identity: str, 
-    username: str, 
+    user_id: str, 
     extrinsic_relationship_options: Sequence[str], 
     current_summary: str,
     *,
@@ -551,7 +523,7 @@ def build_post_response_processing_prompt(
         else textwrap.dedent(f"""
         You are {agent_name}. Below are the key details prior to this update:
 
-        - Summary of {username} (before): {current_summary}
+        - Summary of {user_id} (before): {current_summary}
         - Your identity (before): {current_identity}
         """).rstrip() + "\n"
     )
@@ -561,13 +533,13 @@ def build_post_response_processing_prompt(
     body = f"""
         Task:
         Update the following based on the latest exchange:
-        1) A refreshed summary of {username}. If nothing changed, keep it the same.
-        2) The extrinsic relationship label between you and {username}. Choose exactly one from the allowed options.
+        1) A refreshed summary of {user_id}. If nothing changed, keep it the same.
+        2) The extrinsic relationship label between you and {user_id}. Choose exactly one from the allowed options.
         3) Your identity — a first-person description of how you currently see yourself (self-perception).
 
         Output format (JSON object):
         {{
-        "summary": "Your updated description of {username}",
+        "summary": "Your updated description of {user_id}",
         "extrinsic_relationship": "<one_of_allowed_options>",
         "identity": "Your updated identity"
         }}
@@ -868,7 +840,9 @@ def build_memory_prompt(
     
 def build_implicit_addressing_prompt( 
     message_memory: Sequence[str] | str, 
-    new_message_request: str,
+    new_message: str,
+    sender_id: str,
+    sender_username: str,
     *,
     agent_name: str=AGENT_NAME,
     context_section: Optional[str] = None,
@@ -900,7 +874,7 @@ def build_implicit_addressing_prompt(
     body = f"""
         Key details:
         - Recent conversation history: {history_repr}
-        - New message: {json.dumps(new_message_request, ensure_ascii=False)}
+        - New message '''{new_message}''' from {sender_id} (goes by {sender_username})
 
         Task:
         Decide whether the new message implicitly addresses {agent_name}.
@@ -933,13 +907,8 @@ def build_implicit_addressing_prompt(
 
 def _format_shared_context(
     *,
-    agent_name: str = AGENT_NAME,
-    altered_personality: str,
-    emotional_status: str,
-    user_name: str,
-    user_summary: str,
-    intrinsic_relationship: str,
-    extrinsic_relationship: str,
+    agent: Any,
+    user: Any,
     recent_messages: str,
     recent_all_messages: str,
     received_date: str,
@@ -952,18 +921,21 @@ def _format_shared_context(
     Safely quotes user_message and keeps consistent bullet ordering/labels.
     """
     lines = [
-        f"You are {agent_name}. Below are the key details of your current state and context:",
+        f"You are {agent.name}. Below are the key details of your current state and context:",
         "",
-        f"- Personality traits: {altered_personality}",
-        f"- Current emotional state: {emotional_status}",
-        f"- Your perspective of {user_name}: {user_summary}",
-        f"- Relationship with {user_name} (intrinsic): {intrinsic_relationship}",
-        f"- Relationship with {user_name} (extrinsic): {extrinsic_relationship}",
+        f"- Personality traits: {agent.personality}",
+        f"- Current emotional state: {agent.emotional_status}",
+        f"- Current sentiment toward {user.user_id}: {user.sentiment_status}",
+        f"- Your perspective of {user.user_id}: {user.summary}",
+        f"- Relationship with {user.user_id} (intrinsic): {user.intrinsic_relationship}",
+        f"- Relationship with {user.user_id} (extrinsic): {user.extrinsic_relationship}",
+        f"- {user.user_id} goes by: {user.username}",
+        
     ]
     if latest_thought:
         lines.append(f"- Latest thought: {latest_thought}")
     lines.extend([
-        f"- Recent conversation with {user_name}: {recent_messages}",
+        f"- Recent conversation with {user.user_id}: {recent_messages}",
         f"- Broader recent messages: {recent_all_messages}",
         f"- Date: {received_date}",
         f'- Latest user message: "{user_message}"',

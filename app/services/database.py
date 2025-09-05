@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, AUTH_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, SESSIONS_COLLECTION, THOUGHT_COLLECTION, USER_RICH_COLLECTION, USER_LITE_COLLECTION, USER_NAME_PROPERTY
 from motor.motor_asyncio import AsyncIOMotorClient
-from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DEVELOPER_ID, DATABASE_NAME
+from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DEVELOPER_EMAIL, DATABASE_NAME
 
 from app.constants.validators import AGENT_RICH_VALIDATOR, AUTH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, SESSIONS_VALIDATOR, THOUGHT_VALIDATOR, USER_RICH_VALIDATOR
 from app.constants.validators import AGENT_LITE_VALIDATOR
@@ -54,14 +54,9 @@ def _client_opts() -> Dict[str, Any]:
 
 async def _ensure_indexes(db):
     await db[AGENT_COLLECTION].create_index("name", unique=True)
-    await db[USER_COLLECTION].create_index(
-        [("username", 1), ("agent_perspective", 1)],
-        unique=True,
-        name="username_agent_perspective"
-    )
     
     await db[AUTH_COLLECTION].create_index("email", unique=True, sparse=True, name="email_unique")
-    await db[AUTH_COLLECTION].create_index("username", unique=False, name="username")
+    await db[AUTH_COLLECTION].create_index("_id", unique=False, name="user_id")
     
     await db[USER_COLLECTION].create_index(
         [("user_id", 1), ("agent_perspective", 1)],
@@ -71,8 +66,8 @@ async def _ensure_indexes(db):
     )
     
     await db[CONVERSATION_COLLECTION].create_index(
-        [("username", 1), ("agent_name", 1)],
-        name="username_agent"
+        [("user_id", 1), ("agent_name", 1)],
+        name="user_id_agent"
     )
     await db[MESSAGE_COLLECTION].create_index("sender", name="sender")
     
@@ -267,7 +262,7 @@ async def grab_self():
             
     return self
 
-async def get_conversation(username, agent_name=AGENT_NAME):
+async def get_conversation(user_id, agent_name=AGENT_NAME):
     """
     Grab conversation messages based on the username.
     If no conversation exists, create a new conversation object.
@@ -279,12 +274,12 @@ async def get_conversation(username, agent_name=AGENT_NAME):
     db = await get_database()
     conversations_collection = db[CONVERSATION_COLLECTION]
 
-    user_conversation = await conversations_collection.find_one({"username": username, "agent_name": agent_name})
+    user_conversation = await conversations_collection.find_one({"user_id": user_id, "agent_name": agent_name})
 
     if not user_conversation:
         # Create a new conversation object if one doesn't exist
         new_conversation = {
-            "username": username,
+            "user_id": user_id,
             "agent_name": agent_name,
             "messages": []
         }
@@ -365,7 +360,7 @@ async def get_tagged_memories(
         return []
         
 async def insert_message_to_conversation(
-    username: str,
+    user_id: str,
     message: dict[str, Any],
     agent_name: str =AGENT_NAME,
 ) -> None:
@@ -373,7 +368,7 @@ async def insert_message_to_conversation(
         db = await get_database()
         conversation_collection = db[CONVERSATION_COLLECTION]
         await conversation_collection.update_one(
-            {USER_NAME_PROPERTY: username, "agent_name": agent_name}, 
+            {"user_id": user_id, "agent_name": agent_name}, 
             { 
             "$push": 
                 {
@@ -382,7 +377,7 @@ async def insert_message_to_conversation(
                         "$slice": -1000 
                         }
                     },
-                "$setOnInsert": {USER_NAME_PROPERTY: username, "agent_name": agent_name}
+                "$setOnInsert": {"user_id": user_id, "agent_name": agent_name}
             },
             upsert=True
         )
@@ -454,12 +449,12 @@ async def update_tags(new_tags: List[str]):
     except Exception as e:
         print(e)
       
-async def update_summary_identity_relationship(username, summary, extrinsic_relationship, identity, agent_name=AGENT_NAME):
+async def update_summary_identity_relationship(user_id, summary, extrinsic_relationship, identity, agent_name=AGENT_NAME):
     """Updates the user summary, agent identity, and user extrinsic relationship
 
     Args:
         agent_name (string): The agent's name
-        username (string): The user's name
+        user_id (string): The user's ID
         summary (string): The updated summary
         extrinsic_relationship (string): The updated extrinsic relationship
         identity (string): The updated identity
@@ -471,7 +466,7 @@ async def update_summary_identity_relationship(username, summary, extrinsic_rela
             user_collection = db[USER_LITE_COLLECTION]
 
         agent_collection.update_one({'name': agent_name}, {"$set": {"identity": identity}})
-        user_collection.update_one({"username": username, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
+        user_collection.update_one({"user_id": user_id, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
     except Exception as e:
         print(e)
         
@@ -486,13 +481,13 @@ async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
     except Exception as e:
         print(e)
         
-async def update_user_sentiment(username, sentiments):
+async def update_user_sentiment(user_id, sentiments):
     try:
         db = await get_database()
         if LITE_MODE:
             user_collection = db[USER_LITE_COLLECTION]
         
-        user_collection.update_one({USER_NAME_PROPERTY: username}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }}, bypass_document_validation=True)
+        user_collection.update_one({"user_id": user_id}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }})
     except Exception as e:
         print(e)
         

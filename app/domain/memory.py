@@ -19,7 +19,7 @@ class EmotionalImpact(BaseModel):
 
 class Memory(BaseModel):
     agent_name: str
-    user: Optional[str] = None
+    user_id: Optional[str] = None
     event: str
     thoughts: str
     significance: Significance = "low"

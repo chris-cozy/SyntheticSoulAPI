@@ -21,7 +21,7 @@ LITE_MODE = os.getenv("MODE") == "lite"
 
 MONGO_CONNECTION = os.getenv('MONGO_CONNECTION')
 
-DEVELOPER_ID = os.getenv("DEVELOPER_ID")
+DEVELOPER_EMAIL = os.getenv("DEVELOPER_EMAIL")
 
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 

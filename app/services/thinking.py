@@ -104,7 +104,7 @@ async def generate_thought():
     if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
         mem = Memory(
             agent_name=AGENT_NAME,
-            user=None,
+            user_id=None,
             event=memory_response["event"],
             thoughts=memory_response["thoughts"],
             significance=memory_response.get("significance", "low"),

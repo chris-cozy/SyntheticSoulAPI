@@ -3,8 +3,11 @@ from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
     message: str
-    username: Optional[str] = None   # still accepted for legacy clients
-    user_id: Optional[str] = None 
+    type: str
+    
+class InternalMessageRequest(BaseModel):
+    message: str
+    user_id: str
     type: str
 
 class MessageResponse(BaseModel):

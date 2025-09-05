@@ -18,18 +18,18 @@ router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(
 @router.post("/submit")
 async def submit_message(request: MessageRequest, ident = Depends(identity)):
     user_id, token_username, _sid = ident
-    request.user_id = user_id
-    request.username = token_username
-        
     # Ensure the identity + perspective exists (idempotent)
-    if request.user_id and request.username:
-        await ensure_user_and_profile(request.user_id, request.username)
+    if user_id and token_username:
+        await ensure_user_and_profile(user_id, token_username)
+        
+    messageModel = request.model_dump()  # pydantic -> dict
+    messageModel['user_id'] = user_id
         
     try:
         q: Queue = get_queue()
         job = q.enqueue(
             send_message_task,
-            request.model_dump(), # pydantic -> dict
+            messageModel,
             job_timeout=600,
         )
 

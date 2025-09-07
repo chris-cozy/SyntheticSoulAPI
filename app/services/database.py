@@ -473,6 +473,17 @@ async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
     except Exception as e:
         print(e)
         
+async def update_agent_expression(expression, agent_name=AGENT_NAME):
+    try:
+        db = await get_database()
+        if LITE_MODE:
+            agent_collection = db[AGENT_LITE_COLLECTION]
+        
+        agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"global_expression": expression }})
+    
+    except Exception as e:
+        print(e)
+        
 async def update_user_sentiment(user_id, sentiments):
     try:
         db = await get_database()

@@ -247,6 +247,7 @@ async def grab_self():
             "personality": default_personality,
             "memory_tags": [],
             "emotional_status": default_emotional_status,
+            "global_expression": "neutral_listening",
             "birthdate": now
         })
         self = await agent_collection.find_one({"_id": result.inserted_id})
@@ -468,6 +469,17 @@ async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
             agent_collection = db[AGENT_LITE_COLLECTION]
         
         agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": emotions }})
+    
+    except Exception as e:
+        print(e)
+        
+async def update_agent_expression(expression, agent_name=AGENT_NAME):
+    try:
+        db = await get_database()
+        if LITE_MODE:
+            agent_collection = db[AGENT_LITE_COLLECTION]
+        
+        agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"global_expression": expression }})
     
     except Exception as e:
         print(e)

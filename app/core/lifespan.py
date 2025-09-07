@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.services.database import init_db, _db_client
 from app.services.emotion_decay import emotion_decay_loop
+from app.services.expressions import refresh_expressions_cache
 from app.services.thinking import periodic_thinking
 
 @asynccontextmanager
@@ -16,6 +17,9 @@ async def app_lifespan(app: FastAPI):
 
     print("Starting to think...")
     asyncio.create_task(periodic_thinking())
+    
+    print("Refreshing expressions cache...") 
+    refresh_expressions_cache()
 
     try:
         yield

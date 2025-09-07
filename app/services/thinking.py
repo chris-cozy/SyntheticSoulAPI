@@ -9,7 +9,7 @@ from app.constants.schemas import get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
-from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, update_agent_emotions, update_tags
+from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, update_agent_emotions, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import get_structured_response
 from app.services.prompting import build_emotion_delta_prompt_thinking, build_memory_prompt, build_thought_prompt
@@ -52,6 +52,11 @@ async def generate_thought():
         } 
     )
     
+    if current_thought["new_expression"] == "no":
+        return
+    
+    await update_agent_expression(current_thought["new_expression"])
+    
     # ---- 2) Thought Emotional Reaction -------------------------------------------
     prompt = {
         "role": USER_ROLE,
@@ -91,7 +96,7 @@ async def generate_thought():
     current_emotions = self["emotional_status"]
     
     await update_agent_emotions(current_emotions)
-    
+
     # ---- 3) Memory Creation -------------------------------------------
     thought_queries.append({
             "role": USER_ROLE, 

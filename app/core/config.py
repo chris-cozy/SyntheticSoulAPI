@@ -59,3 +59,8 @@ MESSAGE_HISTORY_COUNT = 10
 
 # Thought randomizer
 RANDOM_THOUGHT_PROBABILITY = 0.4
+
+
+EXPRESSIONS_DIR = os.getenv("EXPRESSIONS_DIR") or os.path.join(os.path.dirname(__file__), "..", "assets", "expressions", AGENT_NAME.lower())
+
+_ALLOWED_EXPRESSIONS_EXTS = {".jpeg", ".webp", ".gif", ".png", ".jpg"}

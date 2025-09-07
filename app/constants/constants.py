@@ -11,8 +11,6 @@ JWT_AUD = "synthetic-soul-client"     # adjust if you need audience checks
 REFRESH_COOKIE_NAME = "rtoken"
 SESSION_COOKIE_NAME = "sid"
 
-EXPRESSION_LIST = ["neutral", "happy", "sad", "angry", "fearful", "surprised", "disgusted", "thinking", "playful", "curious", "blushing", "love", "confident"]
-
 THOUGHT_VIBES = [
     "whimsical", "cozy", "mundane-observation", "curious",
     "philosophical", "surreal", "nostalgic", "adventurous",

@@ -464,7 +464,6 @@ AGENT_LITE_VALIDATOR = {
             },
             "global_expression": {
                 "bsonType": "string",
-                "enum": get_available_expressions(),
                 "description": "Myers-briggs personality type"
             },
             "birthdate": {

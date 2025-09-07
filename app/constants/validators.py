@@ -1,7 +1,10 @@
+from app.services.expressions import get_available_expressions
+
+
 AGENT_LITE_VALIDATOR = {
     "$jsonSchema": {
         "bsonType": "object",
-        "required": ["name", "identity", "personality", "memory_tags", "emotional_status", "birthdate"],
+        "required": ["name", "identity", "personality", "memory_tags", "emotional_status", "global_expression", "birthdate"],
         "properties": {
             "name": {
               "bsonType": "string",
@@ -458,6 +461,11 @@ AGENT_LITE_VALIDATOR = {
                 }
                 }
 
+            },
+            "global_expression": {
+                "bsonType": "string",
+                "enum": get_available_expressions(),
+                "description": "Myers-briggs personality type"
             },
             "birthdate": {
                 "bsonType": "date",

@@ -1512,6 +1512,28 @@ def get_thought_schema():
                         "description": "The thought being had",
                         "type": "string",
                     },
+                    "new_expression": {
+                        "description": "The new expression being made",
+                        "type": "string",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+    }
+    
+def get_expression_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "expression",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "description": "The expression being made",
+                        "type": "string",
+                    },
                 },
                 "additionalProperties": False,
             },

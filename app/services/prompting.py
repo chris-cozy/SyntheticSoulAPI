@@ -6,6 +6,7 @@ import random as _random
 
 from app.constants.constants import THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
+from app.services.expressions import get_available_expressions
 
 def build_emotion_delta_prompt(
     user: Any,
@@ -608,9 +609,8 @@ def build_thought_prompt(
     personality = self.get("personality", "")
     emotional_status = self.get("emotional_status", "")
     identity = self.get("identity", "")
-    previous_thoughts = self.get("thoughts", "")
-    
-    previous_thoughts = previous_thoughts[-4:]
+    current_expression = self.get("global_expression", "") 
+    possible_expressions = get_available_expressions()  
     
     thought_vibe = sample_thought_vibe()
     
@@ -635,11 +635,15 @@ def build_thought_prompt(
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
         - Current memory on your mind: {memory}
+        - Current idle expression: {current_expression}
+        - Possible expressions: {possible_expressions}
         """).rstrip() + "\n"
     )
     
-    example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
-    example_no  = {"thought": "no"}
+    thought_example_yes = {"thought": "I should double-check what Kaede meant about the meetup time."}
+    thought_example_no  = {"thought": "no"}
+    expression_example_yes = {"new_expression": "sleepy_tired"}
+    expression_example_no  = {"new_expression": "no"}
     
     r = (rng or _random)
     do_random = r.random() < float(random_thought_prob)
@@ -648,38 +652,50 @@ def build_thought_prompt(
         Task:
         Decide whether you are currently having a distinct, internal thought. 
         If yes, provide that thought. If not, return "no".
+        Determine if the thought alters your current idle expression. If so, provide the appropriate new expression from the list of available expressions. If not, return "no".
 
         Output format (JSON object):
         {{
-        "thought": "no" | "a distinct, internal thought"
+        "thought": "no" | "a distinct, internal thought",
+        "new_expression": "no" | "the new expression being made"
         }}
 
         Guidance:
         - Only return a thought if there is a salient, immediate idea sparked by messages, experiences, or memory.
-        - Keep it brief. Do not provide step-by-step reasoning or analysis.
+        - Keep the thought brief. Do not provide step-by-step reasoning or analysis.
         - Use relaxed, simple language. Avoid revealing private/internal chain-of-thought beyond the single sentence.
-        - If nothing notable is on your mind, return "no".
+        - If nothing notable is on your mind, return "no" for the thought.
         - Avoid repeating previous few thoughts unless sensible.
         - Explicitly use usernames when referring to a user
 
-        Examples (shape only; do not copy verbatim):
-        - {json.dumps(example_yes, ensure_ascii=False)}
-        - {json.dumps(example_no, ensure_ascii=False)}
+        Thought Examples (shape only; do not copy verbatim):
+        - {json.dumps(thought_example_yes, ensure_ascii=False)}
+        - {json.dumps(thought_example_no, ensure_ascii=False)}
+        
+        New Expression Examples (shape only; do not copy verbatim):
+        - {json.dumps(expression_example_yes, ensure_ascii=False)}
+        - {json.dumps(expression_example_no, ensure_ascii=False)}
         """
         
     if do_random:
         body = f"""
             Task:
             Ignore the prior messages/memory in the context; instead, produce a single, self-contained, random thought with the vibe: {thought_vibe}.
+            Determine if the thought alters your current idle expression. If so, provide the appropriate new expression from the list of available expressions. If not, return "no".
 
             Output format (JSON object):
             {{
-              "thought": "a random thought"
+              "thought": "a random thought",
+              "new_expression": "no" | "the new expression being made"
             }}
 
             Guidance:
-            - Make it spontaneous and evocative - an internal aside.
+            - Make the thought spontaneous and evocative - an internal aside.
             - Do NOT include step-by-step reasoning.
+            
+            New Expression Examples (shape only; do not copy verbatim):
+            - {json.dumps(expression_example_yes, ensure_ascii=False)}
+            - {json.dumps(expression_example_no, ensure_ascii=False)}
         """
     
     return textwrap.dedent(header + "\n" + body).strip()
@@ -721,10 +737,12 @@ def build_message_thought_prompt(
         Task:
         Decide whether this interaction has caused a new distinct, internal thought. 
         If yes, provide that thought. If not, return "no".
+        Return "no" for "new_expression".
 
         Output format (JSON object):
         {{
         "thought": "no" | "a distinct, internal thought"
+        "new_expression": "no"
         }}
 
         Guidance:

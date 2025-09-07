@@ -247,6 +247,7 @@ async def grab_self():
             "personality": default_personality,
             "memory_tags": [],
             "emotional_status": default_emotional_status,
+            "global_expression": "neutral_listening",
             "birthdate": now
         })
         self = await agent_collection.find_one({"_id": result.inserted_id})

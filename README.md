@@ -165,6 +165,9 @@ docker run -d --name redis-stack -p 6379:6379 redis/redis-stack:latest
 
 2. Install dependencies and Start the FastAPI server:
 ```bash
+python -m venv venv
+venv\Scripts\activate
+
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```

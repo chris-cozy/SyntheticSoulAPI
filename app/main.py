@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.lifespan import app_lifespan
 from app.core.config import ALLOWED_ORIGINS, API_VERSION
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.routers import all_routers
 
@@ -27,6 +28,8 @@ app.add_middleware(
     allow_headers=["Content-Type","Authorization"],
     expose_headers=[],
 )
+
+app.mount("/static", StaticFiles(directory="app/assets"), name="static")
 
 # Routers
 for r in all_routers:

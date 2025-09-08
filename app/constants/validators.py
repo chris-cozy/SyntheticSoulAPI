@@ -1762,7 +1762,7 @@ CONVERSATION_VALIDATOR = {
         "items": {
 
                 "bsonType": "object",
-                "required": ["message", "purpose", "tone", "timestamp", "sender", "from_agent"],
+                "required": ["message", "purpose", "tone", "timestamp", "sender_id", "sender_username", "from_agent"],
                 "properties": {
                     "message": {
                         "bsonType": "string",
@@ -1802,7 +1802,7 @@ CONVERSATION_VALIDATOR = {
 MESSAGES_VALIDATOR = {
   "$jsonSchema": {
     "bsonType": "object",
-    "required": ["agent", "message", "purpose", "tone", "timestamp", "sender", "from_agent"],
+    "required": ["agent", "message", "purpose", "tone", "timestamp", "sender_id", "sender_username", "from_agent"],
     "properties": {
         "agent": {
             "bsonType": "string",

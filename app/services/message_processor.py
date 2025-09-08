@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from typing import Any
 from datetime import datetime
 from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema
-from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite, get_personality_delta_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
+from app.constants.schemas_lite import get_memory_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
 from app.domain.memory import Memory
 from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
@@ -106,52 +106,13 @@ async def handle_message(
     )
     
     pre_processing_response = await get_structured_response(
-        [{"role": "user", "content": prompt}],
+        [{"role": USER_ROLE, "content": prompt}],
         get_personality_emotion_delta_schema_lite(),
         quality=False
     )
     
-    personality_deltas = pre_processing_response["personality_deltas"]
-    emotion_deltas = pre_processing_response["emotion_deltas"]
-    
-    if personality_deltas and personality_deltas.get("deltas"):
-        # Convert existing DB personality_matrix -> PersonalityMatrix
-        flat = self["personality"].get("personality_matrix", {})
-        mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
-        
-        # Apply
-        new_mat = apply_deltas_personality(
-            mat, PersonalityDelta(**personality_deltas), cap=3.0  # personality changes are slower
-        )
-        
-        # Put back into the persisted shape
-        self["personality"]["personality_matrix"] = {
-            k: new_mat.traits[k].model_dump() if k in new_mat.traits else v
-            for k, v in flat.items()
-        }
-    
-    altered_personality = self["personality"]
-    
-    
-    if emotion_deltas and emotion_deltas.get("deltas"):  # only apply if anything changed
-        current = self["emotional_status"]
-        emo = EmotionalState(
-            emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
-            reason=current.get("reason")
-        )
-        new_state = apply_deltas_emotion(emo, EmotionalDelta(**emotion_deltas), cap=7.0)
-        # persist back in your DB shape
-        self["emotional_status"]["emotions"] = {
-            k: new_state.emotions[k].model_dump() for k in new_state.emotions
-        }
-        if new_state.reason:
-            self["emotional_status"]["reason"] = new_state.reason
-        # save with your existing DB function
-        await update_agent_emotions(self["emotional_status"])
-        
-    current_emotions = self["emotional_status"]
-    
-    await update_agent_emotions(current_emotions)    
+    altered_personality = alter_personality(pre_processing_response["personality_deltas"], self)
+    current_emotions = await alter_emotions(pre_processing_response["emotion_deltas"], self)
     
     timings["initial_pre_processing_deltas"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -377,3 +338,47 @@ async def handle_message(
         print(f"{step}: {duration:.4f}")
     
     return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), expression=selected_expression)
+
+def alter_personality(personality_deltas, self) -> Any:
+    if not personality_deltas and personality_deltas.get("deltas"):
+        print("Personality was not altered. No deltas.")
+        return self["personality"]
+    
+    # Convert existing DB personality_matrix -> PersonalityMatrix
+    flat = self["personality"].get("personality_matrix", {})
+    mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
+    
+    # Apply
+    new_mat = apply_deltas_personality(
+        mat, PersonalityDelta(**personality_deltas), cap=3.0  # personality changes are slower
+    )
+    
+    # Put back into the persisted shape
+    self["personality"]["personality_matrix"] = {
+        k: new_mat.traits[k].model_dump() if k in new_mat.traits else v
+        for k, v in flat.items()
+    }
+    
+    return self["personality"]
+
+async def alter_emotions(emotion_deltas, self) -> Any:
+    if not emotion_deltas and emotion_deltas.get("deltas"):
+        print("Emotions were not altered. No deltas.")
+        return self["emotional_status"]
+    
+    current = self["emotional_status"]
+    emo = EmotionalState(
+        emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
+        reason=current.get("reason")
+    )
+    new_state = apply_deltas_emotion(emo, EmotionalDelta(**emotion_deltas), cap=7.0)
+    # persist back in your DB shape
+    self["emotional_status"]["emotions"] = {
+        k: new_state.emotions[k].model_dump() for k in new_state.emotions
+    }
+    if new_state.reason:
+        self["emotional_status"]["reason"] = new_state.reason
+ 
+    await update_agent_emotions(self["emotional_status"])
+    
+    return self["emotional_status"]

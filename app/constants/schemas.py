@@ -681,36 +681,6 @@ def get_message_perception_schema():
             }
         }
     }
-
-def get_message_schema():
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "message_response",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "description": "The message",
-                        "type": "string"
-                    },
-                    "purpose": {
-                        "description": "Message purpose",
-                        "type": "string"
-                    },
-                    "tone": {
-                        "description": "Message tone",
-                        "type": "string"
-                    },
-                    "expression": {
-                        "description": "The associated expression",
-                        "type": "string"
-                    }
-                },
-                "additionalProperties": False
-            }
-        }
-    }
     
 def get_initiate_messages_schema():
     return {
@@ -799,12 +769,12 @@ def get_extrinsic_relationship_schema():
             }
         }
     }
-
-def get_response_choice_schema():
+    
+def get_response_schema():
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "response_choice_object",
+            "name": "response",
             "schema": {
                 "type": "object",
                 "properties": {
@@ -815,8 +785,31 @@ def get_response_choice_schema():
                     "reason": {
                         "description": "Reason for choice",
                         "type": "string"
+                    },
+                    "response": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "description": "The message",
+                                "type": "string"
+                            },
+                            "purpose": {
+                                "description": "Message purpose",
+                                "type": "string"
+                            },
+                            "tone": {
+                                "description": "Message tone",
+                                "type": "string"
+                            },
+                        },
+                        "additionalProperties": False
+                    },
+                    "expression": {
+                        "description": "The associated expression",
+                        "type": "string"
                     }
                 },
+                "required": ["response_choice", "reason", "response", "expression"],
                 "additionalProperties": False
             }
         }

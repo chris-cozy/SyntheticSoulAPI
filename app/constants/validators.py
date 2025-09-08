@@ -1760,39 +1760,38 @@ CONVERSATION_VALIDATOR = {
         "bsonType": "array",
         "description": "Messages is required and must be an array",
         "items": {
-
-                "bsonType": "object",
-                "required": ["message", "purpose", "tone", "timestamp", "sender_id", "sender_username", "from_agent"],
-                "properties": {
-                    "message": {
-                        "bsonType": "string",
-                        "description": "Message content is required and must be a string"
-                    },
-                    "purpose": {
-                        "bsonType": "string",
-                        "description": "Purpose is required and must be a string"
-                    },
-                    "tone": {
-                        "bsonType": "string",
-                        "description": "Tone is required and must be a string"
-                    },
-                    "timestamp": {
-                        "bsonType": "date",
-                        "description": "Timestamp must be a valid ISO date"
-                    },
-                    "sender_id": {
-                        "bsonType": "string",
-                        "description": "Sender ID is required and must be a string"
-                    },
-                    "sender_username": {
-                        "bsonType": "string",
-                        "description": "Sender username is required and must be a string"
-                    },
-                    "from_agent": {
-                        "bsonType": "bool",
-                        "description": "from_agent is required and must be a boolean"
-                    }
+            "bsonType": "object",
+            "required": ["message", "purpose", "tone", "timestamp", "sender_id", "sender_username", "from_agent"],
+            "properties": {
+                "message": {
+                    "bsonType": "string",
+                    "description": "Message content is required and must be a string"
+                },
+                "purpose": {
+                    "bsonType": "string",
+                    "description": "Purpose is required and must be a string"
+                },
+                "tone": {
+                    "bsonType": "string",
+                    "description": "Tone is required and must be a string"
+                },
+                "timestamp": {
+                    "bsonType": "date",
+                    "description": "Timestamp must be a valid ISO date"
+                },
+                "sender_id": {
+                    "bsonType": "string",
+                    "description": "Sender ID is required and must be a string"
+                },
+                "sender_username": {
+                    "bsonType": "string",
+                    "description": "Sender username is required and must be a string"
+                },
+                "from_agent": {
+                    "bsonType": "bool",
+                    "description": "from_agent is required and must be a boolean"
                 }
+            }
           }
         }
       }

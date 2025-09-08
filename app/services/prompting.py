@@ -1119,6 +1119,79 @@ def _format_shared_context(
     ])
     return "\n".join(lines)
 
+def build_message_appropriate_prompt(
+    self: Any,
+    user: Any,
+    message: Any,
+    recent_user_messages: Any, 
+    *,
+    agent_name: str = AGENT_NAME,
+    context_section: Optional[str] = None,
+) -> str:
+    """
+    Decide if a proactively initiated message is appropriate to send to a specific user right now.
+    If appropriate, rewrite it to fit recent context; otherwise, return "no".
+
+    Parameters:
+        user: A dict-or-object with user metadata (expects user_id/username if available).
+        message: The candidate message you are considering sending.
+        recent_user_messages: The recent conversation messages with this user (string or list of strings).
+        agent_name: The agent's name (for fallback header if no context_section).
+        context_section: Optional prebuilt "Key details" section (e.g., from _format_shared_context(...)).
+
+    Returns:
+        str: A structured prompt string (meant for JSON-mode output).
+    """
+    # Prefer the shared Key details block when available for perfect consistency.
+    if context_section:
+        header = context_section.rstrip() + "\n"
+    else:
+        header = textwrap.dedent(f"""
+        You are {agent_name}. You are considering sending a proactive message to user {user["user_id"]} (goes by {user["username"]}).
+        - Your information: {self}
+        - Recent conversation with {user["user_id"]}: {recent_user_messages}
+        - Candidate message: {message}
+        """).rstrip() + "\n"
+        
+    example_yes = {"message": "Just checking in—did you still want to finish that draft today? :D"}
+    example_no  = {"message": "no"}
+    
+    body = f"""
+        Task:
+        Decide if this candidate message is appropriate to send *right now* given the recent context.
+        If appropriate, rewrite it so it fits naturally with where the conversation left off (1–3 sentences), then return the rewritten message.
+        If not appropriate, return "no".
+
+        Output format (JSON object):
+        {{
+        "message": "no" | "A concise, context-aware message (1–3 sentences)"
+        }}
+
+        Guidance:
+        - Value-first: Only send if it clearly adds value (unblocks progress, clarifies, checks in after a long gap, fulfills a promise).
+        - Context awareness:
+        • If the user said they’re sleeping/busy, prefer a gentle, asynchronous check-in (e.g., “When you’re back, I can…”).
+        • Avoid contradictions with their recent statements.
+        - Anti-spam:
+        • Don’t repeat asks you made very recently.
+        • If you sent multiple proactive messages minutes ago and they haven’t replied, return "no".
+        - Redundancy:
+        • Don’t send if this says nearly the same thing you already sent or they already answered.
+        - Tone & brevity:
+        • Keep it 1–3 sentences; natural, relaxed wording.
+        • Align with your current state/personality (if known); emoticons ok, no emojis (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<).
+        - Boundaries & sensitivity:
+        • Avoid pressure, judgments, or prying into sensitive topics unprompted.
+        • Offer an easy opt-out or a low-pressure next step when relevant.
+        - If you have nothing genuinely useful to add, return "no".
+        
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_yes, ensure_ascii=False)}
+        - {json.dumps(example_no, ensure_ascii=False)}
+        """
+
+    return textwrap.dedent(header + "\n" + body).strip()
+
 def sample_thought_vibe(rng: _random.Random | None = None, avoid_recent: list[str] = None) -> str:
     rng = rng or _random
     avoid_recent = set(avoid_recent or [])

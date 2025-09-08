@@ -5,15 +5,15 @@ import random
 from typing import Any, List
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
+from app.core.config import AGENT_NAME, CONVERSATION_MESSAGE_RETENTION_COUNT, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_initiate_messages_schema, get_thought_schema
-from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
+from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
-from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags
+from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import get_structured_response
-from app.services.prompting import build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_thought_prompt
+from app.services.prompting import build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_message_appropriate_prompt, build_thought_prompt
 from app.services.state_reducer import apply_deltas_emotion
 
 async def generate_thought():
@@ -151,11 +151,32 @@ async def handle_initiating_messages(messages: List[Any]):
         
     for message in messages:
         user = await grab_user(message["user_id"])
+        self = await grab_self()
+        conversation = await get_conversation(message["user_id"])
+        recent_user_messages = conversation["messages"][-5:] if "messages" in conversation else []
         if not user:
             continue
         
+        # Check if message is appropriate to send
+        prompt = {
+            "role": USER_ROLE,
+            "content": (
+                build_message_appropriate_prompt(
+                    self=self,
+                    user=user,
+                    message=message,
+                    recent_user_messages=recent_user_messages,
+                )
+            )
+        }
+        message_response = await get_structured_response(
+            [prompt], get_message_appropriate_schema(), quality=True)
+        
+        if message_response["message"] == "no":
+            continue
+        
         rich_message = {
-                "message": message["message"],
+                "message": message_response["message"],
                 "purpose": message["purpose"],
                 "tone": message["tone"],
                 "timestamp": datetime.now(),
@@ -163,8 +184,6 @@ async def handle_initiating_messages(messages: List[Any]):
                 "sender_username": AGENT_NAME,
                 "from_agent": True
             }
-        
-        print(rich_message)
         
         await insert_message_to_conversation(
             message["user_id"], 

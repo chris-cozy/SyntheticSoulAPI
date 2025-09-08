@@ -711,6 +711,58 @@ def get_message_schema():
             }
         }
     }
+    
+def get_initiate_messages_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "initiate_messages_payload",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "initiate_messages": {
+                        "description": "Messages to proactively send to users (0–3 items).",
+                        "type": "array",
+                        "minItems": 0,
+                        "maxItems": 3,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "user_id": {
+                                    "description": "The user_id of the recipient.",
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "message": {
+                                    "description": "The message to send (1–3 sentences).",
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 500
+                                },
+                                "purpose": {
+                                    "description": "Single clear goal (e.g., provide support, give advice, share info, make a joke, be sarcastic, share a story/opinion).",
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                },
+                                "tone": {
+                                    "description": "One clear tone (e.g., empathetic, playful, professional, assertive, dry, etc.).",
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 60
+                                }
+                            },
+                            "required": ["user_id", "message", "purpose", "tone"]
+                        }
+                    }
+                },
+                "required": ["initiate_messages"]
+            }
+        }
+    }
 
 def get_summary_schema():
     return {

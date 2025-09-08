@@ -8,70 +8,6 @@ from app.constants.constants import PERSONALITY_LANGUAGE_GUIDE, THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
 from app.services.expressions import get_available_expressions
 
-def build_emotion_delta_prompt(
-    user: Any,
-    agent: Any,
-    recent_user_messages: str, 
-    recent_all_messages: str, 
-    received_date: str, 
-    user_message: str, 
-    latest_thought: str,
-    typical_cap: int = 7
-) -> str:
-    """
-    Generate a structured prompt for modeling the agent's emotional response.
-
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        altered_personality (str): The agent's current personality traits.
-        emotional_status (str): The agent's current emotional state.
-        user_name (str): The user's name.
-        user_summary (str): Information the agent knows about the user.
-        intrinsic_relationship (str): The intrinsic relationship between the agent and the user.
-        extrinsic_relationship (str): The extrinsic relationship between the agent and the user.
-        recent_messages (str): The recent conversation messages.
-        recent_all_messages (str): The past ten remembered messages overall.
-        received_date (str): The date of the interaction.
-        user_message (str): The latest message sent by the user.
-        min_sentiment_value (int): The minimum sentiment value scale.
-        max_sentiment_value (int): The maximum sentiment value scale.
-
-    Returns:
-        str: A clean, dynamic prompt string.
-    """
-    header = _format_shared_context(
-        agent=agent,
-        user=user,
-        recent_messages=recent_user_messages,
-        recent_all_messages=recent_all_messages,
-        received_date=received_date,
-        user_message=user_message,
-        latest_thought=latest_thought,
-    )
-    
-    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
-    
-    body = f"""
-        Task:
-        Propose small **deltas** to the current emotional state in response to the latest message.
-
-        Output format (JSON):
-        {{
-            "deltas": {{ "<emotion>": number, ... }},  // only include keys that should change
-            "reason": "brief natural explanation",
-            "confidence": 0.0 - 1.0
-        }}
-
-        Guidance:
-        - Possible emotion keys: {emotion_keys}. Use only these keys.
-        - Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major events.
-        - Stay consistent with current values; avoid abrupt reversals without cause.
-        - Do not output absolute values; output **deltas** only.
-        - If nothing should change, return an empty "deltas" object.
-        - Focus on speed
-        """
-    return textwrap.dedent(header + body)
-
 def build_emotion_delta_prompt_thinking(
     agent: Any, 
     latest_thought: str,
@@ -117,7 +53,7 @@ def build_emotion_delta_prompt_thinking(
         """
     return textwrap.dedent(body)
 
-def build_personality_delta_prompt(
+def build_personality_emotional_delta_prompt(
     agent: Any,
     user: Any,
     recent_messages: str = "[]",
@@ -125,7 +61,9 @@ def build_personality_delta_prompt(
     received_date: str = "",
     user_message: str = "",
     latest_thought: str = "",
-    typical_cap: int = 3
+    *,
+    typical_personality_cap: int = 3,
+    typical_emotion_cap: int = 7
 ) -> str:
     """
     Ask the model for *deltas* to the personality matrix (not absolute values).
@@ -143,23 +81,44 @@ def build_personality_delta_prompt(
     )
 
     personality_keys = list(agent["personality"]["personality_matrix"].keys())
+    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
+    
     body = f"""
     Task:
     Propose small **deltas** to the current personality matrix in response to the latest interaction and overall context.
+    Then, propose small **deltas** to the current emotional state in response to the latest message.
 
     Output format (JSON):
     {{
-      "deltas": {{ "<trait>": number, ... }},   // only include keys that should change
-      "reason": "brief natural explanation",
-      "confidence": 0.0 - 1.0
+        "personality_deltas": 
+        {{
+            "deltas": {{ "<trait>": number, ... }},   // only include keys that should change
+            "reason": "brief natural explanation",
+            "confidence": 0.0 - 1.0
+        }}
+        "emotion_deltas": 
+        {{
+            "deltas": {{ "<emotion>": number, ... }},  // only include keys that should change
+            "reason": "brief natural explanation",
+            "confidence": 0.0 - 1.0
+        }}
     }}
+    
 
-    Guidance:
-    - Possible personality keys: {personality_keys}. Use only these keys.
-    - Personality evolves slowly. Prefer small steps (typical in [-{typical_cap}, +{typical_cap}]); only exceed that for major, sustained changes.
-    - Do **not** output absolute values—only **deltas** to apply to current values.
-    - If nothing should change, return an empty "deltas" object.
-    - Keep changes coherent with existing values and the relationship with {user["user_id"]}.
+    Guidance for personality:
+        - Possible personality keys: {personality_keys}. Use only these keys.
+        - Personality evolves slowly. Prefer small steps (typical in [-{typical_personality_cap}, +{typical_personality_cap}]); only exceed that for major, sustained changes.
+        - Do **not** output absolute values—only **deltas** to apply to current values.
+        - If nothing should change, return an empty "deltas" object.
+        - Keep changes coherent with existing values and the relationship with {user["user_id"]}.
+    
+    Guidance for emotions:
+        - Possible emotion keys: {emotion_keys}. Use only these keys.
+        - Prefer small steps (typical in [-{typical_emotion_cap}, +{typical_emotion_cap}]); only exceed that for major events.
+        - Stay consistent with current values; avoid abrupt reversals without cause.
+        - Do not output absolute values; output **deltas** only.
+        - If nothing should change, return an empty "deltas" object.
+        - Focus on speed
     """
     return textwrap.dedent(header + body)
 

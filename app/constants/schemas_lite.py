@@ -386,23 +386,39 @@ def get_emotion_delta_schema_lite():
             }
         }
     }
-
-def get_personality_delta_schema_lite():
+    
+def get_personality_emotion_delta_schema_lite():
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "personality_delta",
+            "name": "personality_emotion_delta",
             "schema": {
                 "type": "object",
                 "properties": {
-                    "deltas": {
+                    "personality_deltas": {
                         "type": "object",
-                        "additionalProperties": { "type": "number", "minimum": -7, "maximum": 7 }
+                        "properties": {
+                            "deltas": {
+                                "type": "object",
+                                "additionalProperties": { "type": "number", "minimum": -7, "maximum": 7 }
+                            },
+                            "reason": { "type": "string" },
+                            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                        },
                     },
-                    "reason": { "type": "string" },
-                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                    "emotion_deltas": {
+                        "type": "object",
+                        "properties": {
+                            "deltas": {
+                                "type": "object",
+                                "additionalProperties": { "type": "number", "minimum": -15, "maximum": 15 }
+                            },
+                            "reason": { "type": "string" },
+                            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                        }
+                    }
                 },
-                "required": ["deltas"]
+                "required": ["personality_deltas", "emotional_deltas"]
             }
         }
     }

@@ -69,7 +69,7 @@ async def generate_thought():
     
     thought_queries.append({"role": BOT_ROLE, "content": json.dumps(initiate_messages)})
     
-    await handle_initiating_messages(initiate_messages)
+    await handle_initiating_messages(initiate_messages["initiate_messages"])
     
     
     # ---- 2) Thought Emotional Reaction -------------------------------------------

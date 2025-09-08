@@ -490,3 +490,21 @@ def get_memory_schema_lite():
             }
         }
     }
+    
+def get_message_appropriate_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "message_appropriate",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "description": "Either no or a concise, context-aware message (1–3 sentences)",
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": False
+            }
+        }
+    }

@@ -60,7 +60,7 @@ async def _ensure_indexes(db):
     await db[AUTH_COLLECTION].create_index("_id", name="user_id")
     
     await db[USER_COLLECTION].create_index([("user_id", 1), ("agent_perspective", 1)],unique=True,name="user_id_agent_perspective")
-    await db[USER_COLLECTION].create_index([("username", 1), ("agent_perspective", 1)],unique=True,name="user_id_agent_perspective")
+    await db[USER_COLLECTION].create_index([("username", 1), ("agent_perspective", 1)],unique=True,name="username_agent_perspective")
     
     await db[CONVERSATION_COLLECTION].create_index(
         [("user_id", 1), ("agent_name", 1)],

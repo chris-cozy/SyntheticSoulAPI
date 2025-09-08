@@ -223,7 +223,7 @@ def build_message_perception_prompt(
     recent_all_messages: str, 
     user_message: str, 
     received_date: str,
-    previous_thoughts: Any,
+    latest_thoughts: Any,
 ) -> str:
     """
     Generate a structured prompt for analyzing the purpose and tone of a user's message
@@ -252,16 +252,13 @@ def build_message_perception_prompt(
         recent_all_messages=recent_all_messages,
         received_date=received_date,
         user_message=user_message,
-        latest_thought=None,  # not needed for this prompt
+        latest_thought=latest_thoughts,  # not needed for this prompt
     )
     
     # Safely echo the message inside the JSON example (handles quotes/newlines)
     safe_message = json.dumps(user_message)
-    safe_prev_thoughts  = json.dumps(previous_thoughts, ensure_ascii=False)
     
-    body = f"""
-        - Previous thoughts: {safe_prev_thoughts}
-        
+    body = f"""        
         Task:
         Interpret the purpose and tone of the latest message from {user["user_id"]}.
         Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
@@ -1025,7 +1022,7 @@ def _format_shared_context(
         
     ]
     if latest_thought:
-        lines.append(f"- Latest thought: {latest_thought}")
+        lines.append(f"- Latest thoughts: {latest_thought}")
     lines.extend([
         f"- Recent conversation with {user["user_id"]}: {recent_messages}",
         f"- Broader recent messages: {recent_all_messages}",

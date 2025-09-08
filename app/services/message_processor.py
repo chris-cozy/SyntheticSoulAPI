@@ -206,7 +206,7 @@ async def handle_message(
         }
     
     await insert_message_to_conversation(
-        username, 
+        user_id, 
         rich_message
     )
     
@@ -280,7 +280,7 @@ async def handle_message(
             }
         
         await insert_message_to_conversation(
-            username, 
+            user_id, 
             rich_message
         )
         

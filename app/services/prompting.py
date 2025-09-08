@@ -291,81 +291,7 @@ def build_message_perception_prompt(
         """
     return textwrap.dedent(header + body)
 
-def build_response_choice_prompt( 
-    user_id: str,
-    username: str,
-    *,
-    agent_name: str = AGENT_NAME,
-    implicit: bool = True,
-    context_section: Optional[str] = None
-) -> str:
-    """
-    Generate a prompt to decide whether the agent should respond to or ignore a message.
-
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        user_name (str): The name of the user.
-        implicit (bool): If True, the message context is ambiguous/implicit.
-                         If False, the message was not addressed to the agent and there is no obligation to reply.
-        context_section (Optional[str]): Optional prebuilt "Key details" section produced by
-                                         `_format_shared_context(...)` for consistency with other prompts.
-
-    Returns:
-        str: A clean, dynamic prompt string.
-    """
-    # If a shared context block was provided, use it. Otherwise provide a minimal header.
-    header = context_section or textwrap.dedent(f"""
-    You are {agent_name}. Below are the key details of your current state and context:
-
-    - Latest user referenced: {user_id} (goes by {username})
-    - Names that begin with 'guest_' and have a unique id appended are anonymous users.
-    """)
-    
-    # Branch-specific bullets
-    if implicit:
-        scenario = f"- {agent_name} must decide whether to respond to or ignore the new message from {user_id}"
-        etiquette = None
-    else:
-        scenario = f"- {agent_name} must decide whether to respond to a message from {user_id}"
-        etiquette = (
-            "- If the message was not directed to you there is no obligation to respond\n"
-            "- Responding to messages not addressed to you can be rude unless there is a good reason"
-        )
-        
-    bullets = [scenario]
-    if etiquette:
-        bullets.append(etiquette)
-        
-    # JSON schema (kept tiny; your JSON mode will enforce structure)
-    example_respond = {"response_choice": "respond", "reason": f"Even though it wasn't addressed to {agent_name}, {user_id}'s comment warranted a brief clarification."}
-    example_ignore  = {"response_choice": "ignore",  "reason": "It was not addressed to the agent and engaging would be intrusive."}
-    
-    body = f"""
-        Key details (decision-specific):
-        - {'\n- '.join(bullets)}
-
-        Task:
-        Decide whether to respond or ignore. Consider {agent_name}'s emotional state, personality traits, relationship/perception of {user_id}, and recent interactions.
-
-        Output format (JSON object):
-        {{
-        "response_choice": "respond" | "ignore",
-        "reason": "1–2 sentence justification grounded in context"
-        }}
-
-        Guidance:
-        - Prefer responding only when it adds value, prevents harm/misinformation, or strengthens rapport.
-        - If the message wasn’t addressed to you, weigh etiquette and boundaries.
-        - Keep the justification concise and avoid revealing private/internal chain-of-thought.
-
-        Examples (for shape only; do not copy):
-        - {json.dumps(example_respond)}
-        - {json.dumps(example_ignore)}
-        """
-        
-    return textwrap.dedent(header + "\n" + body).strip()
-
-def build_response_analysis_prompt(
+def build_response_prompt( 
     user_id: str,
     username: str,
     personality: str, 
@@ -378,75 +304,109 @@ def build_response_analysis_prompt(
     expressions: List[str],
     *,
     agent_name: str = AGENT_NAME,
-    context_section: Optional[str] = None,
+    implicit: bool = True,
+    context_section: Optional[str] = None
 ) -> str:
     """
-    Generate a structured prompt for composing the agent's reply, aligned to personality,
-    current emotions, and intended purpose/tone.
-    
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        altered_personality (str): The agent's current personality traits.
-        current_emotions (str): The agent's current emotional state.
-        personality_language_guide (str): A guide for aligning responses to personality traits.
-        latest_thought (str): The agent's most recent thought.
-        user_name (str): The user's name (for threading context).
-        recent_messages (str): Recent back-and-forth with the user.
-        recent_all_messages (str): Broader set of recent messages the agent has seen.
-        memory (str): Current memory items relevant to the conversation.
-        context_section (Optional[str]): Optional prebuilt "Key details" section produced by
-                                         `_format_shared_context(...)`.
-
-    Returns:
-        str: A clean, dynamic prompt string.
+    Decide whether to respond or ignore the latest user message. If responding, compose a reply
+    aligned with personality, current emotions, and purpose/tone, and pick exactly one expression
+    from the allowed list.
     """
-    # Prefer the shared Key details block when available for perfect consistency.
-    if context_section:
-        header = context_section.rstrip() + "\n"
-    else:
-        header = textwrap.dedent(f"""
-        You are {agent_name}. Below are the key details of your current state and context:
-
-        - Personality traits: {personality}
-        - Current emotional state: {current_emotions}
-        - Latest thought: {latest_thought}
-        - Recent conversation with {user_id} (goes by {username}): {recent_messages}
-        - Broader recent messages: {recent_all_messages}
-        - Current memory items: {memory}
-        - Personality language guide: {personality_language_guide}
-        - Possible expressions: {expressions}
-        """).rstrip() + "\n"
+    allowed_expressions = list(dict.fromkeys(expressions))  # de-dupe, preserve order
+    expressions_json = json.dumps(allowed_expressions, ensure_ascii=False)
     
-    body = """
+    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""
+    You are {agent_name}. Below are the key details of your current state and context:
+
+    - Latest user referenced: {user_id} (goes by {username})
+    - Names that begin with 'guest_' and have a unique id appended are anonymous users.
+    - Personality traits: {personality}
+    - Current emotional state: {current_emotions}
+    - Latest thought(s): {latest_thought}
+    - Recent conversation with {user_id}: {recent_messages}
+    - Broader recent messages: {recent_all_messages}
+    - Current memory items: {memory}
+    - Personality language guide: {personality_language_guide}
+    - Allowed expressions (only choose exactly one): {expressions_json}
+    """)
+    
+    # Decision bullets (implicit vs explicit)
+    if implicit:
+        scenario = f"- Decide whether to respond to or ignore the new message from {user_id}"
+        etiquette = None
+    else:
+        scenario = f"- Decide whether to respond to a message from {user_id}"
+        etiquette = (
+            "- If the message was not directed to you there is no obligation to respond\n"
+            "- Responding to messages not addressed to you can be rude unless there is a good reason"
+        )
+        
+    bullets = [scenario] + ([etiquette] if etiquette else [])
+        
+    # Example objects (shape only)
+    example_expression = allowed_expressions[0] if allowed_expressions else "neutral"
+    example_respond = {
+        "response_choice": "respond", 
+        "reason": f"Clarifying briefly adds value without derailing the thread with {user_id}",
+        "response": {
+            "message": "I just wanted to let you know that I'm here for you",
+            "purpose": "To comfort, and reassure that I'm there for them",
+            "tone": "Warm, Affectionate",
+        },
+        "expression": example_expression,
+    }
+    example_ignore  = {
+        "response_choice": "ignore",  
+        "reason": "They were rude and disrespectful, I don't like that",
+        "response": {}
+    }
+    
+    body = f"""
+        Key details (decision-specific):
+        - {'\n- '.join(bullets)}
+
         Task:
-        Compose your reply to the latest user message. Do not default to asking questions—only ask if it truly fits the context and goal.
+        Decide whether to respond or ignore the latest user message. Consider your emotional state, personality traits, your relationship/perception of {user_id}, and recent interactions.
+        If responding, compose a brief reply (1–3 sentences). Do not default to asking questions—ask only if it truly fits the context and goal.
 
         Output format (JSON object):
-        {
-            "message": "The response message content",
-            "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
-            "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
-            "expression": "Selection from the list of possible expressions, that best fits this moment (e.g., happy, sad, curious, etc.)"
-        }
+        {{
+        "response_choice": "respond" | "ignore",
+        "reason": "1–2 sentence justification grounded in context",
+        "expression": "Selection from the list of possible expressions, that best fits this moment (e.g., happy, sad, curious, etc.)",
+        "response": 
+            {{
+                "message": "The response message content",
+                "purpose": "The main goal (e.g., provide support, give advice, share information, make a joke, be sarcastic, share an opinion/story, etc.)",
+                "tone": "Overall tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
+            }} | {{}}
+        }}
 
-        Guidance:
-        - The tone must reflect your current emotional state; the purpose should reflect your conversational goal.
+        Guidance for deciding whether to respond:
+        - Prefer responding only when it adds value, prevents harm/misinformation, or strengthens rapport.
+        - If the message wasn’t addressed to you, weigh etiquette and boundaries.
+        - Keep the justification concise and avoid revealing private/internal chain-of-thought.
+        
+        Guidance for composing a response:
+        - Align tone with your current emotional state; align purpose with your conversational goal.
         - The expression must reflect your emotional state and response.
         - Keep language relaxed and simple; avoid overly structured phrasing.
-        - Align word choice and phrasing with the personality language guide.
+        - Follow the personality language guide.
         - Do not reveal private/internal chain-of-thought.
-        - Prefer brevity (a few sentences) unless context requires more.
+        - Prefer brevity (1–3 sentences) unless context clearly requires more.
         - Use emoticons (not emojis), (e.g., ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<, etc)
         
-        Variation & realism rules:
-        - Avoid repeating the exact same stylistic pattern or punctuation from recent turns (e.g., don’t always start with the same phrase like "Perfect --" or always end with the same emoticon).
-        - Emoticons should vary naturally across turns; reuse only when it genuinely fits, not as a habit.
-        - Personality can come through tone, word choice, and cadence—don’t rely on a single gimmick.
-        - If you notice yourself echoing the user’s style or your own recent style, vary it slightly to keep it feeling spontaneous.
-        - When in doubt, change up your sentence openings and closings from the last few turns.
-        - Avoid using exact styles from your previous messages unless purposeful.
-        """
+        Variation & realism rules for composing a response:
+        - Avoid repeating the same stylistic patterns or punctuation from recent turns.
+        - Vary emoticons naturally; reuse only when it genuinely fits.
+        - Let personality show via tone, word choice, and cadence—not a single gimmick.
+        - If you notice you're echoing the user's or your own recent style, vary it slightly.
 
+        Examples (for shape only; do not copy verbatim):
+        - {json.dumps(example_respond, ensure_ascii=False)}
+        - {json.dumps(example_ignore, ensure_ascii=False)}
+        """
+        
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_final_emotional_response_prompt(

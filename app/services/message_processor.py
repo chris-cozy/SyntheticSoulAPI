@@ -4,7 +4,7 @@ import json
 from fastapi import HTTPException
 from typing import Any
 from datetime import datetime
-from app.constants.schemas import get_message_perception_schema, get_message_schema, get_response_choice_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema
+from app.constants.schemas import get_message_perception_schema, get_message_schema, get_response_choice_schema, get_response_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite, get_personality_delta_schema_lite, get_sentiment_delta_schema_lite
 from app.domain.memory import Memory
 from app.domain.models import InternalMessageRequest, MessageResponse
@@ -15,7 +15,7 @@ from app.services.openai import get_structured_response
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
-from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_sentiment_delta_prompt
+from app.services.prompting import build_emotion_delta_prompt, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_delta_prompt, build_post_response_processing_prompt, build_response_analysis_prompt, build_response_choice_prompt, build_response_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
 
@@ -187,9 +187,6 @@ async def handle_message(
     
     message_analysis = await get_structured_response(message_queries, get_message_perception_schema(), quality=False)
     
-    timings["message_analysis"] = time.perf_counter() - step_start
-    step_start = time.perf_counter()
-    
     message_queries.append({
         "role": BOT_ROLE,
         "content": json.dumps(message_analysis)
@@ -219,60 +216,46 @@ async def handle_message(
             "timestamp": datetime.now()
         } 
     )
-
-    # ---- 3) Decide If Respond -------------------------------------------
+    
+    timings["message_analysis"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()
+    
+    # ---- 3) Response -------------------------------------------
+    memory = []
+    
     message_queries.append({
         "role": "user",
         "content": (
-            build_response_choice_prompt(user_id, username, implicit=implicitly_addressed)
+            build_response_prompt(
+                user_id=user_id,
+                username=username,
+                personality=altered_personality, 
+                current_emotions=current_emotions, 
+                personality_language_guide=PERSONALITY_LANGUAGE_GUIDE, 
+                latest_thought=latest_thoughts, 
+                recent_messages=recent_user_messages, 
+                recent_all_messages=recent_all_messages, 
+                memory=memory, 
+                expressions=get_available_expressions(),
+                implicit=implicitly_addressed)
         ),
     })
-
-    response_choice = await get_structured_response(message_queries, get_response_choice_schema(), False)
     
-    timings["response_choice"] = time.perf_counter() - step_start
-    step_start = time.perf_counter()
+    response = await get_structured_response(message_queries, get_response_schema())
     
     message_queries.append({
         "role": BOT_ROLE,
-        "content": json.dumps(response_choice)
-        })
+        "content": json.dumps(response)
+    })
     
-    # ---- 4) Respond -------------------------------------------
-    if response_choice["response_choice"] == RESPOND_CHOICE:
-        memory = []
-
-        message_queries.append({
-            "role": USER_ROLE,
-            "content": (
-                build_response_analysis_prompt(
-                    user_id=user_id,
-                    username=username,
-                    personality=altered_personality, 
-                    current_emotions=current_emotions, 
-                    personality_language_guide=PERSONALITY_LANGUAGE_GUIDE, 
-                    latest_thought=latest_thoughts, 
-                    recent_messages=recent_user_messages, 
-                    recent_all_messages=recent_all_messages, 
-                    memory=memory, 
-                    expressions=get_available_expressions()
-                )
-            ),
-        })
-        response_content = await get_structured_response(message_queries, get_message_schema())
-        
-        message_queries.append({
-        "role": BOT_ROLE,
-        "content": json.dumps(response_content)
-        })
-        
-        agent_response_message = response_content['message']
-        selected_expression = response_content['expression']
-        
+    selected_expression = response["response"]['expression']
+    
+    if response["response_choice"] == RESPOND_CHOICE:
+        agent_response_message = response["response"]['message']
         rich_message = {
-                "message": response_content["message"],
-                "purpose": response_content["purpose"],
-                "tone": response_content["tone"],
+                "message": response["response"]["message"],
+                "purpose": response["response"]["purpose"],
+                "tone": response["response"]["tone"],
                 "timestamp": datetime.now(),
                 "sender_id": AGENT_NAME,
                 "sender_username": AGENT_NAME,
@@ -286,17 +269,14 @@ async def handle_message(
         
         await insert_message_to_message_memory(rich_message)
         # Could add emotional another delta
-        
-    elif response_choice["response_choice"] == IGNORE_CHOICE:
-        response_content = None
+    else:
         agent_response_message = None
-        selected_expression = 'neutral'
         # Could add emotional another delta
-        
+
     timings["response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
-    
-    # ---- 5) Sentiment reflection -------------------------------------------
+        
+    # ---- 4) Sentiment reflection -------------------------------------------
     message_queries.append({
                 "role": USER_ROLE,
                 "content": (
@@ -351,7 +331,7 @@ async def handle_message(
     timings["post_response_processing"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
     
-    # ---- 7) Create memory ----------------------------------------------
+    # ---- 5) Create memory ----------------------------------------------
     message_queries.append({
             "role": USER_ROLE, 
             "content": build_memory_prompt(self['memory_tags'])
@@ -377,7 +357,7 @@ async def handle_message(
         
     message_queries.append({"role": BOT_ROLE, "content": json.dumps(memory_response)})
         
-    # ---- 8) Update thought ----------------------------------------------
+    # ---- 6) Update thought ----------------------------------------------
     previous_thought = await get_thoughts(1)
     
     thought_prompt = {
@@ -401,7 +381,7 @@ async def handle_message(
         } 
     )
            
-    # ---- 9) Return response ----------------------------------------------
+    # ---- 7) Return response ----------------------------------------------
    
     timings["total_message_handling"] = time.perf_counter() - start
     

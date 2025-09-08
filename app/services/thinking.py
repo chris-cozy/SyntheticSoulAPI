@@ -1,13 +1,11 @@
 import asyncio
 from datetime import datetime
 import json
-import random
 from typing import Any, List
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
 from app.core.config import AGENT_NAME, CONVERSATION_MESSAGE_RETENTION_COUNT, MESSAGE_HISTORY_COUNT, THINKING_RATE
-from app.constants.schemas import get_initiate_messages_schema, get_thought_schema
-from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
+from app.constants.schemas import get_initiate_messages_schema, get_thought_schema, get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags

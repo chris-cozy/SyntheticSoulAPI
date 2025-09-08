@@ -4,8 +4,7 @@ import json
 from fastapi import HTTPException
 from typing import Any
 from datetime import datetime
-from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema
-from app.constants.schemas_lite import get_memory_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
+from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema, get_memory_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
 from app.domain.memory import Memory
 from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix

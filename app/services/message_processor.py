@@ -168,6 +168,7 @@ async def handle_message(
     
     timings["initial_emotion_delta"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
+    previous_thoughts = get_thoughts(2)
     
     # ---- 2) Message Perception -------------------------------------------
     message_queries = [SYSTEM_MESSAGE, {
@@ -179,7 +180,8 @@ async def handle_message(
                 recent_messages=recent_user_messages, 
                 recent_all_messages=recent_all_messages, 
                 user_message=request.message, 
-                received_date=received_date
+                received_date=received_date,
+                previous_thoughts=previous_thoughts
             )
         ),
     }]
@@ -209,6 +211,14 @@ async def handle_message(
     )
     
     await insert_message_to_message_memory(rich_message)
+    
+    if message_analysis["thought"] != "no":
+        await add_thought(
+        {
+            "thought": message_analysis["thought"],
+            "timestamp": datetime.now()
+        } 
+    )
 
     # ---- 3) Decide If Respond -------------------------------------------
     message_queries.append({

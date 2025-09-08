@@ -223,6 +223,7 @@ def build_message_perception_prompt(
     recent_all_messages: str, 
     user_message: str, 
     received_date: str,
+    previous_thoughts: Any,
 ) -> str:
     """
     Generate a structured prompt for analyzing the purpose and tone of a user's message
@@ -256,18 +257,33 @@ def build_message_perception_prompt(
     
     # Safely echo the message inside the JSON example (handles quotes/newlines)
     safe_message = json.dumps(user_message)
+    safe_prev_thoughts  = json.dumps(previous_thoughts, ensure_ascii=False)
     
     body = f"""
+        - Previous thoughts: {safe_prev_thoughts}
+        
         Task:
         Interpret the purpose and tone of the latest message from {user["user_id"]}.
         Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
+        Also decide whether this message—considering your previous thoughts—has fulfilled or overridden a prior directive. If yes, return a new thought that reflects the updated state; if not, return "no".
 
         Output format (JSON object):
         {{
         "message": {safe_message},
         "purpose": "Brief description of the perceived purpose",
         "tone": "Brief description of the perceived tone"
+        "thought": "no" | "New thought satisfying the directive"
         }}
+        
+        Example of a message fullfilling a directive (for reasoning only, do not copy):
+        - Previous thought: "I should send Kayla an example of how to write a haiku to help":
+        - New message: "Thank you for sending that haiku example, it helped alot" (Directive of sending haiku example satisfied)
+        - New thought: "My haiku example really helped Kayla, I'm glad that it did"
+        
+        Example of a message overriding/cancelling a directive (for reasoning only, do not copy):
+        - Previous thought: "I should send Kayla an example of how to write a haiku to help":
+        - New message: "I don't need that haiku example anymore, thank you though" (Directive of sending haiku example cancelled)
+        - New thought: "Kayla doesn't need my haiku example anymore, maybe she learned how to do it herself"
 
         Guidance:
         - Word choice, context, and current emotions may influence interpretation.

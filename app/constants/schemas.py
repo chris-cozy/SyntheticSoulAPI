@@ -672,6 +672,10 @@ def get_message_perception_schema():
                         "description": "Message tone",
                         "type": "string"
                     },
+                    "thought": {
+                        "description": "New thought",
+                        "type": "string"
+                    },
                 },
                 "additionalProperties": False
             }

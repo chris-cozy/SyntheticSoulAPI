@@ -131,13 +131,14 @@ Configuration is managed via environment variables (`.env`).
 - `MONGO_CONNECTION`, `DATABASE_NAME` – MongoDB connection.
 - `REDIS_URL` or `REDIS_TLS_URL` – Redis connection string.
 - `WEB_UI_DOMAIN` – Allowed frontend domain.
-- `JWT_SECRET`=your-long-random-secret # e.g., `openssl rand -base64 64`
-- `PASSWORD_PEPPER`=your-random-pepper # e.g., `openssl rand -base64 32`
+- `JWT_SECRET_ENV`=your-long-random-secret # e.g., `openssl rand -base64 64`
+- `ARGON2_PEPPER_ENV`=your-random-pepper # e.g., `openssl rand -base64 32`
 - `JWT_AUD`=synthetic-soul # audience claim
 - `JWT_ISS`=synthetic-soul-api # issuer claim
 - `ACCESS_TOKEN_TTL`=900 # seconds (15 minutes typical)
 - `REFRESH_TOKEN_TTL`=604800 # seconds (7 days typical)
 
+- To create a secret to use for JWT and/or ARGON: `python -c "import secrets; print(secrets.token_urlsafe(64))"` 
 
 ### Rates & Retention
 - Emotional Decay: every 240s.

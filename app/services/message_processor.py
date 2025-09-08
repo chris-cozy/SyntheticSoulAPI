@@ -211,6 +211,14 @@ async def handle_message(
     )
     
     await insert_message_to_message_memory(rich_message)
+    
+    if message_analysis["thought"] != "no":
+        await add_thought(
+        {
+            "thought": message_analysis["thought"],
+            "timestamp": datetime.now()
+        } 
+    )
 
     # ---- 3) Decide If Respond -------------------------------------------
     message_queries.append({

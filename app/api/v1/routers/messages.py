@@ -57,7 +57,7 @@ async def get_user_conversation(ident = Depends(identity)):
         await ensure_user_and_profile(user_id, username)
         
     try:
-        doc = await get_conversation(username)
+        doc = await get_conversation(user_id)
         if not doc:
             raise HTTPException(status_code=404, detail="Conversation not found")
         

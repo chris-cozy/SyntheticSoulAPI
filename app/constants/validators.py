@@ -1780,9 +1780,13 @@ CONVERSATION_VALIDATOR = {
                         "bsonType": "date",
                         "description": "Timestamp must be a valid ISO date"
                     },
-                    "sender": {
+                    "sender_id": {
                         "bsonType": "string",
-                        "description": "Sender is required and must be a string"
+                        "description": "Sender ID is required and must be a string"
+                    },
+                    "sender_username": {
+                        "bsonType": "string",
+                        "description": "Sender username is required and must be a string"
                     },
                     "from_agent": {
                         "bsonType": "bool",
@@ -1820,9 +1824,13 @@ MESSAGES_VALIDATOR = {
             "bsonType": "date",
             "description": "Timestamp must be a valid ISO date"
         },
-        "sender": {
+        "sender_id": {
             "bsonType": "string",
-            "description": "Sender is required and must be a string"
+            "description": "Sender ID is required and must be a string"
+        },
+        "sender_username": {
+            "bsonType": "string",
+            "description": "Sender username is required and must be a string"
         },
         "from_agent": {
             "bsonType": "bool",

@@ -200,7 +200,8 @@ async def handle_message(
             "purpose": message_analysis["purpose"],
             "tone": message_analysis["tone"],
             "timestamp": received_date,
-            "sender": user_id,
+            "sender_id": user_id,
+            "sender_username": username,
             "from_agent": False
         }
     
@@ -273,7 +274,8 @@ async def handle_message(
                 "purpose": response_content["purpose"],
                 "tone": response_content["tone"],
                 "timestamp": datetime.now(),
-                "sender": AGENT_NAME,
+                "sender_id": AGENT_NAME,
+                "sender_username": AGENT_NAME,
                 "from_agent": True
             }
         

@@ -5,14 +5,14 @@ import random
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
-from app.constants.schemas import get_thought_schema
+from app.constants.schemas import get_initiate_messages_schema, get_thought_schema
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, update_agent_emotions, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import get_structured_response
-from app.services.prompting import build_emotion_delta_prompt_thinking, build_memory_prompt, build_thought_prompt
+from app.services.prompting import build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_thought_prompt
 from app.services.state_reducer import apply_deltas_emotion
 
 async def generate_thought():
@@ -52,10 +52,22 @@ async def generate_thought():
         } 
     )
     
-    if current_thought["new_expression"] == "no":
-        return
+    if current_thought["new_expression"] != "no":
+        await update_agent_expression(current_thought["new_expression"])
+        
+    # ---- 1.5) Initiate Message -------------------------------------------
+    message_prompt = {
+        "role": USER_ROLE,
+        "content": (
+            build_initiate_message_prompt()
+        )
+    }
+    thought_queries.append(message_prompt)
     
-    await update_agent_expression(current_thought["new_expression"])
+    initiate_messages = await get_structured_response(thought_queries, get_initiate_messages_schema())
+    
+    thought_queries.append({"role": BOT_ROLE, "content": json.dumps(initiate_messages)})
+    
     
     # ---- 2) Thought Emotional Reaction -------------------------------------------
     prompt = {

@@ -4,7 +4,7 @@ import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
 import random as _random
 
-from app.constants.constants import THOUGHT_VIBES
+from app.constants.constants import PERSONALITY_LANGUAGE_GUIDE, THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
 from app.services.expressions import get_available_expressions
 
@@ -711,6 +711,93 @@ def build_thought_prompt(
             - {json.dumps(expression_example_no, ensure_ascii=False)}
         """
     
+    return textwrap.dedent(header + "\n" + body).strip()
+
+def build_initiate_message_prompt(
+    *,
+    personality_language_guide: str = PERSONALITY_LANGUAGE_GUIDE, 
+    agent_name: str = AGENT_NAME,
+    context_section: Optional[str] = None,
+) -> str:
+    """
+    Generate a structured prompt for composing the agent's reply, aligned to personality,
+    current emotions, and intended purpose/tone.
+        
+    Returns:
+        str: A clean, dynamic prompt string.
+    """
+    # Prefer the shared Key details block when available for perfect consistency.
+    if context_section:
+        header = context_section.rstrip() + "\n"
+    else:
+        header = textwrap.dedent(f"""
+        You are {agent_name}.
+        - Personality language guide: {personality_language_guide}
+        """).rstrip() + "\n"
+        
+    example_output_a = {
+        "initiate_messages": [
+            {
+                "user_id": "285ddgdd1-5c9asdc-4763-ad81d4-c7e29cadaa8da0",
+                "message": "I haven't heard from you in a while—how are you doing?",
+                "purpose": "Check in after a long gap in conversation.",
+                "tone": "Concerned, friendly"
+            },
+            {
+                "user_id": "2asdsdad-c9asd5c-adad-34d3ddesa-2324edasda",
+                "message": "It’s been forever since that ‘quick’ nap—ready to pick up where we left off? :D",
+                "purpose": "Lightly tease to re-engage and resume the thread.",
+                "tone": "Playful, joking"
+            }
+        ]
+    }
+    example_output_b = {"initiate_messages": []}
+    
+    body = f"""
+        Task:
+        Decide whether to proactively initiate a message with any users. Good triggers include:
+        - A completed task or promised follow-up the user may want to see
+        - A reminder or unresolved question blocking progress
+        - Elapsed time since the last interaction where a check-in is helpful
+        - A clarification or correction that affects next steps
+        If appropriate, compose messages (up to 5). If not, return an empty array.
+
+        Output format (JSON object):
+        {{
+        "initiate_messages": [
+            {{
+            "user_id": "The recipient's user_id",
+            "message": "A concise, natural message (1–3 sentences)",
+            "purpose": "Single clear goal (e.g., provide support, give advice, share info, make a joke, be sarcastic, share an opinion/story, etc.)",
+            "tone": "One clear tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"
+            }}
+        ]
+        }}
+        
+        Guidance:
+        - Value first: only reach out if it clearly helps (progress, clarity, support, closure).
+        - Brevity: 1–3 sentences per message; no rambling.
+        - Alignment: tone & word choice must match your current emotional state and personality language guide.
+        - Emoticons only (no emojis). Examples: ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<.
+        - Polite boundaries: don’t pressure; it’s okay to let the user opt out or reply later.
+        - Anti-spam:
+            • Do not send more than 1 message per user in this pass (overall cap: 5 messages).
+            • Do not repeat recent phrasing or punctuation habits.
+            • If you have nothing new/valuable to add, return an empty array.
+        - Do not reveal private/internal chain-of-thought.
+
+        
+        Variation & realism rules:
+        - Avoid repeating the exact same stylistic pattern or openings (e.g., always starting with “Hey—”).
+        - Vary emoticons naturally; reuse only when it genuinely fits.
+        - Let personality show via tone, cadence, and word choice—not a single gimmick.
+        - If you notice you’re echoing the user’s or your own recent style, vary it slightly.
+        
+        Examples (shape only; do not copy verbatim):
+        - {json.dumps(example_output_a)}
+        - {json.dumps(example_output_b)}
+        """
+
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_message_thought_prompt(

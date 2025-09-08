@@ -164,6 +164,8 @@ async def handle_initiating_messages(messages: List[Any]):
                 "from_agent": True
             }
         
+        print(rich_message)
+        
         await insert_message_to_conversation(
             message["user_id"], 
             rich_message

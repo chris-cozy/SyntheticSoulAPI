@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import json
 import random
+from typing import Any, List
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, THINKING_RATE
@@ -67,6 +68,8 @@ async def generate_thought():
     initiate_messages = await get_structured_response(thought_queries, get_initiate_messages_schema())
     
     thought_queries.append({"role": BOT_ROLE, "content": json.dumps(initiate_messages)})
+    
+    await handle_initiating_messages(initiate_messages)
     
     
     # ---- 2) Thought Emotional Reaction -------------------------------------------
@@ -141,4 +144,8 @@ async def periodic_thinking():
         except Exception as e:
             print(f"Error in generate_thought: {e}")
         await asyncio.sleep(THINKING_RATE)
+        
+async def handle_initiating_messages(messages: List[Any]):
+    if not messages:
+        return
         

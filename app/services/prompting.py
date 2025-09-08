@@ -766,7 +766,7 @@ def build_initiate_message_prompt(
         {{
         "initiate_messages": [
             {{
-            "user_id": "The recipient's user_id",
+            "user_id": "The recipient's user_id. NOT THEIR USERNAME",
             "message": "A concise, natural message (1–3 sentences)",
             "purpose": "Single clear goal (e.g., provide support, give advice, share info, make a joke, be sarcastic, share an opinion/story, etc.)",
             "tone": "One clear tone (e.g., empathetic, playful, professional, assertive, dry, etc.)"

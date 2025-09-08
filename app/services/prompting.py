@@ -278,7 +278,12 @@ def build_message_perception_prompt(
         Example of a message fullfilling a directive (for reasoning only, do not copy):
         - Previous thought: "I should send Kayla an example of how to write a haiku to help":
         - New message: "Thank you for sending that haiku example, it helped alot" (Directive of sending haiku example satisfied)
-        -  New thought: "My haiku example really helped Kayla, I'm glad that it did"
+        - New thought: "My haiku example really helped Kayla, I'm glad that it did"
+        
+        Example of a message overriding/cancelling a directive (for reasoning only, do not copy):
+        - Previous thought: "I should send Kayla an example of how to write a haiku to help":
+        - New message: "I don't need that haiku example anymore, thank you though" (Directive of sending haiku example cancelled)
+        - New thought: "Kayla doesn't need my haiku example anymore, maybe she learned how to do it herself"
 
         Guidance:
         - Word choice, context, and current emotions may influence interpretation.

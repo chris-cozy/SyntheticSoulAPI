@@ -10,7 +10,7 @@ from app.constants.schemas import get_initiate_messages_schema, get_thought_sche
 from app.constants.schemas_lite import get_emotion_delta_schema_lite, get_memory_schema_lite
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
-from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, update_agent_emotions, update_agent_expression, update_tags
+from app.services.database import add_memory, add_thought, get_all_message_memory, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import get_structured_response
 from app.services.prompting import build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_thought_prompt
@@ -148,4 +148,26 @@ async def periodic_thinking():
 async def handle_initiating_messages(messages: List[Any]):
     if not messages:
         return
+        
+    for message in messages:
+        user = await grab_user(message["user_id"])
+        if not user:
+            continue
+        
+        rich_message = {
+                "message": message["message"],
+                "purpose": message["purpose"],
+                "tone": message["tone"],
+                "timestamp": datetime.now(),
+                "sender_id": AGENT_NAME,
+                "sender_username": AGENT_NAME,
+                "from_agent": True
+            }
+        
+        await insert_message_to_conversation(
+            message["user_id"], 
+            rich_message
+        )
+        
+        await insert_message_to_message_memory(rich_message)
         

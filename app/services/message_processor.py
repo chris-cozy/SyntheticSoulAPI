@@ -260,6 +260,11 @@ async def handle_message(
         })
         response_content = await get_structured_response(message_queries, get_message_schema())
         
+        message_queries.append({
+        "role": BOT_ROLE,
+        "content": json.dumps(response_content)
+        })
+        
         agent_response_message = response_content['message']
         selected_expression = response_content['expression']
         

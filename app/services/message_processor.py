@@ -91,8 +91,8 @@ async def handle_message(
         implicitly_addressed = implicit_addressing_result["implicitly_addressed"] == 'yes'
         
         timings["implicit_check"] = time.perf_counter() - start
-        step_start = time.perf_counter()
-    
+        
+    step_start = time.perf_counter()
     # ---- 1) Initial Personality/Emotional State Reaction -------------------------------------------
     prompt = build_personality_emotional_delta_prompt(
         user=user,

@@ -195,7 +195,7 @@ async def handle_message(
         "content": json.dumps(response)
     })
     
-    selected_expression = response["response"]['expression']
+    selected_expression = response['expression']
     
     if response["response_choice"] == RESPOND_CHOICE:
         agent_response_message = response["response"]['message']

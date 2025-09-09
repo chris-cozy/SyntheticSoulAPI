@@ -56,7 +56,7 @@ def build_emotion_delta_prompt_thinking(
 def build_personality_emotional_delta_prompt(
     agent: Any,
     user: Any,
-    recent_messages: str = "[]",
+    recent_user_messages: str = "[]",
     recent_all_messages: str = "[]",
     received_date: str = "",
     user_message: str = "",
@@ -73,7 +73,7 @@ def build_personality_emotional_delta_prompt(
     header = _format_shared_context(
         agent=agent,
         user=user,
-        recent_messages=recent_messages,
+        recent_messages=recent_user_messages,
         recent_all_messages=recent_all_messages,
         received_date=received_date,
         user_message=user_message,

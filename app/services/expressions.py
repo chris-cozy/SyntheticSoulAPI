@@ -17,7 +17,6 @@ def get_available_expressions() -> list[str]:
         if ext.lower() in _ALLOWED_EXPRESSIONS_EXTS and name:
             names.append(name)
             
-    print(sorted(set(names)))
     return sorted(set(names))
 
 def refresh_expressions_cache() -> None:

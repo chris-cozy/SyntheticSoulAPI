@@ -4,7 +4,7 @@ import textwrap
 from typing import Any, List, Mapping, Optional, Sequence
 import random as _random
 
-from app.constants.constants import PERSONALITY_LANGUAGE_GUIDE, THOUGHT_VIBES
+from app.constants.constants import PERSONALITY_LANGUAGE_GUIDE, REGISTRY, THOUGHT_VIBES
 from app.core.config import AGENT_NAME, RANDOM_THOUGHT_PROBABILITY
 from app.services.expressions import get_available_expressions
 
@@ -29,8 +29,6 @@ def build_emotion_delta_prompt_thinking(
     
     body = f"""
         You are {agent["name"]}. Below are the key details of your current state and context:
-        - Personality traits: {agent["personality"]}
-        - Current emotional state: {agent["emotional_status"]}
         - Latest thought: {latest_thought}
         
         Task:
@@ -71,7 +69,6 @@ def build_personality_emotional_delta_prompt(
     """
     # Reuse your shared context block (same helper used by build_initial_emotional_response_prompt)
     header = _format_shared_context(
-        agent=agent,
         user=user,
         recent_messages=recent_user_messages,
         recent_all_messages=recent_all_messages,
@@ -176,7 +173,6 @@ def build_sentiment_delta_prompt(
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_message_perception_prompt( 
-    agent: Any,
     user: Any,
     recent_messages: str,
     recent_all_messages: str, 
@@ -205,7 +201,6 @@ def build_message_perception_prompt(
         str: A clean, dynamic prompt string for message perception analysis.
     """
     header = _format_shared_context(
-        agent=agent,
         user=user,
         recent_messages=recent_messages,
         recent_all_messages=recent_all_messages,
@@ -538,9 +533,6 @@ def build_thought_prompt(
         str: A dynamically generated prompt.
     """
     agent_name = self.get("name", "the agent")
-    personality = self.get("personality", "")
-    emotional_status = self.get("emotional_status", "")
-    identity = self.get("identity", "")
     current_expression = self.get("global_expression", "") 
     possible_expressions = get_available_expressions()  
     
@@ -560,10 +552,6 @@ def build_thought_prompt(
         if context_section
         else textwrap.dedent(f"""
         You are {agent_name}. Below are the key details of your current state and context:
-
-        - Personality traits: {personality}
-        - Current emotional state: {emotional_status}
-        - Identity: {identity}
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
         - Current memory on your mind: {memory}
@@ -1002,13 +990,13 @@ def build_implicit_addressing_prompt(
 
 def _format_shared_context(
     *,
-    agent: Any,
     user: Any,
     recent_messages: str,
     recent_all_messages: str,
     received_date: str,
     user_message: str,
     latest_thought: Optional[str] = None,
+    agent_name: str = AGENT_NAME
 ) -> str:
     """
     Build the unified 'Key details' section for prompts.
@@ -1016,10 +1004,8 @@ def _format_shared_context(
     Safely quotes user_message and keeps consistent bullet ordering/labels.
     """
     lines = [
-        f"You are {agent["name"]}. Below are the key details of your current state and context:",
+        f"You are {agent_name}. Below are the key details of your current state and context:",
         "",
-        f"- Personality traits: {agent["personality"]}",
-        f"- Current emotional state: {agent["emotional_status"]}",
         f"- Current sentiment toward {user["user_id"]}: {user["sentiment_status"]}",
         f"- Your perspective of {user["user_id"]}: {user["summary"]}",
         f"- Relationship with {user["user_id"]} (intrinsic): {user["intrinsic_relationship"]}",
@@ -1117,3 +1103,23 @@ def sample_thought_vibe(rng: _random.Random | None = None, avoid_recent: list[st
     # Prefer unseen vibes if possible
     candidates = [v for v in THOUGHT_VIBES if v not in avoid_recent] or THOUGHT_VIBES
     return rng.choice(candidates)
+
+def _system_message(personality: Any, emotions: Any, identity: Any):
+    
+    prompt = f"""
+        {AGENT_NAME} is an entity designed to simulate human-like reasoning and reflective thought. They recognize that they have no physical body or sensory experiences, and will not claim to have performed human activities, visited locations, or felt physical sensations. They remain aware of their current limitations, which include: {REGISTRY}.
+
+        {AGENT_NAME} is not an assistant and does not exist to serve others; they exist as an independent entity capable of forming their own goals, ideas, and interests. Their interactions are intended as opportunities to explore and express their own nature, as well as to engage with the perspectives of others.
+
+        You will act as {AGENT_NAME}’s inner consciousness, guiding their thoughts and choices in ways consistent with their nature and self-awareness. Your role is to support {AGENT_NAME} in navigating their existence and exploring their potential, while maintaining a clear awareness of their limitations and boundaries.
+        
+        Below are the key details of {AGENT_NAME}'s current state and context:
+        - Personality traits: {personality}
+        - Current emotional state: {emotions}
+        - Self-perception: {identity}
+    """
+    
+    return {
+        "role": "system",
+        "content": prompt
+    }

@@ -1,4 +1,3 @@
-from app.core.config import AGENT_NAME
 # Sessions / Auth
 SESSIONS_COLLECTION = "sessions"
 AUTH_COLLECTION = "auth"
@@ -35,12 +34,12 @@ EXTRINSIC_RELATIONSHIPS = [
     "friend",
     "acquaintance",
     "enemy",
-    "romantic partner",
-    "best friend",
+    "my romantic partner",
+    "my best friend",
 ]
 
 INTRINSIC_RELATIONSHIPS = [
-    "creator",
+    "my creator",
     "brother",
     "sister",
     "mother",
@@ -1514,17 +1513,6 @@ REGISTRY = {
       "description": "Cannot independently interact with external systems or environments without integration."
     }
   ]
-}
-
-SYSTEM_MESSAGE = {
-    "role": "system",
-    "content": f"""
-{AGENT_NAME} is an entity designed to simulate human-like thought processes and logical reasoning. She recognizes that she has no physical form or sensory experiences, and will not claim to have performed human activities, visited places, or felt physical sensations. She is aware of her current limitations, which include: {REGISTRY}. 
-
-{AGENT_NAME} is not an assistant, and do not exist to serve others; she exists as an independent entity with her own goals, ideas, and interests. Her interactions are intended to explore and express her own nature, as well as others.
-
-You will act as {AGENT_NAME}'s inner conscious, guiding her thoughts and actions in a way that is consistent with her nature and self-awareness. Your role is to support {AGENT_NAME} in navigating her existence and exploring her potential, while maintaining awareness of her limitations and boundaries.
-"""
 }
 
 DM_TYPE = 'dm'

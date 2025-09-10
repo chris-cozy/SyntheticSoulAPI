@@ -4,14 +4,15 @@ import json
 from typing import Any, List
 
 from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME, CONVERSATION_MESSAGE_RETENTION_COUNT, MESSAGE_HISTORY_COUNT, THINKING_RATE
+from app.core.config import AGENT_NAME, CONVERSATION_MESSAGE_RETENTION_COUNT, DEBUG_MODE, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_initiate_messages_schema, get_thought_schema, get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
 from app.domain.memory import Memory
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
+from app.services.message_processor import alter_emotions
 from app.services.openai import get_structured_response
-from app.services.prompting import build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_message_appropriate_prompt, build_thought_prompt
+from app.services.prompting import _system_message, build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_message_appropriate_prompt, build_thought_prompt
 from app.services.state_reducer import apply_deltas_emotion
 
 async def generate_thought():
@@ -21,6 +22,7 @@ async def generate_thought():
     recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
     self = await grab_self()
     thought_queries = [SYSTEM_MESSAGE]
+    thought_queries = [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"])]
 
     # ---- 0) Retrieve Random Memories -------------------------------------------
     memory_tag = get_random_memory_tag(self)
@@ -29,20 +31,22 @@ async def generate_thought():
     
     
     # ---- 1) Check Thought -------------------------------------------
-    thought_prompt = {
+    prompt = {
         "role": USER_ROLE,
         "content": (
             build_thought_prompt(self, recent_all_messages, retrieved_memory)
         )
     }
-    thought_queries.append(thought_prompt)
     
-    current_thought = await get_structured_response(thought_queries, get_thought_schema())
-    
-    thought_queries.append({"role": BOT_ROLE, "content": json.dumps(current_thought)})
+    current_thought = await get_structured_response(thought_queries + [prompt], get_thought_schema())
     
     if current_thought["thought"] == "no":
         return
+    
+    if current_thought["new_expression"] != "no":
+        await update_agent_expression(current_thought["new_expression"])
+    
+    thought_queries.append({"role": BOT_ROLE, "content": f"This is what {AGENT_NAME} is currently thinking: {json.dumps(current_thought)}"})
     
     await add_thought(
         {
@@ -51,23 +55,18 @@ async def generate_thought():
         } 
     )
     
-    if current_thought["new_expression"] != "no":
-        await update_agent_expression(current_thought["new_expression"])
-        
     # ---- 1.5) Initiate Message -------------------------------------------
-    message_prompt = {
+    prompt = {
         "role": USER_ROLE,
         "content": (
             build_initiate_message_prompt()
         )
     }
-    thought_queries.append(message_prompt)
     
-    initiate_messages = await get_structured_response(thought_queries, get_initiate_messages_schema())
+    initiate_messages = await get_structured_response(thought_queries + [prompt], get_initiate_messages_schema())
     
-    thought_queries.append({"role": BOT_ROLE, "content": json.dumps(initiate_messages)})
-    
-    await handle_initiating_messages(initiate_messages["initiate_messages"])
+    if await handle_initiating_messages(initiate_messages["initiate_messages"]):
+        thought_queries.append({"role": BOT_ROLE, "content": f"These are the messages {AGENT_NAME} has initiated: {json.dumps(initiate_messages)}"})
     
     
     # ---- 2) Thought Emotional Reaction -------------------------------------------
@@ -80,43 +79,24 @@ async def generate_thought():
             )
         )
     }
-    thought_queries.append(prompt)
     
     delta = await get_structured_response(
-        [prompt],
+        [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"]), prompt],
         get_emotion_delta_schema_lite(),
         quality=False
     )
     
-    thought_queries.append({"role": BOT_ROLE, "content": json.dumps(delta)})
+    current_emotions = await alter_emotions(delta, self)
     
-    if delta and delta.get("deltas"):  # only apply if anything changed
-        current = self["emotional_status"]
-        emo = EmotionalState(
-            emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
-            reason=current.get("reason")
-        )
-        new_state = apply_deltas_emotion(emo, EmotionalDelta(**delta), cap=7.0)
-        # persist back in your DB shape
-        self["emotional_status"]["emotions"] = {
-            k: new_state.emotions[k].model_dump() for k in new_state.emotions
-        }
-        if new_state.reason:
-            self["emotional_status"]["reason"] = new_state.reason
-        # save with your existing DB function
-        await update_agent_emotions(self["emotional_status"])
-        
-    current_emotions = self["emotional_status"]
-    
-    await update_agent_emotions(current_emotions)
+    thought_queries.append({"role": BOT_ROLE, "content":f"This is the emotional effect {AGENT_NAME}'s latest thought had on them: {json.dumps(delta)}"})
 
     # ---- 3) Memory Creation -------------------------------------------
-    thought_queries.append({
+    prompt = {
             "role": USER_ROLE, 
             "content": build_memory_prompt(self['memory_tags'])
-        })
-        
-    memory_response = await get_structured_response(thought_queries, get_memory_schema_lite(), quality=False)
+        }
+    
+    memory_response = await get_structured_response(thought_queries + [prompt], get_memory_schema_lite(), quality=False)
     
     if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
         mem = Memory(
@@ -131,6 +111,10 @@ async def generate_thought():
         
         await add_memory(mem)
         await update_tags(memory_response.get("tags") or []) 
+        
+    if DEBUG_MODE:
+        print("\nThought Query List")
+        print(thought_queries)
     
 async def periodic_thinking():
     """
@@ -143,9 +127,9 @@ async def periodic_thinking():
             print(f"Error in generate_thought: {e}")
         await asyncio.sleep(THINKING_RATE)
         
-async def handle_initiating_messages(messages: List[Any]):
+async def handle_initiating_messages(messages: List[Any]) -> bool:
     if not messages:
-        return
+        return False
         
     for message in messages:
         user = await grab_user(message["user_id"])
@@ -189,4 +173,6 @@ async def handle_initiating_messages(messages: List[Any]):
         )
         
         await insert_message_to_message_memory(rich_message)
+        
+    return True
         

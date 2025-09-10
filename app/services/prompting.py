@@ -29,8 +29,6 @@ def build_emotion_delta_prompt_thinking(
     
     body = f"""
         You are {agent["name"]}. Below are the key details of your current state and context:
-        - Personality traits: {agent["personality"]}
-        - Current emotional state: {agent["emotional_status"]}
         - Latest thought: {latest_thought}
         
         Task:
@@ -535,9 +533,6 @@ def build_thought_prompt(
         str: A dynamically generated prompt.
     """
     agent_name = self.get("name", "the agent")
-    personality = self.get("personality", "")
-    emotional_status = self.get("emotional_status", "")
-    identity = self.get("identity", "")
     current_expression = self.get("global_expression", "") 
     possible_expressions = get_available_expressions()  
     
@@ -557,10 +552,6 @@ def build_thought_prompt(
         if context_section
         else textwrap.dedent(f"""
         You are {agent_name}. Below are the key details of your current state and context:
-
-        - Personality traits: {personality}
-        - Current emotional state: {emotional_status}
-        - Identity: {identity}
         - Recent messages seen/sent: {recent_all_messages}
         - Current time: {timestamp}
         - Current memory on your mind: {memory}

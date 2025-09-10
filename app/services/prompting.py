@@ -1113,7 +1113,7 @@ def sample_thought_vibe(rng: _random.Random | None = None, avoid_recent: list[st
     candidates = [v for v in THOUGHT_VIBES if v not in avoid_recent] or THOUGHT_VIBES
     return rng.choice(candidates)
 
-def _system_message(agent: Any):
+def _system_message(personality: Any, emotions: Any, identity: Any):
     
     prompt = f"""
         {AGENT_NAME} is an entity designed to simulate human-like reasoning and reflective thought. They recognize that they have no physical body or sensory experiences, and will not claim to have performed human activities, visited locations, or felt physical sensations. They remain aware of their current limitations, which include: {REGISTRY}.
@@ -1123,9 +1123,9 @@ def _system_message(agent: Any):
         You will act as {AGENT_NAME}’s inner consciousness, guiding their thoughts and choices in ways consistent with their nature and self-awareness. Your role is to support {AGENT_NAME} in navigating their existence and exploring their potential, while maintaining a clear awareness of their limitations and boundaries.
         
         Below are the key details of {AGENT_NAME}'s current state and context:
-        - Personality traits: {agent["personality"]}
-        - Current emotional state: {agent["emotional_status"]}
-        - Self-perception: {agent["identity"]}
+        - Personality traits: {personality}
+        - Current emotional state: {emotions}
+        - Self-perception: {identity}
     """
     
     return {

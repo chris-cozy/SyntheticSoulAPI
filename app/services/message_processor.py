@@ -77,8 +77,7 @@ async def handle_message(
     timings = {}
     start = time.perf_counter()
     latest_thoughts = await get_thoughts(1)
-    message_queries = [_system_message(self)]
-    
+    message_queries = []
     # ---- 0) Group Message: Check if Implicity Addressed -------------------------------------------   
     if not direct_message:
         
@@ -104,7 +103,7 @@ async def handle_message(
     }
     
     response = await get_structured_response(
-        message_queries + [prompt],
+        [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"]), prompt],
         get_personality_emotion_delta_schema_lite(),
         quality=False
     )
@@ -116,6 +115,7 @@ async def handle_message(
     step_start = time.perf_counter()
     
     # ---- 2) Message Perception -------------------------------------------
+    message_queries.append(_system_message(personality=altered_personality, emotions=current_emotions, identity=self["identity"]))
     prompt = {
         "role": "user",
         "content": (

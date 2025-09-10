@@ -14,7 +14,7 @@ from app.services.openai import get_structured_response
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_ROLE
 from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
-from app.services.prompting import build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_response_processing_prompt, build_response_prompt, build_sentiment_delta_prompt
+from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_response_processing_prompt, build_response_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
 
@@ -77,51 +77,49 @@ async def handle_message(
     timings = {}
     start = time.perf_counter()
     latest_thoughts = await get_thoughts(1)
+    message_queries = [_system_message(self)]
     
     # ---- 0) Group Message: Check if Implicity Addressed -------------------------------------------   
     if not direct_message:
-        prompt = build_implicit_addressing_prompt(
-            message_memory=recent_all_messages, 
-            new_message=request.message, 
-            sender_id=user_id, 
-            sender_username=username
-        )
-        implicit_addressing_result = await get_structured_response([{"role": USER_ROLE, "content": prompt}], implicitly_addressed_schema())
         
-        implicitly_addressed = implicit_addressing_result["implicitly_addressed"] == 'yes'
+        implicitly_addressed = await check_implicit_addressed(user_id=user_id, username=username, message=request.message, recent_all_messages=recent_all_messages)
         
         timings["implicit_check"] = time.perf_counter() - start
         
     step_start = time.perf_counter()
     # ---- 1) Initial Personality/Emotional State Reaction -------------------------------------------
-    prompt = build_personality_emotional_delta_prompt(
-        user=user,
-        agent=self,
-        recent_user_messages=recent_user_messages,
-        recent_all_messages=recent_all_messages,
-        received_date=str(received_date),
-        user_message=request.message,
-        latest_thought=latest_thoughts
-    )
+    prompt = {
+        "role": USER_ROLE, 
+        "content": (
+            build_personality_emotional_delta_prompt(
+                user=user,
+                agent=self,
+                recent_user_messages=recent_user_messages,
+                recent_all_messages=recent_all_messages,
+                received_date=str(received_date),
+                user_message=request.message,
+                latest_thought=latest_thoughts
+            )
+        )
+    }
     
-    pre_processing_response = await get_structured_response(
-        [{"role": USER_ROLE, "content": prompt}],
+    response = await get_structured_response(
+        message_queries + [prompt],
         get_personality_emotion_delta_schema_lite(),
         quality=False
     )
     
-    altered_personality = alter_personality(pre_processing_response["personality_deltas"], self)
-    current_emotions = await alter_emotions(pre_processing_response["emotion_deltas"], self)
+    altered_personality = alter_personality(response["personality_deltas"], self)
+    current_emotions = await alter_emotions(response["emotion_deltas"], self)
     
     timings["initial_pre_processing_deltas"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
     
     # ---- 2) Message Perception -------------------------------------------
-    message_queries = [SYSTEM_MESSAGE, {
+    prompt = {
         "role": "user",
         "content": (
             build_message_perception_prompt(
-                agent=self,
                 user=user,
                 recent_messages=recent_user_messages, 
                 recent_all_messages=recent_all_messages, 
@@ -130,24 +128,28 @@ async def handle_message(
                 latest_thoughts=latest_thoughts
             )
         ),
-    }]
+    }
     
-    message_analysis = await get_structured_response(message_queries, get_message_perception_schema(), quality=False)
+    response = await get_structured_response(
+        message_queries + [prompt], 
+        get_message_perception_schema(), 
+        quality=False
+    )
     
     message_queries.append({
         "role": BOT_ROLE,
-        "content": json.dumps(message_analysis)
+        "content": f"This is {AGENT_NAME}'s interpretation the purpose and tone of the latest message from {user["user_id"]}, and if it altered their current thought: {json.dumps(response)}"
         })
     
     rich_message = {
-            "message": message_analysis["message"],
-            "purpose": message_analysis["purpose"],
-            "tone": message_analysis["tone"],
-            "timestamp": received_date,
-            "sender_id": user_id,
-            "sender_username": username,
-            "from_agent": False
-        }
+        "message": response["message"],
+        "purpose": response["purpose"],
+        "tone": response["tone"],
+        "timestamp": received_date,
+        "sender_id": user_id,
+        "sender_username": username,
+        "from_agent": False
+    }
     
     await insert_message_to_conversation(
         user_id, 
@@ -156,10 +158,10 @@ async def handle_message(
     
     await insert_message_to_message_memory(rich_message)
     
-    if message_analysis["thought"] != "no":
+    if response["thought"] != "no":
         await add_thought(
         {
-            "thought": message_analysis["thought"],
+            "thought": response["thought"],
             "timestamp": datetime.now()
         } 
     )
@@ -170,7 +172,7 @@ async def handle_message(
     # ---- 3) Response -------------------------------------------
     memory = []
     
-    message_queries.append({
+    prompt = {
         "role": "user",
         "content": (
             build_response_prompt(
@@ -186,13 +188,13 @@ async def handle_message(
                 expressions=get_available_expressions(),
                 implicit=implicitly_addressed)
         ),
-    })
+    }
     
-    response = await get_structured_response(message_queries, get_response_schema())
+    response = await get_structured_response(message_queries + [prompt], get_response_schema())
     
     message_queries.append({
         "role": BOT_ROLE,
-        "content": json.dumps(response)
+        "content": f"This is {AGENT_NAME}'s decision of whether to respond, and their response if so: {json.dumps(response)}"
     })
     
     selected_expression = response['expression']
@@ -200,14 +202,14 @@ async def handle_message(
     if response["response_choice"] == RESPOND_CHOICE:
         agent_response_message = response["response"]['message']
         rich_message = {
-                "message": response["response"]["message"],
-                "purpose": response["response"]["purpose"],
-                "tone": response["response"]["tone"],
-                "timestamp": datetime.now(),
-                "sender_id": AGENT_NAME,
-                "sender_username": AGENT_NAME,
-                "from_agent": True
-            }
+            "message": response["response"]["message"],
+            "purpose": response["response"]["purpose"],
+            "tone": response["response"]["tone"],
+            "timestamp": datetime.now(),
+            "sender_id": AGENT_NAME,
+            "sender_username": AGENT_NAME,
+            "from_agent": True
+        }
         
         await insert_message_to_conversation(
             user_id, 
@@ -224,14 +226,20 @@ async def handle_message(
     step_start = time.perf_counter()
         
     # ---- 4) Sentiment reflection -------------------------------------------
-    message_queries.append({
+    prompt = {
                 "role": USER_ROLE,
                 "content": (
                     build_sentiment_delta_prompt(user)
                 ),
-            })
+            }
     
-    delta = await get_structured_response(message_queries, get_sentiment_delta_schema_lite(), False)
+    delta = await get_structured_response(message_queries + [prompt], get_sentiment_delta_schema_lite(), False)
+    
+    message_queries.append({
+        "role": BOT_ROLE,
+        "content": f"This is {AGENT_NAME}'s evaluation of how their sentiments toward {user["user_id"]} changed after the most recent exchange: {json.dumps(delta)}"
+    })
+    
             
     if delta and delta.get("deltas"):
         # Convert existing DB sentiment_status -> SentimentMatrix
@@ -259,7 +267,7 @@ async def handle_message(
     step_start = time.perf_counter()
     
     # ---- 6) Post-response processing (summary/identity/relationships) ------
-    message_queries.append({
+    prompt = {
         "role": USER_ROLE,
         "content": (build_post_response_processing_prompt(
             current_identity=self["identity"], 
@@ -267,56 +275,54 @@ async def handle_message(
             extrinsic_relationship_options=EXTRINSIC_RELATIONSHIPS, 
             current_summary=user["summary"]
             ))
-    })
+    }
     
-    post_response_processing_response = await get_structured_response(message_queries, update_summary_identity_relationship_schema(), False)
+    response = await get_structured_response(message_queries + [prompt], update_summary_identity_relationship_schema(), False)
     
-    await update_summary_identity_relationship(user_id, post_response_processing_response['summary'], post_response_processing_response['extrinsic_relationship'], post_response_processing_response['identity'])
+    await update_summary_identity_relationship(user_id, response['summary'], response['extrinsic_relationship'], response['identity'])
 
-    message_queries.append({"role": BOT_ROLE, "content": json.dumps(post_response_processing_response)})
+    message_queries.append({"role": BOT_ROLE, "content": f" This is {AGENT_NAME}'s refreshed summary of {user_id}, updated extrinsic relationship with {user_id}, and updated self-perception: {json.dumps(response)}"})
     
     timings["post_response_processing"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
     
     # ---- 5) Create memory ----------------------------------------------
-    message_queries.append({
-            "role": USER_ROLE, 
-            "content": build_memory_prompt(self['memory_tags'])
-        })
+    prompt = {
+        "role": USER_ROLE, 
+        "content": build_memory_prompt(self['memory_tags'])
+    }
         
-    memory_response = await get_structured_response(message_queries, get_memory_schema_lite(), quality=False)
+    response = await get_structured_response(message_queries + [prompt], get_memory_schema_lite(), quality=False)
     
-    if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
+    if response and response.get("event") and response.get("thoughts"):
         mem = Memory(
             agent_name=AGENT_NAME,
             user_id=user_id,
-            event=memory_response["event"],
-            thoughts=memory_response["thoughts"],
-            significance=memory_response.get("significance", "low"),
-            emotional_impact=normalize_emotional_impact_fill_zeros(memory_response.get("emotional_impact")),
-            tags=[t for t in (memory_response.get("tags") or []) if t][:3],
+            event=response["event"],
+            thoughts=response["thoughts"],
+            significance=response.get("significance", "low"),
+            emotional_impact=normalize_emotional_impact_fill_zeros(response.get("emotional_impact")),
+            tags=[t for t in (response.get("tags") or []) if t][:3],
         )
         
         await add_memory(mem)
-        await update_tags(memory_response.get("tags") or [])
+        await update_tags(response.get("tags") or [])
     
         timings["memory_creation"] = time.perf_counter() - step_start
         
-    message_queries.append({"role": BOT_ROLE, "content": json.dumps(memory_response)})
+    message_queries.append({"role": BOT_ROLE, "content": f"This is the decision of if this interaction contains information that should be stored in {AGENT_NAME}'s long-term memory, and the episodic memory if so:{json.dumps(response)}"})
         
     # ---- 6) Update thought ----------------------------------------------
     previous_thought = await get_thoughts(1)
     
-    thought_prompt = {
+    prompt = {
         "role": USER_ROLE,
         "content": (
             build_message_thought_prompt(self, previous_thought)
         )
     }
     
-    message_queries.append(thought_prompt)
-    
-    current_thought = await get_structured_response(message_queries, get_thought_schema())
+    current_thought = await get_structured_response(message_queries + [prompt], get_thought_schema())
     
     if current_thought["thought"] == "no":
         return
@@ -381,3 +387,18 @@ async def alter_emotions(emotion_deltas, self) -> Any:
     await update_agent_emotions(self["emotional_status"])
     
     return self["emotional_status"]
+
+async def check_implicit_addressed(user_id: str, username: str, message: str, recent_all_messages: Any) -> bool:
+    implicit_addressing_result = await get_structured_response([{
+            "role": USER_ROLE, 
+            "content": (
+                build_implicit_addressing_prompt(
+                    message_memory=recent_all_messages, 
+                    new_message=message, 
+                    sender_id=user_id, 
+                    sender_username=username
+                )
+            )
+        }], implicitly_addressed_schema())
+    
+    return implicit_addressing_result["implicitly_addressed"] == 'yes'

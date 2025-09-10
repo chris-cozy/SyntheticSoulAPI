@@ -12,7 +12,7 @@ from app.services.expressions import get_available_expressions
 from app.services.memory import normalize_emotional_impact_fill_zeros
 from app.services.openai import get_structured_response
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
+from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
 from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_response_processing_prompt, build_response_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
@@ -338,9 +338,10 @@ async def handle_message(
    
     timings["total_message_handling"] = time.perf_counter() - start
     
-    print("\nStep timings (seconds):")
-    for step, duration in timings.items():
-        print(f"{step}: {duration:.4f}")
+    if DEBUG_MODE:
+        print("\nStep timings (seconds):")
+        for step, duration in timings.items():
+            print(f"{step}: {duration:.4f}")
     
     return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), expression=selected_expression)
 

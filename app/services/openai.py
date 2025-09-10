@@ -1,7 +1,7 @@
 import openai
 import json
 
-from app.core.config import OPENAI_KEY, GPT_FAST, GPT_QUALITY
+from app.core.config import DEBUG_MODE, OPENAI_KEY, GPT_FAST, GPT_QUALITY
 
 client = openai.OpenAI()
 
@@ -27,7 +27,9 @@ async def get_structured_response(messages, schema, quality = True):
 
         content_json = response.choices[0].message.content
         parsed_content = json.loads(content_json)
-        print(parsed_content) 
+        
+        if DEBUG_MODE:
+            print(parsed_content) 
                
         return parsed_content
     except Exception as error:

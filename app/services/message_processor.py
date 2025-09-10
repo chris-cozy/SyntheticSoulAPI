@@ -342,6 +342,9 @@ async def handle_message(
         print("\nStep timings (seconds):")
         for step, duration in timings.items():
             print(f"{step}: {duration:.4f}")
+            
+        print("\nMessage Query List")
+        print(message_queries)
     
     return MessageResponse(response=agent_response_message, time=int(round(timings["total_message_handling"])), expression=selected_expression)
 

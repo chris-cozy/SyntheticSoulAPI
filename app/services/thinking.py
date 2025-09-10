@@ -3,17 +3,15 @@ from datetime import datetime
 import json
 from typing import Any, List
 
-from app.constants.constants import BOT_ROLE, SYSTEM_MESSAGE, USER_ROLE
-from app.core.config import AGENT_NAME, CONVERSATION_MESSAGE_RETENTION_COUNT, DEBUG_MODE, MESSAGE_HISTORY_COUNT, THINKING_RATE
+from app.constants.constants import BOT_ROLE, USER_ROLE
+from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_initiate_messages_schema, get_thought_schema, get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
 from app.domain.memory import Memory
-from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState
-from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_agent_expression, update_tags
+from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.message_processor import alter_emotions
 from app.services.openai import get_structured_response
 from app.services.prompting import _system_message, build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_message_appropriate_prompt, build_thought_prompt
-from app.services.state_reducer import apply_deltas_emotion
 
 async def generate_thought():
     """
@@ -21,7 +19,6 @@ async def generate_thought():
     """
     recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
     self = await grab_self()
-    thought_queries = [SYSTEM_MESSAGE]
     thought_queries = [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"])]
 
     # ---- 0) Retrieve Random Memories -------------------------------------------

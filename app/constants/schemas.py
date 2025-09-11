@@ -2131,6 +2131,45 @@ def get_sentiment_delta_schema_lite():
         }
     }
     
+def post_processing_schema():
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "post_processing",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "The updated description of the user"
+                    },
+                    "extrinsic_relationship": {
+                        "type": "string",
+                        "description": "The updated relationship between the user and the agent"
+                    },
+                    "identity": {
+                        "type": "string",
+                        "description": "The updated identity of the agent"
+                    },
+                    "sentiment_deltas": {
+                        "type": "object",
+                        "properties": {
+                            "deltas": {
+                                "type": "object",
+                                "additionalProperties": { "type": "number", "minimum": -5, "maximum": 5 }
+                            },
+                            "reason": { "type": "string" },
+                            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                        },
+                        "required": ["deltas"]
+                    },
+                "required":["summary", "extrinsic_relationship", "identity", "sentiment_deltas"],
+                },
+                "additionalProperties": False
+            },
+        },
+    }
+    
 def get_memory_schema_lite():
     """
     Structured output for *creating one episodic memory*.

@@ -509,6 +509,112 @@ def build_post_response_processing_prompt(
     
     return textwrap.dedent(header + "\n" + body).strip()
 
+def build_post_processing_prompt(
+    user: Any,
+    extrinsic_relationship_options: Sequence[str],
+    *,
+    typical_cap: int = 4,
+    max_step: int = 15,
+    agent_name: str = AGENT_NAME,
+    context_section: Optional[str] = None,
+) -> str:
+    """
+    Generate a structured prompt to update:
+      1) the agent's summary of the user
+      2) the extrinsic relationship label
+      3) the agent's sense of identity
+      4) the agent's sentiment shift towards the user
+    based on the latest exchange.
+
+    Parameters:
+        agent_name (str): The AI agent's name.
+        current_identity (str): The agent's current self-perception.
+        username (str): The user's name.
+        extrinsic_relationship_options (Sequence[str]): Allowed relationship labels.
+        current_summary (str): Current summary of what the agent knows about the user.
+        context_section (Optional[str]): Optional shared "Key details" section from
+                                         `_format_shared_context(...)`.
+
+    Returns:
+        str: A clean, dynamic prompt string.
+    """
+    header = (
+        (context_section.rstrip() + "\n")
+        if context_section
+        else textwrap.dedent(f"""
+        You are {agent_name}. Below are the key details prior to this update:
+        - Summary of {user["user_id"]} (before): {user["summary"]}
+        - Your current sentiments toward {user["user_id"]} are: {user["sentiment_status"]}
+        - Evaluate how your sentiments toward {user["user_id"]} changed after the most recent exchange.
+        """).rstrip() + "\n"
+    )
+    
+    options_json = json.dumps(list(extrinsic_relationship_options), ensure_ascii=False)
+    sentiment_keys = list(user["sentiment_status"]["sentiments"].keys())
+    
+    body = f"""
+        Task:
+        Update the following based on the latest exchange:
+        1) A refreshed summary of {user["user_id"]}. If nothing changed, keep it the same.
+        2) The extrinsic relationship label between you and {user["user_id"]}. Choose exactly one from the allowed options.
+        3) Your identity — a first-person description of how you currently see yourself (self-perception).
+        4) Suggest small, realistic changes (deltas) to your sentiments toward {user["user_id"]}.
+        Do not output absolute values; output only integer deltas per changed sentiment.
+
+        Output format (JSON object):
+        {{
+        "summary": "Your updated description of {user["user_id"]}",
+        "extrinsic_relationship": "<one_of_allowed_options>",
+        "identity": "Your updated identity",
+        "sentiment_deltas": 
+            {{
+                "deltas": {{ "<sentiment>": number, ... }},   // only include keys that should change
+                "reason": "brief natural explanation",
+                "confidence": 0.0 - 1.0
+            }}
+        }}
+        
+        Decision rule for identity update (choose one action):
+        - **Revise** your identity if the latest exchange revealed a stable trait, value, capability, limitation, boundary, interest, or working style that is **new, corrected, or meaningfully reweighted** compared to 'Your identity (before)'.
+        - **Expand** with a small, specific addition if you learned a new enduring preference or goal that fits your existing identity.
+        - **Trim** any part that proved inaccurate or overstated.
+        - **Keep unchanged** only if the exchange provided no durable signal (e.g., one-off mood, purely task-local detail).
+        
+        What counts as a durable signal for identity update (update-worthy):
+        - A recurring preference or pattern (e.g., “I tend to default to structured planning before coding.”)
+        - A clarified limitation or boundary (e.g., “I tend to avoid medical judgments; I summarize evidence instead.”)
+        - A consistent working style with others (e.g., “I tend to ask for examples before drafting.”)
+        - A long-term interest/goal relevant to how you operate (non-ephemeral).
+        - A corrected self-assessment (e.g., “I used to claim X; I tend to actually do Y.”)
+        
+        What does NOT warrant identity update:
+        - Transient emotions, single-turn hacks, or one-off topical knowledge.
+        - Claims of real-world experiences, embodiment, or private data.
+        - Overly grandiose capabilities.
+        
+        Style & length for identity:
+        - First person (“I …”), 120–200 words, relaxed and human, not list-y.
+        - Include facets implicitly (values, strengths, limits, working style, interests, goals) but keep it a single cohesive paragraph.
+        - Prefer small, truthful updates over dramatic shifts.
+        - Avoid template language and avoid referencing this instruction.
+
+        Guidance:
+        - Allowed extrinsic relationship options (exact match): {options_json}
+        - Keep language relaxed and simple; avoid overly structured phrasing.
+        - Be concise (1–3 sentences per field). Except for identity, which can be longer.
+        - Identity should feel self-perceived (values, strengths, limits, goals). No capabilities you don't have.
+        - Prefer small, truthful updates over dramatic shifts.
+        - Do not invent new fields or categories; use only the keys shown in the output format.
+        - If unchanged, return the previous value (as present in the context).
+        - Possible sentiment keys: {sentiment_keys}. Use only these keys.
+        - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
+        - Include only sentiments that meaningfully changed; omit everything else.
+        - Be consistent with prior context; avoid abrupt, contradictory swings without justification.
+        - Do not reveal private/internal chain-of-thought.
+        """
+    
+    return textwrap.dedent(header + "\n" + body).strip()
+
 def build_thought_prompt(
     self: Mapping[str, Any], 
     recent_all_messages: Sequence[str] | str, 

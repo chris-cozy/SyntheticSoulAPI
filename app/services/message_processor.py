@@ -4,7 +4,7 @@ import json
 from fastapi import HTTPException
 from typing import Any
 from datetime import datetime
-from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, update_summary_identity_relationship_schema, get_memory_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
+from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, post_processing_schema, update_summary_identity_relationship_schema, get_memory_schema_lite, get_personality_emotion_delta_schema_lite, get_sentiment_delta_schema_lite
 from app.domain.memory import Memory
 from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
@@ -14,7 +14,7 @@ from app.services.openai import structured_query
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, USER_ROLE
 from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
-from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_response_processing_prompt, build_response_prompt, build_sentiment_delta_prompt
+from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_processing_prompt, build_post_response_processing_prompt, build_response_prompt, build_sentiment_delta_prompt
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
 
@@ -228,47 +228,24 @@ async def handle_message(
 
     timings["response"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
-        
-    # ---- 4) Sentiment reflection -------------------------------------------
+    
+    # ---- 4) Post Processing -------------------------------------------
     prompt = {
                 "role": USER_ROLE,
                 "content": (
-                    build_sentiment_delta_prompt(user)
+                    build_post_processing_prompt(user, EXTRINSIC_RELATIONSHIPS)
                 ),
             }
+    response = await structured_query(queries + [prompt], post_processing_schema(), False)
     
-    delta = await structured_query(queries + [prompt], get_sentiment_delta_schema_lite(), False)
+    queries.append({"role": BOT_ROLE, "content": f" This is {AGENT_NAME}'s refreshed summary of {user_id}, updated extrinsic relationship with {user_id}, sentiment change towards {user_id}, and updated self-perception: {json.dumps(response)}"})
     
-    queries.append({
-        "role": BOT_ROLE,
-        "content": f"This is {AGENT_NAME}'s evaluation of how their sentiments toward {user["user_id"]} changed after the most recent exchange: {json.dumps(delta)}"
-    })
-    
-    await alter_sentiments(delta, user)
-    
-    timings["sentiments"] = time.perf_counter() - step_start
-    step_start = time.perf_counter()
-    
-    # ---- 6) Post-response processing (summary/identity/relationships) ------
-    prompt = {
-        "role": USER_ROLE,
-        "content": (build_post_response_processing_prompt(
-            current_identity=self["identity"], 
-            user_id=user_id, 
-            extrinsic_relationship_options=EXTRINSIC_RELATIONSHIPS, 
-            current_summary=user["summary"]
-            ))
-    }
-    
-    response = await structured_query(queries + [prompt], update_summary_identity_relationship_schema(), False)
+    await alter_sentiments(response["sentiment_deltas"], user)
     
     await update_summary_identity_relationship(user_id, response['summary'], response['extrinsic_relationship'], response['identity'])
-
-    queries.append({"role": BOT_ROLE, "content": f" This is {AGENT_NAME}'s refreshed summary of {user_id}, updated extrinsic relationship with {user_id}, and updated self-perception: {json.dumps(response)}"})
     
-    timings["post_response_processing"] = time.perf_counter() - step_start
-    step_start = time.perf_counter()
-    
+    timings["post_processing"] = time.perf_counter() - step_start
+    step_start = time.perf_counter()    
     # ---- 5) Create memory ----------------------------------------------
     prompt = {
         "role": USER_ROLE, 
@@ -305,12 +282,12 @@ async def handle_message(
         )
     }
     
-    current_thought = await structured_query(queries + [prompt], get_thought_schema())
+    response = await structured_query(queries + [prompt], get_thought_schema())
     
-    if current_thought["thought"] != "no":
+    if response["thought"] != "no":
         await add_thought(
             {
-                "thought": current_thought['thought'],
+                "thought": response['thought'],
                 "timestamp": datetime.now()
             } 
         )   

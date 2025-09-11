@@ -30,6 +30,7 @@ async def get_structured_response(messages, schema, quality = True):
         
         if DEBUG_MODE:
             print(parsed_content) 
+            print (json.loads(response.usage))
                
         return parsed_content
     except Exception as error:

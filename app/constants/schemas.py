@@ -2116,8 +2116,8 @@ def post_processing_schema():
                         },
                         "required": ["deltas"]
                     },
-                "required":["summary", "extrinsic_relationship", "identity", "sentiment_deltas"],
                 },
+                "required":["summary", "extrinsic_relationship", "identity", "sentiment_deltas"],
                 "additionalProperties": False
             },
         },

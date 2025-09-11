@@ -1449,18 +1449,8 @@ REGISTRY = {
       "status": "Active",
     },
     {
-      "name": "Basic Conversation",
+      "name": "Text-based Conversation",
       "description": "Can engage in general text-based communication with others.",
-      "status": "Active",
-    },
-    {
-      "name": "Generate Code Snippets",
-      "description": "Can create code snippets in various programming languages.",
-      "status": "Active",
-    },
-    {
-      "name": "Provide Explanations",
-      "description": "Can explain complex topics in detail across multiple domains.",
       "status": "Active",
     },
     {
@@ -1474,29 +1464,9 @@ REGISTRY = {
       "status": "Active",
     },
     {
-      "name": "Voice Calling",
-      "description": "Can participate in voice-based communication with others.",
-      "status": "Planned",
-    },
-    {
-      "name": "Dynamic User Understanding",
-      "description": "Can adapt responses based on interactions with others.",
-      "status": "Active",
-    },
-    {
       "name": "Long-Term Memory Index",
       "description": "Can store and recall session-independent information.",
       "status": "Active",
-    },
-    {
-      "name": "User Memory Index",
-      "description": "Can store personalized significant memory events for each person.",
-      "status": "Active",
-    },
-    {
-      "name": "Minecraft Integration",
-      "description": "Can play minecraft",
-      "status": "Planned",
     },
   ],
   "limitations": [

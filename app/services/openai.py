@@ -30,7 +30,7 @@ async def structured_query(messages, schema, quality = True):
         
         if DEBUG_MODE:
             print(parsed_content) 
-            print (json.loads(response.usage))
+            print (response.usage)
                
         return parsed_content
     except Exception as error:

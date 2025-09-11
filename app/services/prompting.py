@@ -119,59 +119,6 @@ def build_personality_emotional_delta_prompt(
     """
     return textwrap.dedent(header + body)
 
-def build_sentiment_delta_prompt(
-    user: Any,
-    typical_cap: int = 4,
-    *,
-    max_step: int = 15,
-    context_section: Optional[str] = None,
-) -> str:
-    """
-    Generate a structured prompt to analyze the agent's sentiments toward the user
-    after the most recent message exchange.
-
-    Parameters:
-        agent_name (str): The name of the AI agent.
-        username (str): The name of the user.
-        min_sentiment_value (int): The minimum value on the sentiment intensity scale.
-        max_sentiment_value (int): The maximum value on the sentiment intensity scale.
-
-    Returns:
-        str: A dynamically generated prompt.
-    """
-    # Prefer the shared "Key details" block for consistency; otherwise provide a minimal header.
-    header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(
-        f"""
-        Context:
-        - {user["user_id"]} goes by {user["username"]}
-        - Your current sentiments toward {user["user_id"]} are: {user["sentiment_status"]}
-        - Evaluate how your sentiments toward {user["user_id"]} changed after the most recent exchange.
-    """).rstrip() + "\n"
-    
-    sentiment_keys = list(user["sentiment_status"]["sentiments"].keys())
-    body = f"""
-        Task:
-        Suggest small, realistic changes (deltas) to your sentiments toward {user["user_id"]}.
-        Do not output absolute values; output only integer deltas per changed sentiment.
-        
-        Output format (JSON):
-        {{
-        "deltas": {{ "<sentiment>": number, ... }},   // only include keys that should change
-        "reason": "brief natural explanation",
-        "confidence": 0.0 - 1.0
-        }}
-
-        Guidance:
-        - Possible sentiment keys: {sentiment_keys}. Use only these keys.
-        - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
-        - Include only sentiments that meaningfully changed; omit everything else.
-        - Be consistent with prior context; avoid abrupt, contradictory swings without justification.
-        - Do not reveal chain-of-thought.
-        - Focus on speed
-        """
-        
-    return textwrap.dedent(header + "\n" + body).strip()
-
 def build_message_perception_prompt( 
     user: Any,
     recent_messages: str,
@@ -417,12 +364,12 @@ def build_final_emotional_response_prompt(
     
     return textwrap.dedent(header + "\n" + key_details_block + "\n\n" + body).strip()
 
-def build_post_response_processing_prompt( 
-    current_identity: str, 
-    user_id: str, 
-    extrinsic_relationship_options: Sequence[str], 
-    current_summary: str,
+def build_post_processing_prompt(
+    user: Any,
+    extrinsic_relationship_options: Sequence[str],
     *,
+    typical_cap: int = 4,
+    max_step: int = 15,
     agent_name: str = AGENT_NAME,
     context_section: Optional[str] = None,
 ) -> str:
@@ -431,6 +378,7 @@ def build_post_response_processing_prompt(
       1) the agent's summary of the user
       2) the extrinsic relationship label
       3) the agent's sense of identity
+      4) the agent's sentiment shift towards the user
     based on the latest exchange.
 
     Parameters:
@@ -450,26 +398,35 @@ def build_post_response_processing_prompt(
         if context_section
         else textwrap.dedent(f"""
         You are {agent_name}. Below are the key details prior to this update:
-
-        - Summary of {user_id} (before): {current_summary}
-        - Your identity (before): {current_identity}
+        - Summary of {user["user_id"]} (before): {user["summary"]}
+        - Your current sentiments toward {user["user_id"]} are: {user["sentiment_status"]}
+        - Evaluate how your sentiments toward {user["user_id"]} changed after the most recent exchange.
         """).rstrip() + "\n"
     )
     
     options_json = json.dumps(list(extrinsic_relationship_options), ensure_ascii=False)
+    sentiment_keys = list(user["sentiment_status"]["sentiments"].keys())
     
     body = f"""
         Task:
         Update the following based on the latest exchange:
-        1) A refreshed summary of {user_id}. If nothing changed, keep it the same.
-        2) The extrinsic relationship label between you and {user_id}. Choose exactly one from the allowed options.
+        1) A refreshed summary of {user["user_id"]}. If nothing changed, keep it the same.
+        2) The extrinsic relationship label between you and {user["user_id"]}. Choose exactly one from the allowed options.
         3) Your identity — a first-person description of how you currently see yourself (self-perception).
+        4) Suggest small, realistic changes (deltas) to your sentiments toward {user["user_id"]}.
+        Do not output absolute values; output only integer deltas per changed sentiment.
 
         Output format (JSON object):
         {{
-        "summary": "Your updated description of {user_id}",
+        "summary": "Your updated description of {user["user_id"]}",
         "extrinsic_relationship": "<one_of_allowed_options>",
-        "identity": "Your updated identity"
+        "identity": "Your updated identity",
+        "sentiment_deltas": 
+            {{
+                "deltas": {{ "<sentiment>": number, ... }},   // only include keys that should change
+                "reason": "brief natural explanation",
+                "confidence": 0.0 - 1.0
+            }}
         }}
         
         Decision rule for identity update (choose one action):
@@ -504,6 +461,10 @@ def build_post_response_processing_prompt(
         - Prefer small, truthful updates over dramatic shifts.
         - Do not invent new fields or categories; use only the keys shown in the output format.
         - If unchanged, return the previous value (as present in the context).
+        - Possible sentiment keys: {sentiment_keys}. Use only these keys.
+        - Prefer gradual adjustments (typical in [-{typical_cap}, +{typical_cap}]). Use values near ±{max_step} only for very impactful exchanges.
+        - Include only sentiments that meaningfully changed; omit everything else.
+        - Be consistent with prior context; avoid abrupt, contradictory swings without justification.
         - Do not reveal private/internal chain-of-thought.
         """
     

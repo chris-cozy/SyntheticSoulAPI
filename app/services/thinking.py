@@ -9,7 +9,7 @@ from app.domain.memory import Memory
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_conversation, grab_self, grab_user, insert_message_to_conversation, insert_message_to_message_memory, update_agent_expression, update_tags
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.message_processor import alter_emotions
-from app.services.openai import get_structured_response
+from app.services.openai import structured_query
 from app.services.prompting import _system_message, build_emotion_delta_prompt_thinking, build_initiate_message_prompt, build_memory_prompt, build_message_appropriate_prompt, build_thought_prompt
 
 async def generate_thought():
@@ -35,7 +35,7 @@ async def generate_thought():
         )
     }
     
-    current_thought = await get_structured_response(queries + [prompt], get_thought_schema())
+    current_thought = await structured_query(queries + [prompt], get_thought_schema())
     
     if current_thought["thought"] == "no":
         return
@@ -60,7 +60,7 @@ async def generate_thought():
         )
     }
     
-    initiate_messages = await get_structured_response(queries + [prompt], get_initiate_messages_schema())
+    initiate_messages = await structured_query(queries + [prompt], get_initiate_messages_schema())
     
     if await handle_initiating_messages(initiate_messages["initiate_messages"]):
         queries.append({"role": BOT_ROLE, "content": f"These are the messages {AGENT_NAME} has initiated: {json.dumps(initiate_messages)}"})
@@ -77,7 +77,7 @@ async def generate_thought():
         )
     }
     
-    delta = await get_structured_response(
+    delta = await structured_query(
         [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"]), prompt],
         get_emotion_delta_schema_lite(),
         quality=False
@@ -93,7 +93,7 @@ async def generate_thought():
             "content": build_memory_prompt(self['memory_tags'])
         }
     
-    memory_response = await get_structured_response(queries + [prompt], get_memory_schema_lite(), quality=False)
+    memory_response = await structured_query(queries + [prompt], get_memory_schema_lite(), quality=False)
     
     if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
         mem = Memory(
@@ -148,7 +148,7 @@ async def handle_initiating_messages(messages: List[Any]) -> bool:
                 )
             )
         }
-        message_response = await get_structured_response(
+        message_response = await structured_query(
             [prompt], get_message_appropriate_schema(), quality=True)
         
         if message_response["message"] == "no":

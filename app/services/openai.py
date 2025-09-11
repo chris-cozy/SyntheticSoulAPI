@@ -7,7 +7,7 @@ client = openai.OpenAI()
 
 openai.api_key = OPENAI_KEY
 
-async def get_structured_response(messages, schema, quality = True):
+async def structured_query(messages, schema, quality = True):
     """
     Queries the OpenAI API to receive a structured response.
 
@@ -34,5 +34,5 @@ async def get_structured_response(messages, schema, quality = True):
                
         return parsed_content
     except Exception as error:
-        print(f"Error - get_structured_query_response: {error}")
+        print(f"Error - structured_query: {error}")
         return None

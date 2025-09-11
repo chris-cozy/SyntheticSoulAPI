@@ -10,7 +10,7 @@ from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.expressions import get_available_expressions
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
-from app.services.openai import get_structured_response
+from app.services.openai import structured_query
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, USER_ROLE
 from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
 from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
@@ -105,7 +105,7 @@ async def handle_message(
         )
     }
     
-    response = await get_structured_response(
+    response = await structured_query(
         [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"]), prompt],
         get_personality_emotion_delta_schema_lite(),
         quality=False
@@ -133,7 +133,7 @@ async def handle_message(
         ),
     }
     
-    response = await get_structured_response(
+    response = await structured_query(
         message_queries + [prompt], 
         get_message_perception_schema(), 
         quality=False
@@ -197,7 +197,7 @@ async def handle_message(
         ),
     }
     
-    response = await get_structured_response(message_queries + [prompt], get_response_schema())
+    response = await structured_query(message_queries + [prompt], get_response_schema())
     
     message_queries.append({
         "role": BOT_ROLE,
@@ -240,7 +240,7 @@ async def handle_message(
                 ),
             }
     
-    delta = await get_structured_response(message_queries + [prompt], get_sentiment_delta_schema_lite(), False)
+    delta = await structured_query(message_queries + [prompt], get_sentiment_delta_schema_lite(), False)
     
     message_queries.append({
         "role": BOT_ROLE,
@@ -284,7 +284,7 @@ async def handle_message(
             ))
     }
     
-    response = await get_structured_response(message_queries + [prompt], update_summary_identity_relationship_schema(), False)
+    response = await structured_query(message_queries + [prompt], update_summary_identity_relationship_schema(), False)
     
     await update_summary_identity_relationship(user_id, response['summary'], response['extrinsic_relationship'], response['identity'])
 
@@ -299,7 +299,7 @@ async def handle_message(
         "content": build_memory_prompt(self['memory_tags'])
     }
         
-    response = await get_structured_response(message_queries + [prompt], get_memory_schema_lite(), quality=False)
+    response = await structured_query(message_queries + [prompt], get_memory_schema_lite(), quality=False)
     
     if response and response.get("event") and response.get("thoughts"):
         mem = Memory(
@@ -329,7 +329,7 @@ async def handle_message(
         )
     }
     
-    current_thought = await get_structured_response(message_queries + [prompt], get_thought_schema())
+    current_thought = await structured_query(message_queries + [prompt], get_thought_schema())
     
     if current_thought["thought"] != "no":
         await add_thought(
@@ -398,7 +398,7 @@ async def alter_emotions(emotion_deltas, self) -> Any:
     return self["emotional_status"]
 
 async def check_implicit_addressed(user_id: str, username: str, message: str, recent_all_messages: Any) -> bool:
-    implicit_addressing_result = await get_structured_response([{
+    implicit_addressing_result = await structured_query([{
             "role": USER_ROLE, 
             "content": (
                 build_implicit_addressing_prompt(

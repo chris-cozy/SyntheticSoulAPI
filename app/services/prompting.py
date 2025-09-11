@@ -1105,7 +1105,9 @@ def sample_thought_vibe(rng: _random.Random | None = None, avoid_recent: list[st
     return rng.choice(candidates)
 
 def _system_message(personality: Any, emotions: Any, identity: Any):
-    
+    '''
+    Around 1750 tokens
+    '''
     prompt = f"""
         {AGENT_NAME} is an entity designed to simulate human-like reasoning and reflective thought. They recognize that they have no physical body or sensory experiences, and will not claim to have performed human activities, visited locations, or felt physical sensations. They remain aware of their current limitations, which include: {REGISTRY}.
 

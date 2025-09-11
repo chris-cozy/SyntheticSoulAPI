@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 import json
 from typing import Any, List
-
 from app.constants.constants import BOT_ROLE, USER_ROLE
 from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, THINKING_RATE
 from app.constants.schemas import get_initiate_messages_schema, get_thought_schema, get_emotion_delta_schema_lite, get_memory_schema_lite, get_message_appropriate_schema
@@ -16,16 +15,17 @@ from app.services.prompting import _system_message, build_emotion_delta_prompt_t
 async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
+    
+    Total query tokens per pass (no message initialization): around 1900
     """
     recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
     self = await grab_self()
-    thought_queries = [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"])]
+    queries = [_system_message(personality=self["personality"], emotions=self["emotional_status"], identity=self["identity"])]
 
     # ---- 0) Retrieve Random Memories -------------------------------------------
     memory_tag = get_random_memory_tag(self)
     
     retrieved_memory = await retrieve_relevant_memory_from_tag(memory_tag)
-    
     
     # ---- 1) Check Thought -------------------------------------------
     prompt = {
@@ -35,7 +35,7 @@ async def generate_thought():
         )
     }
     
-    current_thought = await get_structured_response(thought_queries + [prompt], get_thought_schema())
+    current_thought = await get_structured_response(queries + [prompt], get_thought_schema())
     
     if current_thought["thought"] == "no":
         return
@@ -43,7 +43,7 @@ async def generate_thought():
     if current_thought["new_expression"] != "no":
         await update_agent_expression(current_thought["new_expression"])
     
-    thought_queries.append({"role": BOT_ROLE, "content": f"This is what {AGENT_NAME} is currently thinking: {json.dumps(current_thought)}"})
+    queries.append({"role": BOT_ROLE, "content": f"This is what {AGENT_NAME} is currently thinking: {json.dumps(current_thought)}"})
     
     await add_thought(
         {
@@ -60,10 +60,10 @@ async def generate_thought():
         )
     }
     
-    initiate_messages = await get_structured_response(thought_queries + [prompt], get_initiate_messages_schema())
+    initiate_messages = await get_structured_response(queries + [prompt], get_initiate_messages_schema())
     
     if await handle_initiating_messages(initiate_messages["initiate_messages"]):
-        thought_queries.append({"role": BOT_ROLE, "content": f"These are the messages {AGENT_NAME} has initiated: {json.dumps(initiate_messages)}"})
+        queries.append({"role": BOT_ROLE, "content": f"These are the messages {AGENT_NAME} has initiated: {json.dumps(initiate_messages)}"})
     
     
     # ---- 2) Thought Emotional Reaction -------------------------------------------
@@ -85,7 +85,7 @@ async def generate_thought():
     
     current_emotions = await alter_emotions(delta, self)
     
-    thought_queries.append({"role": BOT_ROLE, "content":f"This is the emotional effect {AGENT_NAME}'s latest thought had on them: {json.dumps(delta)}"})
+    queries.append({"role": BOT_ROLE, "content":f"This is the emotional effect {AGENT_NAME}'s latest thought had on them: {json.dumps(delta)}"})
 
     # ---- 3) Memory Creation -------------------------------------------
     prompt = {
@@ -93,7 +93,7 @@ async def generate_thought():
             "content": build_memory_prompt(self['memory_tags'])
         }
     
-    memory_response = await get_structured_response(thought_queries + [prompt], get_memory_schema_lite(), quality=False)
+    memory_response = await get_structured_response(queries + [prompt], get_memory_schema_lite(), quality=False)
     
     if memory_response and memory_response.get("event") and memory_response.get("thoughts"):
         mem = Memory(
@@ -111,7 +111,7 @@ async def generate_thought():
         
     if DEBUG_MODE:
         print("\nThought Query List")
-        print(thought_queries)
+        print(queries)
     
 async def periodic_thinking():
     """

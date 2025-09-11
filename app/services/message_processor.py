@@ -9,7 +9,7 @@ from app.domain.memory import Memory
 from app.domain.models import InternalMessageRequest, MessageResponse
 from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.expressions import get_available_expressions
-from app.services.memory import normalize_emotional_impact_fill_zeros
+from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import get_structured_response
 from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, USER_ROLE
 from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
@@ -50,7 +50,7 @@ async def process_message(request: InternalMessageRequest):
                     )
                 
             timings["message_handling_completion"] = time.perf_counter() - step_start
-            # Print timings
+
             print("\nStep timings (seconds):")
             for step, duration in timings.items():
                 print(f"{step}: {duration:.4f}")
@@ -69,11 +69,14 @@ async def handle_message(
     recent_all_messages: Any,
     received_date: datetime,
     request: InternalMessageRequest,
+    *,
     direct_message: bool = True,
+    implicitly_addressed = True,
 ) -> MessageResponse: 
+    '''
+    '''
     user_id = user["user_id"]
     username = user['username']
-    implicitly_addressed = True
     timings = {}
     start = time.perf_counter()
     latest_thoughts = await get_thoughts(1)
@@ -170,6 +173,10 @@ async def handle_message(
     step_start = time.perf_counter()
     
     # ---- 3) Response -------------------------------------------
+    memory_tag = get_random_memory_tag(self)
+    
+    retrieved_memory = await retrieve_relevant_memory_from_tag(memory_tag)
+    
     memory = []
     
     prompt = {
@@ -261,7 +268,7 @@ async def handle_message(
         if new_mat.reason:
             user["sentiment_status"]["reason"] = new_mat.reason
     
-    await update_user_sentiment(user_id, user["sentiment_status"])
+        await update_user_sentiment(user_id, user["sentiment_status"])
     
     timings["sentiments"] = time.perf_counter() - step_start
     step_start = time.perf_counter()
@@ -324,16 +331,14 @@ async def handle_message(
     
     current_thought = await get_structured_response(message_queries + [prompt], get_thought_schema())
     
-    if current_thought["thought"] == "no":
-        return
+    if current_thought["thought"] != "no":
+        await add_thought(
+            {
+                "thought": current_thought['thought'],
+                "timestamp": datetime.now()
+            } 
+        )   
     
-    await add_thought(
-        {
-            "thought": current_thought['thought'],
-            "timestamp": datetime.now()
-        } 
-    )
-           
     # ---- 7) Return response ----------------------------------------------
    
     timings["total_message_handling"] = time.perf_counter() - start

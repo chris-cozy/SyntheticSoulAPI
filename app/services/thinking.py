@@ -16,6 +16,8 @@ from app.services.prompting import _system_message, build_emotion_delta_prompt_t
 async def generate_thought():
     """
     Generates a thought that the agent is having, and inputs it in the database
+    
+    Total query tokens per pass (no message initialization): around 1900
     """
     recent_all_messages = await get_all_message_memory(MESSAGE_HISTORY_COUNT)
     self = await grab_self()

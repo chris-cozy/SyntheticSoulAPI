@@ -65,4 +65,4 @@ EXPRESSIONS_DIR = os.getenv("EXPRESSIONS_DIR") or os.path.join(os.path.dirname(_
 
 _ALLOWED_EXPRESSIONS_EXTS = {".jpeg", ".webp", ".gif", ".png", ".jpg"}
 
-DEBUG_MODE = bool(os.getenv("DEBUG_MODE", False))
+DEBUG_MODE = bool(os.getenv("DEBUG_MODE", True))

@@ -9,7 +9,7 @@ from app.domain.models import InternalMessageRequest
 from app.services.message_processor import generate_response, post_processing
 from app.services.progress import publish_progress
 
-def generate_reply_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
+def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     """
     RQ job entrypoint. Runs your async handle_message() and returns its result.
     RQ persists the return value as job.result; we also write simple progress meta.
@@ -24,7 +24,7 @@ def generate_reply_task(request_payload: Dict[str, Any]) -> Dict[str, Any]:
         job = None
         
     # Run the async first stage in a private event loop
-    result = asyncio.run(generate_response(InternalMessageRequest(**request_payload)))
+    result = asyncio.run(generate_response(request))
     
     user_id = result.user_id
     queries = result.queries

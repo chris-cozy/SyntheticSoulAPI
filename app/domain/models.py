@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel
 
 class MessageRequest(BaseModel):
@@ -21,3 +21,8 @@ class JobStatusResponse(BaseModel):
     progress: Optional[float] = None
     result: Optional[Any] = None
     error: Optional[str] = None
+    
+class GenerateReplyTaskResponse(BaseModel):
+    message_response: MessageResponse
+    user_id: str
+    queries: List[Any]

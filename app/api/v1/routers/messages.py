@@ -5,11 +5,11 @@ from bson.json_util import dumps
 from fastapi.encoders import jsonable_encoder
 from rq import Queue
 
-from app.domain.models import MessageRequest
+from app.domain.models import InternalMessageRequest, MessageRequest
 from app.core.redis_queue import get_queue
 from app.services.auth import auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
-from app.tasks import send_message_task
+from app.tasks import generate_reply_task
 
 
 router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(auth_guard)])
@@ -21,15 +21,12 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
     # Ensure the identity + perspective exists (idempotent)
     if user_id and token_username:
         await ensure_user_and_profile(user_id, token_username)
-        
-    messageModel = request.model_dump()  # pydantic -> dict
-    messageModel['user_id'] = user_id
-        
+            
     try:
         q: Queue = get_queue()
         job = q.enqueue(
-            send_message_task,
-            messageModel,
+            generate_reply_task,
+            InternalMessageRequest(message=request.message, type=request.type, user_id=user_id),
             job_timeout=600,
         )
 

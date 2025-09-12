@@ -203,6 +203,7 @@ def build_response_prompt(
     recent_all_messages: str, 
     memory: str,
     expressions: List[str],
+    message: Any,
     *,
     agent_name: str = AGENT_NAME,
     implicit: bool = True,
@@ -224,7 +225,8 @@ def build_response_prompt(
     - Personality traits: {personality}
     - Current emotional state: {current_emotions}
     - Latest thought(s): {latest_thought}
-    - Recent conversation with {user_id}: {recent_messages}
+    - Latest message from {user_id}: {message}
+    - Previous messages with {user_id}: {recent_messages}
     - Broader recent messages: {recent_all_messages}
     - Current memory items: {memory}
     - Personality language guide: {personality_language_guide}

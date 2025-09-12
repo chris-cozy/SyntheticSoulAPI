@@ -259,8 +259,8 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             timings["response_generation"] = time.perf_counter() - step_start
             
             # ---------- Finalize ----------
-            total_ms = int(round((time.perf_counter() - t0) * 1000))
-            timings["total"] = total_ms
+            total_s = time.perf_counter() - t0
+            timings["total_response_generation"] = total_s
             
             if DEBUG_MODE:
                 print("\nStep timings (seconds):")
@@ -272,7 +272,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
 
             message_response = MessageResponse(
                 response=agent_response_message,
-                time=total_ms,
+                time=total_s,
                 expression=selected_expression,
             )
 

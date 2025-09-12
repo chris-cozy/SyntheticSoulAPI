@@ -164,6 +164,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 "message": perception.get("message", request.message),
                 "purpose": perception.get("purpose"),
                 "tone": perception.get("tone"),
+                "timestamp": received_dt,
                 "sender_id": user_id,
                 "sender_username": username,
                 "from_agent": False
@@ -260,6 +261,14 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             # ---------- Finalize ----------
             total_ms = int(round((time.perf_counter() - t0) * 1000))
             timings["total"] = total_ms
+            
+            if DEBUG_MODE:
+                print("\nStep timings (seconds):")
+                for step, duration in timings.items():
+                    print(f"{step}: {duration:.4f}")
+                    
+                print("\nGenerate Response Query List")
+                print(queries)
 
             message_response = MessageResponse(
                 response=agent_response_message,
@@ -272,6 +281,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 user_id=user_id,
                 queries=queries,
             )
+            
                         
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"generate_response failed: {e}") from e

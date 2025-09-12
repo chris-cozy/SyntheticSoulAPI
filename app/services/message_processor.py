@@ -272,7 +272,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
 
             message_response = MessageResponse(
                 response=agent_response_message,
-                time=total_s,
+                time=int(total_s),
                 expression=selected_expression,
             )
 

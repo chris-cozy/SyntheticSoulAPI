@@ -9,7 +9,7 @@ from app.domain.models import MessageRequest
 from app.core.redis_queue import get_queue
 from app.services.auth import auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
-from app.tasks import send_message_task
+from app.tasks import generate_reply_task
 
 
 router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(auth_guard)])
@@ -28,7 +28,7 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
     try:
         q: Queue = get_queue()
         job = q.enqueue(
-            send_message_task,
+            generate_reply_task,
             messageModel,
             job_timeout=600,
         )

@@ -221,7 +221,9 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                         recent_all_messages=recent_all_messages, 
                         memory=memory, 
                         expressions=available_expressions,
-                        implicit=implicitly_addressed)
+                        implicit=implicitly_addressed,
+                        message=rich_message
+                    )
                 ),
             }
             

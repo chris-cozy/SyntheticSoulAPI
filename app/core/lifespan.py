@@ -1,22 +1,26 @@
 from contextlib import asynccontextmanager
+from contextlib import suppress
 import asyncio
 from fastapi import FastAPI
 
-from app.services.database import init_db, _db_client
+import app.services.database as database_service
+from app.core.config import validate_security_configuration
 from app.services.emotion_decay import emotion_decay_loop
 from app.services.expressions import refresh_expressions_cache
 from app.services.thinking import periodic_thinking
 
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
+    validate_security_configuration()
+
     print("Initializing database...")
-    await init_db()
+    await database_service.init_db()
 
     print("Starting emotional decay...")
     decay_task = asyncio.create_task(emotion_decay_loop())
 
     print("Starting to think...")
-    asyncio.create_task(periodic_thinking())
+    thinking_task = asyncio.create_task(periodic_thinking())
     
     print("Refreshing expressions cache...") 
     refresh_expressions_cache()
@@ -24,8 +28,15 @@ async def app_lifespan(app: FastAPI):
     try:
         yield
     finally:
-        if _db_client:
-            _db_client.close()
+        if database_service._db_client:
+            database_service._db_client.close()
             print("Database connection closed.")
+
         decay_task.cancel()
+        thinking_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await decay_task
+        with suppress(asyncio.CancelledError):
+            await thinking_task
+
         print("Emotion decay loop stopped.")

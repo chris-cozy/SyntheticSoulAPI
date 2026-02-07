@@ -2,7 +2,7 @@ from typing import Optional
 import ssl
 import redis
 from rq import Queue
-from .config import REDIS_URL
+from .config import APP_ENV, REDIS_CA_CERT, REDIS_TLS_INSECURE_SKIP_VERIFY, REDIS_URL
 
 
 _rconn: Optional["redis.Redis"] = None
@@ -15,7 +15,13 @@ def get_redis() -> "redis.Redis":
     global _rconn
     if _rconn is None:
         if REDIS_URL.startswith("rediss://"):
-            _rconn = redis.from_url(REDIS_URL, ssl_cert_reqs=ssl.CERT_NONE)
+            ssl_cert_reqs = ssl.CERT_REQUIRED
+            if REDIS_TLS_INSECURE_SKIP_VERIFY and APP_ENV in {"dev", "development", "local", "test"}:
+                ssl_cert_reqs = ssl.CERT_NONE
+            kwargs = {"ssl_cert_reqs": ssl_cert_reqs}
+            if REDIS_CA_CERT:
+                kwargs["ssl_ca_certs"] = REDIS_CA_CERT
+            _rconn = redis.from_url(REDIS_URL, **kwargs)
         else:
             _rconn = redis.from_url(REDIS_URL)
     return _rconn

@@ -86,12 +86,15 @@ async def claim(req: Request, resp: Response, body: ClaimRequest, creds: HTTPAut
     await _revoke_session(db, payload["sid"])
     return await _create_session(db, payload["sub"], body.username, req, resp)
 
-@router.post("/refresh", response_model=TokenReply, dependencies=[Depends(auth_guard)])
+@router.post("/refresh", response_model=TokenReply)
 async def refresh(req: Request, resp: Response):
     db = await get_database()
-    sid, rtok = _read_refresh_cookies(req)
-    if not sid or not rtok:
+    sid, rtok, csrf_cookie = _read_refresh_cookies(req)
+    csrf_header = req.headers.get("X-CSRF-Token")
+    if not sid or not rtok or not csrf_cookie:
         raise HTTPException(status_code=401, detail="no_refresh")
+    if not csrf_header or csrf_header != csrf_cookie:
+        raise HTTPException(status_code=401, detail="csrf_mismatch")
 
     sess = await db[SESSIONS_COLLECTION].find_one({"_id": sid})
     if not sess:
@@ -112,6 +115,8 @@ async def refresh(req: Request, resp: Response):
     # Validate refresh token -> rotate
     if not _verify_refresh(rtok, sess.get("refresh_hash", "")):
         raise HTTPException(status_code=401, detail="bad_refresh")
+    if not _verify_refresh(csrf_cookie, sess.get("csrf_hash", "")):
+        raise HTTPException(status_code=401, detail="csrf_mismatch")
 
     # Rotate: revoke old, mint new
     await _revoke_session(db, sid)
@@ -141,4 +146,3 @@ async def me(creds: HTTPAuthorizationCredentials | None = Depends(bearer)):
     except Exception:
         raise HTTPException(status_code=401, detail="invalid_token")
     return {"user_id": payload["sub"], "username": payload["username"], "sid": payload["sid"]}
-

@@ -9,6 +9,7 @@ JWT_AUD = "synthetic-soul-client"     # adjust if you need audience checks
 # Cookies (refresh only; access stays in Authorization header)
 REFRESH_COOKIE_NAME = "rtoken"
 SESSION_COOKIE_NAME = "sid"
+REFRESH_CSRF_COOKIE_NAME = "refresh_csrf"
 
 THOUGHT_VIBES = [
     "whimsical", "cozy", "mundane-observation", "curious",
@@ -34,12 +35,12 @@ EXTRINSIC_RELATIONSHIPS = [
     "friend",
     "acquaintance",
     "enemy",
-    "my romantic partner",
-    "my best friend",
+    "romantic partner",
+    "best friend",
 ]
 
 INTRINSIC_RELATIONSHIPS = [
-    "my creator",
+    "creator",
     "brother",
     "sister",
     "mother",

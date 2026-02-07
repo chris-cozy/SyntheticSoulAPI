@@ -1,9 +1,13 @@
 import openai
 import json
+import asyncio
 
 from app.core.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 
-client = openai.OpenAI(base_url= DEEPSEEK_BASE_URL, api_key= DEEPSEEK_API_KEY)
+def _get_client() -> openai.OpenAI:
+    if not DEEPSEEK_BASE_URL or not DEEPSEEK_API_KEY:
+        raise RuntimeError("DeepSeek configuration is incomplete.")
+    return openai.OpenAI(base_url=DEEPSEEK_BASE_URL, api_key=DEEPSEEK_API_KEY)
 
 async def get_structured_query_reasoning_response(messages, schema):
     """
@@ -14,9 +18,11 @@ async def get_structured_query_reasoning_response(messages, schema):
     :return: Parsed response as a Python dictionary, or None on error
     """
     try:
-        response = client.chat.completions.create(
-            model= DEEPSEEK_MODEL,
-            messages=messages
+        client = _get_client()
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=DEEPSEEK_MODEL,
+            messages=messages,
         )
 
         content_json = response.choices[0].message.content

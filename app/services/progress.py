@@ -2,12 +2,18 @@ import ssl
 import json
 import redis
 
-from app.core.config import REDIS_URL
+from app.core.config import APP_ENV, REDIS_CA_CERT, REDIS_TLS_INSECURE_SKIP_VERIFY, REDIS_URL
 
 def _redis_from_env():
     url = REDIS_URL
     if url.startswith("rediss://"):
-        return redis.from_url(url, ssl_cert_reqs=ssl.CERT_NONE)
+        ssl_cert_reqs = ssl.CERT_REQUIRED
+        if REDIS_TLS_INSECURE_SKIP_VERIFY and APP_ENV in {"dev", "development", "local", "test"}:
+            ssl_cert_reqs = ssl.CERT_NONE
+        kwargs = {"ssl_cert_reqs": ssl_cert_reqs}
+        if REDIS_CA_CERT:
+            kwargs["ssl_ca_certs"] = REDIS_CA_CERT
+        return redis.from_url(url, **kwargs)
     return redis.from_url(url)
 
 def publish_progress(job_id: str, progress: int) -> None:

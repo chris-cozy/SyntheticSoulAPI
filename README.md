@@ -50,11 +50,12 @@ The AI is named **Jasmine**—short for *Just a Simulation Modeling Interactive 
 
 
 ### APIs
-- **Agents**: `/agents` – list all agents, get active agent.
-- **Messages**: `/messages` – submit user messages, retrieve conversations.
-- **Jobs**: `/jobs/{id}` – check async job status.
-- **Meta**: `/meta` – API version, health check.
-- **Root**: `/` – generate a random autonomous thought.
+- **Agents**: `/v1/agents` – list all agents, get active agent.
+- **Messages**: `/v1/messages` – submit user messages, retrieve conversations.
+- **Jobs**: `/v1/jobs/{id}` – check async job status.
+- **Meta**: `/v1/meta` – API version, health check.
+  - `/v1/meta/queue` – queue diagnostics (worker count, queue backlog).
+- **Root**: `/v1/` – get active agent name.
 
 
 ### Integrations
@@ -76,6 +77,7 @@ The AI is named **Jasmine**—short for *Just a Simulation Modeling Interactive 
 - **Login**: `POST /v1/auth/login` → authenticate existing accounts.
 
 - **Refresh**: `POST /v1/auth/refresh` → rotate refresh + access tokens (refresh stored in HttpOnly cookie).
+  Requires `X-CSRF-Token` header matching the `refresh_csrf` cookie value.
 
 - **Logout**: `POST /v1/auth/logout` → revoke current session.
 
@@ -88,7 +90,7 @@ The AI is named **Jasmine**—short for *Just a Simulation Modeling Interactive 
 - **Password storage**: Argon2id with per-user salt + optional global pepper.
   
 ### Using Tokens in Postman
-1. Call `/auth/guest` or `/auth/login` to get an access_token.
+1. Call `/v1/auth/guest` or `/v1/auth/login` to get an access_token.
 2. In Postman → Authorization tab → Type: **Bearer Token** → paste the access token.
 3. Now protected endpoints will work.
 
@@ -99,6 +101,7 @@ Public
 - /v1/auth/login
 - /v1/auth/guest
 - /v1/auth/logout
+- /v1/auth/refresh (requires refresh cookies + `X-CSRF-Token`)
 
 Auth-required (guest or user)
 - /v1/messages/*
@@ -106,7 +109,6 @@ Auth-required (guest or user)
 - /v1/agents/*
 - /v1/auth/claim
 - /v1/auth/me
-- /v1/auth/refresh
 
 ### Summary
 - All user-related endpoints now require at least a guest token.
@@ -130,19 +132,19 @@ Configuration is managed via environment variables (`.env`).
 - `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` – DeepSeek configuration.
 - `MONGO_CONNECTION`, `DATABASE_NAME` – MongoDB connection.
 - `REDIS_URL` or `REDIS_TLS_URL` – Redis connection string.
+- `REDIS_CA_CERT` – CA bundle path for `rediss://` verification.
 - `WEB_UI_DOMAIN` – Allowed frontend domain.
-- `JWT_SECRET_ENV`=your-long-random-secret # e.g., `openssl rand -base64 64`
-- `ARGON2_PEPPER_ENV`=your-random-pepper # e.g., `openssl rand -base64 32`
-- `JWT_AUD`=synthetic-soul # audience claim
-- `JWT_ISS`=synthetic-soul-api # issuer claim
-- `ACCESS_TOKEN_TTL`=900 # seconds (15 minutes typical)
-- `REFRESH_TOKEN_TTL`=604800 # seconds (7 days typical)
+- `APP_ENV` – app environment (`development`/`production`).
+- `JWT_SECRET_ENV` – long random JWT signing secret.
+- `ARGON2_PEPPER_ENV` – long random password pepper.
+- `ACCESS_TTL_MIN` – access token TTL in minutes (default `15`).
+- `REFRESH_TTL_DAYS` – refresh token TTL in days (default `90`).
 
 - To create a secret to use for JWT and/or ARGON: `python -c "import secrets; print(secrets.token_urlsafe(64))"` 
 
 ### Rates & Retention
 - Emotional Decay: every 240s.
-- Thinking: every 300s.
+- Thinking: every 900s.
 - Conversation message retention: 10.
 
 
@@ -188,22 +190,23 @@ rq worker
 ### Authentication Flow
 1. Guest session
    ```http
-    POST /auth/guest
+    POST /v1/auth/guest
     ```
 
     Response
     ```http
     {
     "access_token": "...",
-    "username": "guest_123..."
+    "username": "guest_123...",
+    "expires_in": 900
     }
     ```
 
 2. Claim account
     ```http
-    POST /auth/claim
+    POST /v1/auth/claim
     {
-    "email": "me@example.com"
+    "email": "me@example.com",
     "username": "alice",
     "password": "secret123"
     }
@@ -211,30 +214,31 @@ rq worker
 
 3. Login
     ```http
-    POST /auth/login
+    POST /v1/auth/login
     {
-    "email": "me@example.com"
+    "email": "me@example.com",
     "password": "secret123"
     }
     ```
 4. Refresh
    ```http
-    POST /auth/refresh
+    POST /v1/auth/refresh
+    X-CSRF-Token: <refresh_csrf cookie value>
     ```
-    (Uses HttpOnly refresh cookie; server rotates both refresh + access tokens.)
+    (Uses HttpOnly refresh cookie + CSRF token header; server rotates refresh + access tokens.)
 
 5. Logout
    ```http
-    POST /auth/logout
+    POST /v1/auth/logout
     ```
     Revokes session and clears refresh cookie.
 
 ### Submit a Message
 ```http
-POST /messages/submit
+POST /v1/messages/submit
 {
-"username": "alice",
-"content": "How are you feeling today?"
+"message": "How are you feeling today?",
+"type": "dm"
 }
 ```
 
@@ -250,7 +254,7 @@ Response:
 
 ### Poll Job Status
 ```http
-GET /jobs/abc123
+GET /v1/jobs/abc123
 ```
 
 Response:
@@ -258,7 +262,7 @@ Response:
 {
 "job_id": "8bbf5e53-a9b5-4020-bf2d-bde3026a26e4",
     "status": "succeeded",
-    "progress": 100.0,
+    "progress": 1.0,
     "result": {
         "response": "I’m doing really well, thank you — that made my day to hear! I’m so happy we’ve been chatting ♡",
         "time": 22,
@@ -270,13 +274,13 @@ Response:
 
 ### Get Active Agent
 ```http
-GET /agents/active
+GET /v1/agents/active
 ```
 
 
-### Random Thought
+### Root
 ```http
-GET /
+GET /v1/
 ```
 
 ## 🧠 Philosophy

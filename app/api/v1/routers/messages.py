@@ -1,13 +1,13 @@
 from datetime import datetime
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Response
-from bson.json_util import dumps
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from rq import Queue
 
-from app.domain.models import InternalMessageRequest, MessageRequest
+from app.domain.models import InternalMessageRequest, JobSubmissionResponse, MessageRequest
 from app.core.redis_queue import get_queue
-from app.services.auth import auth_guard, identity
+from app.services.auth import _ratelimit, auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
 from app.tasks import generate_reply_task
 
@@ -15,34 +15,33 @@ from app.tasks import generate_reply_task
 router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(auth_guard)])
 
 
-@router.post("/submit")
+@router.post("/submit", response_model=JobSubmissionResponse, status_code=202)
 async def submit_message(request: MessageRequest, ident = Depends(identity)):
     user_id, token_username, _sid = ident
+    await _ratelimit(f"rl:submit:{user_id}", limit=60, window_sec=60)
     # Ensure the identity + perspective exists (idempotent)
     if user_id and token_username:
         await ensure_user_and_profile(user_id, token_username)
-            
-    try:
-        q: Queue = get_queue()
-        job = q.enqueue(
-            generate_reply_task,
-            InternalMessageRequest(message=request.message, type=request.type, user_id=user_id),
-            job_timeout=600,
-        )
 
-        # return 202 + Location header so clients can poll
-        response = Response(
-            content=dumps({"job_id": job.id, "status": job.get_status()}),
-            status_code=202,
-            headers={
-                "Location": f"/jobs/{job.id}",
-                "Retry-After": "3",
-            },
-            media_type="application/json",
-        )
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    q: Queue = get_queue()
+    job = q.enqueue(
+        generate_reply_task,
+        InternalMessageRequest(message=request.message, type=request.type, user_id=user_id),
+        job_timeout=600,
+    )
+    job.meta["owner_user_id"] = user_id
+    job.save_meta()
+
+    # return 202 + Location header so clients can poll
+    response = JSONResponse(
+        content={"job_id": job.id, "status": job.get_status()},
+        status_code=202,
+        headers={
+            "Location": f"/v1/jobs/{job.id}",
+            "Retry-After": "3",
+        },
+    )
+    return response
     
 @router.get("/conversation")
 async def get_user_conversation(ident = Depends(identity)):
@@ -53,24 +52,20 @@ async def get_user_conversation(ident = Depends(identity)):
     if username:
         await ensure_user_and_profile(user_id, username)
         
-    try:
-        doc = await get_conversation(user_id)
-        if not doc:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-        
-        # make a copy, expose id as string, drop Mongo's _id key (optional but common)
-        doc = dict(doc)
-        if "_id" in doc:
-            doc["id"] = str(doc.pop("_id"))
+    doc = await get_conversation(user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="conversation_not_found")
+    
+    # make a copy, expose id as string, drop Mongo's _id key (optional but common)
+    doc = dict(doc)
+    if "_id" in doc:
+        doc["id"] = str(doc.pop("_id"))
 
-        payload = jsonable_encoder(
-            doc,
-            custom_encoder={
-                ObjectId: str,
-                datetime: lambda d: d.isoformat()
-            },
-        )
-        return {"conversation": payload}
-    except Exception as e:
-        print(f"Error in conversation endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    payload = jsonable_encoder(
+        doc,
+        custom_encoder={
+            ObjectId: str,
+            datetime: lambda d: d.isoformat()
+        },
+    )
+    return {"conversation": payload}

@@ -286,7 +286,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             
                         
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"generate_response failed: {e}") from e
+            raise HTTPException(status_code=500, detail="generate_response_failed") from e
                                
 
 async def post_processing(user_id: str, queries: List[Any]) -> None:
@@ -348,9 +348,9 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         sentiment_deltas = response.get("sentiment_deltas") or {}
         await alter_sentiments(sentiment_deltas, user)
         
-        summary = response.get("summary") or ""
-        extrinsic_relationship = response.get("extrinsic_relationship") or {}
-        identity = response.get("identity") or {}
+        summary = response.get("summary") or user.get("summary", "")
+        extrinsic_relationship = response.get("extrinsic_relationship") or user.get("extrinsic_relationship", "stranger")
+        identity = response.get("identity") or self.get("identity", "")
         await update_summary_identity_relationship(
             user_id,
             summary,
@@ -435,11 +435,11 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         
         return None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"post_processing failed: {e}") from e
+        raise HTTPException(status_code=500, detail="post_processing_failed") from e
     
 
 def alter_personality(personality_deltas, self) -> Any:
-    if not personality_deltas and personality_deltas.get("deltas"):
+    if not personality_deltas or not personality_deltas.get("deltas"):
         print("Personality was not altered. No deltas.")
         return self["personality"]
     
@@ -461,7 +461,7 @@ def alter_personality(personality_deltas, self) -> Any:
     return self["personality"]
 
 async def alter_emotions(emotion_deltas, self) -> Any:
-    if not emotion_deltas and emotion_deltas.get("deltas"):
+    if not emotion_deltas or not emotion_deltas.get("deltas"):
         print("Emotions were not altered. No deltas.")
         return self["emotional_status"]
     
@@ -483,8 +483,9 @@ async def alter_emotions(emotion_deltas, self) -> Any:
     return self["emotional_status"]
 
 async def alter_sentiments(sentiment_deltas, user)-> None:
-    if not sentiment_deltas and sentiment_deltas.get('deltas'):
+    if not sentiment_deltas or not sentiment_deltas.get("deltas"):
         print("Sentiments were not altered. No deltas.")
+        return
         
     # Convert existing DB sentiment_status -> SentimentMatrix
     flat = user["sentiment_status"]

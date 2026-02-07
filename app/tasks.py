@@ -1,13 +1,31 @@
-import os
 import asyncio
-import json
-import redis
 from rq import get_current_job
 from typing import Dict, Any
 from app.core.redis_queue import get_queue
 from app.domain.models import InternalMessageRequest
 from app.services.message_processor import generate_response, post_processing
 from app.services.progress import publish_progress
+
+_worker_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_worker_loop() -> asyncio.AbstractEventLoop:
+    global _worker_loop
+    if _worker_loop is None or _worker_loop.is_closed():
+        _worker_loop = asyncio.new_event_loop()
+    return _worker_loop
+
+
+def _run_async(coro):
+    """
+    Run coroutine on a persistent per-process event loop.
+    Avoids creating/closing loops per job, which can invalidate async clients
+    (e.g., Motor) in SimpleWorker mode on macOS.
+    """
+    loop = _get_worker_loop()
+    asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
 
 def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     """
@@ -23,8 +41,8 @@ def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     except Exception:
         job = None
         
-    # Run the async first stage in a private event loop
-    result = asyncio.run(generate_response(request))
+    # Run async stage on persistent loop for worker process.
+    result = _run_async(generate_response(request))
     
     user_id = result.user_id
     queries = result.queries
@@ -60,7 +78,7 @@ def post_processing_task(user_id: str, queries: list):
     except Exception:
         job = None
 
-    asyncio.run(post_processing(user_id, queries))
+    _run_async(post_processing(user_id, queries))
 
     if job:
         job.meta["progress"] = 1.0

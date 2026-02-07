@@ -1,4 +1,5 @@
 import uuid, secrets
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
@@ -13,10 +14,10 @@ from app.services.database import get_database
 from app.constants.constants import (
     SESSIONS_COLLECTION,
     JWT_ISS, JWT_AUD,
-    REFRESH_COOKIE_NAME, SESSION_COOKIE_NAME,
+    REFRESH_COOKIE_NAME, SESSION_COOKIE_NAME, REFRESH_CSRF_COOKIE_NAME,
 )
 
-from app.core.config import JWT_SECRET_ENV, ARGON2_PEPPER_ENV, ACCESS_TTL_MIN, REFRESH_TTL_DAYS
+from app.core.config import API_BASE_PATH, JWT_SECRET_ENV, ARGON2_PEPPER_ENV, ACCESS_TTL_MIN, REFRESH_TTL_DAYS
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -25,7 +26,7 @@ _r = get_redis()
 
 # --- Helpers ---
 def _now() -> datetime:
-    return datetime.now()  # keep consistent with rest of code
+    return datetime.now()
 
 def _hash_refresh(token: str) -> str:
     return argon2.hash(token + ARGON2_PEPPER_ENV)
@@ -50,27 +51,41 @@ def _mint_access(session_id: str, user_id: str, username: str) -> str:
     return jwt.encode(payload, JWT_SECRET_ENV, algorithm="HS256")
 
 
-def _set_refresh_cookies(resp: Response, session_id: str, refresh_token: str):
-    # Bind refresh to its session id: two cookies scoped to /auth/refresh only
+REFRESH_PATH = f"{API_BASE_PATH}/auth/refresh"
+
+
+def _set_refresh_cookies(resp: Response, session_id: str, refresh_token: str, csrf_token: str):
+    # Bind refresh to its session id and protect refresh endpoint with CSRF token.
     cookie_params = dict(
         httponly=True, secure=True, samesite="Lax",
-        path="/auth/refresh", max_age=REFRESH_TTL_DAYS * 86400
+        path=REFRESH_PATH, max_age=REFRESH_TTL_DAYS * 86400
     )
     resp.set_cookie(key=SESSION_COOKIE_NAME, value=session_id, **cookie_params)
     resp.set_cookie(key=REFRESH_COOKIE_NAME, value=refresh_token, **cookie_params)
+    resp.set_cookie(
+        key=REFRESH_CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=True,
+        samesite="Lax",
+        path=REFRESH_PATH,
+        max_age=REFRESH_TTL_DAYS * 86400,
+    )
 
 def _clear_refresh_cookies(resp: Response):
-    for name in (SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME):
-        resp.set_cookie(key=name, value="", path="/auth/refresh", max_age=0)
+    for name in (SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME, REFRESH_CSRF_COOKIE_NAME):
+        resp.set_cookie(key=name, value="", path=REFRESH_PATH, max_age=0)
 
 async def _create_session(db, user_id: str, username: str, req: Request, resp: Response) -> TokenReply:
     sid = str(uuid.uuid4())
     refresh = secrets.token_urlsafe(48)
+    csrf_token = secrets.token_urlsafe(24)
     await db[SESSIONS_COLLECTION].insert_one({
         "_id": sid,
         "user_id": user_id,
         "username": username,
         "refresh_hash": _hash_refresh(refresh),
+        "csrf_hash": _hash_refresh(csrf_token),
         "created_at": _now(),
         "last_used": None,
         "expires_at": _now() + timedelta(days=REFRESH_TTL_DAYS),
@@ -79,7 +94,7 @@ async def _create_session(db, user_id: str, username: str, req: Request, resp: R
         "ua": req.headers.get("user-agent"),
         "ip": (req.client.host if req.client else None),
     })
-    _set_refresh_cookies(resp, sid, refresh)
+    _set_refresh_cookies(resp, sid, refresh, csrf_token)
     return TokenReply(access_token=_mint_access(sid, user_id, username), username=username, expires_in=(ACCESS_TTL_MIN * 60))
 
 async def _revoke_session(db, sid: str, *, reused: bool = False):
@@ -92,17 +107,27 @@ async def _revoke_all_user_sessions(db, user_id: str):
     await db[SESSIONS_COLLECTION].update_many({"user_id": user_id, "revoked": False},
                                              {"$set": {"revoked": True}})
 
-def _read_refresh_cookies(req: Request) -> Tuple[Optional[str], Optional[str]]:
-    return req.cookies.get(SESSION_COOKIE_NAME), req.cookies.get(REFRESH_COOKIE_NAME)
+def _read_refresh_cookies(req: Request) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    return (
+        req.cookies.get(SESSION_COOKIE_NAME),
+        req.cookies.get(REFRESH_COOKIE_NAME),
+        req.cookies.get(REFRESH_CSRF_COOKIE_NAME),
+    )
 
-# --- Rate limiting (simple Redis token bucket) ---
-async def _ratelimit(key: str, limit: int, window_sec: int):
-    # Incr key; on first hit set expiry
+
+def _rate_limit_sync(key: str, limit: int, window_sec: int) -> tuple[int, int]:
     cur = _r.incr(key)
     if cur == 1:
         _r.expire(key, window_sec)
+    ttl = _r.ttl(key)
+    if ttl is None or ttl < 0:
+        ttl = window_sec
+    return cur, ttl
+
+# --- Rate limiting (simple Redis token bucket) ---
+async def _ratelimit(key: str, limit: int, window_sec: int):
+    cur, ttl = await asyncio.to_thread(_rate_limit_sync, key, limit, window_sec)
     if cur > limit:
-        ttl = _r.ttl(key) or window_sec
         raise HTTPException(status_code=429, detail=f"rate_limited retry_in={ttl}s")
     
     

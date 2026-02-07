@@ -4,8 +4,10 @@ import os
 load_dotenv()
 
 API_VERSION = "1.0.0"
+API_BASE_PATH = "/v1"
 
-AGENT_NAME = os.getenv("BOT_NAME")
+AGENT_NAME = os.getenv("BOT_NAME", "jasmine")
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 
 # OpenAI
 OPENAI_KEY = os.getenv('OPENAI_API_KEY')
@@ -41,13 +43,17 @@ ACCESS_TTL_MIN = int(os.getenv("ACCESS_TTL_MIN", ACCESS_TTL_MIN_DEFAULT))
 REFRESH_TTL_DAYS = int(os.getenv("REFRESH_TTL_DAYS", REFRESH_TTL_DAYS_DEFAULT))
 
 # CORS
-ALLOWED_ORIGINS = [
-"http://localhost:5173",
-os.getenv("WEB_UI_DOMAIN"),
+_raw_allowed_origins = [
+    "http://localhost:5173",
+    os.getenv("WEB_UI_DOMAIN"),
 ]
+ALLOWED_ORIGINS = [origin.rstrip("/") for origin in _raw_allowed_origins if origin]
+ALLOWED_ORIGINS = [origin for origin in ALLOWED_ORIGINS if origin.startswith(("http://", "https://"))]
 
 # Redis url (supports plain or TLS)
 REDIS_URL = os.getenv("REDIS_TLS_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_CA_CERT = os.getenv("REDIS_CA_CERT")
+REDIS_TLS_INSECURE_SKIP_VERIFY = os.getenv("REDIS_TLS_INSECURE_SKIP_VERIFY", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 # Periodic Rates
 EMOTIONAL_DECAY_RATE = int(os.getenv("EMOTIONAL_DECAY_RATE_SECONDS", 240))
@@ -65,4 +71,22 @@ EXPRESSIONS_DIR = os.getenv("EXPRESSIONS_DIR") or os.path.join(os.path.dirname(_
 
 _ALLOWED_EXPRESSIONS_EXTS = {".jpeg", ".webp", ".gif", ".png", ".jpg"}
 
-DEBUG_MODE = bool(os.getenv("DEBUG_MODE", True))
+DEBUG_MODE = os.getenv("DEBUG_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def validate_security_configuration() -> None:
+    is_dev = APP_ENV in {"dev", "development", "local", "test"}
+    if is_dev:
+        return
+
+    if JWT_SECRET_ENV == "dev-change-me":
+        raise RuntimeError("JWT_SECRET_ENV must be set to a secure random value in non-dev environments.")
+    if ARGON2_PEPPER_ENV == "dev-change-me":
+        raise RuntimeError("ARGON2_PEPPER_ENV must be set to a secure random value in non-dev environments.")
+
+    if len(JWT_SECRET_ENV) < 32:
+        raise RuntimeError("JWT_SECRET_ENV must be at least 32 characters in non-dev environments.")
+    if len(ARGON2_PEPPER_ENV) < 16:
+        raise RuntimeError("ARGON2_PEPPER_ENV must be at least 16 characters in non-dev environments.")
+    if REDIS_TLS_INSECURE_SKIP_VERIFY:
+        raise RuntimeError("REDIS_TLS_INSECURE_SKIP_VERIFY cannot be enabled in non-dev environments.")

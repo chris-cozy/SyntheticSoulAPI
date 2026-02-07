@@ -4146,6 +4146,7 @@ SESSIONS_VALIDATOR = {
             "user_id":      {"bsonType": "string"},
             "username":     {"bsonType": "string"},
             "refresh_hash": {"bsonType": "string"},
+            "csrf_hash":    {"bsonType": ["string", "null"]},
             "created_at":   {"bsonType": "date"},
             "last_used":    {"bsonType": ["date", "null"]},
             "expires_at":   {"bsonType": "date"},
@@ -4184,4 +4185,3 @@ AUTH_VALIDATOR = {
     }
   }
 }
-

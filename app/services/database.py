@@ -288,7 +288,7 @@ async def get_all_agents():
 
     :return: List of agent objects
     """
-    db = get_database()
+    db = await get_database()
     agent_collection = db[AGENT_RICH_COLLECTION]
     cursor = agent_collection.find({}, {"name": 1, "_id": 0})  # This returns an AsyncIOMotorCursor
     all_agents = await cursor.to_list(length=None)  # Convert the cursor to a list of documents
@@ -311,7 +311,7 @@ async def get_all_message_memory(count, agent_name=AGENT_NAME):
         
         cursor = (
             message_collection
-            .find({"sender": agent_name})
+            .find({"agent": agent_name})
             .sort([("_id", -1)])   # Sort descending by _id (newest first)
             .limit(count)
         )
@@ -458,9 +458,21 @@ async def update_summary_identity_relationship(user_id, summary, extrinsic_relat
         if LITE_MODE:
             agent_collection = db[AGENT_LITE_COLLECTION]
             user_collection = db[USER_LITE_COLLECTION]
+        else:
+            agent_collection = db[AGENT_RICH_COLLECTION]
+            user_collection = db[USER_RICH_COLLECTION]
 
-        agent_collection.update_one({'name': agent_name}, {"$set": {"identity": identity}})
-        user_collection.update_one({"user_id": user_id, "agent_perspective": agent_name}, {"$set": {"summary": summary, "extrinsic_relationship": extrinsic_relationship}})
+        normalized_relationship = extrinsic_relationship
+        if normalized_relationship == "my romantic partner":
+            normalized_relationship = "romantic partner"
+        elif normalized_relationship == "my best friend":
+            normalized_relationship = "best friend"
+
+        await agent_collection.update_one({"name": agent_name}, {"$set": {"identity": str(identity)}})
+        await user_collection.update_one(
+            {"user_id": user_id, "agent_perspective": agent_name},
+            {"$set": {"summary": str(summary), "extrinsic_relationship": str(normalized_relationship)}},
+        )
     except Exception as e:
         print(e)
         
@@ -469,8 +481,10 @@ async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
         db = await get_database()
         if LITE_MODE:
             agent_collection = db[AGENT_LITE_COLLECTION]
+        else:
+            agent_collection = db[AGENT_RICH_COLLECTION]
         
-        agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"emotional_status": emotions }})
+        await agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, {"$set": {"emotional_status": emotions}})
     
     except Exception as e:
         print(e)
@@ -480,8 +494,10 @@ async def update_agent_expression(expression, agent_name=AGENT_NAME):
         db = await get_database()
         if LITE_MODE:
             agent_collection = db[AGENT_LITE_COLLECTION]
+        else:
+            agent_collection = db[AGENT_RICH_COLLECTION]
         
-        agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, { "$set": {"global_expression": expression }})
+        await agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, {"$set": {"global_expression": expression}})
     
     except Exception as e:
         print(e)
@@ -491,8 +507,13 @@ async def update_user_sentiment(user_id, sentiments):
         db = await get_database()
         if LITE_MODE:
             user_collection = db[USER_LITE_COLLECTION]
+        else:
+            user_collection = db[USER_RICH_COLLECTION]
         
-        user_collection.update_one({"user_id": user_id}, { "$set": { "sentiment_status": sentiments, "last_interaction": datetime.now() }})
+        await user_collection.update_one(
+            {"user_id": user_id},
+            {"$set": {"sentiment_status": sentiments, "last_interaction": datetime.now()}},
+        )
     except Exception as e:
         print(e)
         

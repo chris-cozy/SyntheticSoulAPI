@@ -4,13 +4,26 @@ from fastapi import APIRouter, HTTPException
 from rq import Queue, Worker
 
 from app.core.redis_queue import get_redis
-from app.core.config import API_VERSION
+from app.core.config import API_BASE_PATH, API_MAJOR_VERSION, API_MINOR_VERSION, API_PATCH_VERSION, API_VERSION
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
 @router.get("/version")
 async def version():
-    return {"version": API_VERSION}
+    return {
+        "version": API_VERSION,
+        "api_base_path": API_BASE_PATH,
+        "semver": {
+            "major": API_MAJOR_VERSION,
+            "minor": API_MINOR_VERSION,
+            "patch": API_PATCH_VERSION,
+        },
+        "versioning_policy": {
+            "url_versioning": "major",
+            "breaking_changes": "major-only",
+            "non_breaking_changes": "minor-or-patch",
+        },
+    }
 
 @router.get("/ping")
 async def ping():

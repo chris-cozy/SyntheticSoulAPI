@@ -1,317 +1,358 @@
-# Synthetic Soul (Jasmine)
+# Synthetic Soul API (J.A.S.M.I.N.E)
 
+Synthetic Soul is an experimental artificial intelligence project designed to simulate human-like emotions, thought patterns, and relationship dynamics. Its purpose is to create a digital mind that not only responds to user input but also develops an evolving personality, one that reflects emotional depth, personal biases, and individualized sentiments toward different users shaped by unique experiences.
 
-**Synthetic Soul** is an experimental artificial intelligence project designed to simulate human-like emotions, thought patterns, and relationship dynamics. Its purpose is to create a digital mind that not only responds to user input but also develops an evolving personality—one that reflects emotional depth, personal biases, and individualized sentiments toward different users, shaped by unique experiences.
+The AI is named Jasmine, short for Just a Simulation Modeling Interactive Neural Engagement, to reflect both its experimental nature and its focus on simulating authentic engagement.
 
+## Features
 
-The AI is named **Jasmine**—short for *Just a Simulation Modeling Interactive Neural Engagement*—to reflect both its experimental nature and its focus on simulating authentic engagement.
+- Emotion simulation with decay, reinforcement, and contextual shifts
+- Rich and Lite personality schemas for lightweight or deeper simulation
+- Persistent memory and relationship context backed by MongoDB
+- Autonomous thinking loops independent of direct user prompts
+- Relationship dynamics that evolve based on interaction history
+- Async message processing with Redis + RQ workers
+- Structured LLM integration with OpenAI and DeepSeek providers
 
+## Philosophy
 
----
+*Jasmine* explores affective computing and digital companionship by blending artificial intelligence with principles from psychology and human relationship studies. The goal is not just interaction but **evolution** — an AI that grows and adapts with users over time.
 
+## Project Docs
 
-## 🌟 Features
-- **Emotion Simulation**: Dynamic emotions with decay, reinforcement, and contextual shifts.
-- **Personality Traits**: Rich and Lite personality schemas, enabling both lightweight and detailed simulations.
-- **Memory System**: Persistence of conversations and experiences in MongoDB for long-term evolution.
-- **Autonomous Thinking**: Periodic thought generation independent of user input.
-- **Relationship Dynamics**: Sentiments and biases toward different users evolve over time.
-- **Background Processing**: Redis + RQ worker queue for async message handling.
-- **LLM Integration**: Structured responses powered by OpenAI and DeepSeek.
+- [Project Overview](docs/PROJECT_OVERVIEW.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Contributing](docs/CONTRIBUTING.md)
 
+Synthetic Soul API is a FastAPI service that powers the runtime backend with:
 
----
+- authenticated guest/user sessions
+- async message processing via Redis + RQ
+- persistent memory/state in MongoDB
+- optional LLM backends (OpenAI, DeepSeek)
 
+This document is a full setup and operations guide for local development on macOS, Linux, or Windows.
 
-## 🏛 Architecture
+## API Versioning
 
+Current version: `1.1.0`
 
-### Core Components
-- **API Server**: `main.py` (FastAPI entrypoint).
-- **Lifecycle Management**: `lifespan.py` initializes DB, emotional decay, and periodic thinking.
-- **Async Workers**: `worker.py`, `redis_queue.py` with Redis + RQ for task queuing.
+Versioning policy:
 
+- URL versioning uses the **major** version (`/v1/...`)
+- **Breaking** changes require a major bump (`v2`)
+- **Non-breaking** additions/fixes use minor/patch bumps (`1.1.x`, `1.2.x`)
 
-### State & Reasoning
-- **State Engine**: `state.py`, `state_events.py`, `state_reducer.py` for handling agent state transitions.
-- **Thoughts & Prompts**: `thinking.py`, `prompting.py` for periodic self-reflection and schema-driven prompts.
+Runtime version metadata:
 
+- `GET /v1/meta/version`
+- `X-API-Version` response header on all API responses
 
-### Emotions & Personality
-- **Decay Loop**: `emotion_decay.py` for natural emotional regression.
-- **Traits & Deltas**: `models.py`, `state_reducer.py` for applying personality/emotion/sentiment changes.
-- **Schemas**: `schemas.py`, `schemas_lite.py` defining rich vs. lite representations.
+## Key Endpoints
 
+- `GET /v1/` -> active agent name
+- `GET /v1/meta/ping` -> liveness check
+- `GET /v1/meta/version` -> semver + versioning metadata
+- `GET /v1/meta/queue` -> Redis queue + worker diagnostics
+- `POST /v1/auth/guest` -> create guest session + access token
+- `POST /v1/auth/login` -> login with email/password
+- `POST /v1/auth/claim` -> convert guest account to password account
+- `POST /v1/auth/refresh` -> rotate refresh/access tokens
+- `POST /v1/auth/logout` -> revoke current session
+- `GET /v1/auth/me` -> current identity claims
+- `POST /v1/messages/submit` -> enqueue async response job
+- `GET /v1/jobs/{job_id}` -> poll job status/result
+- `GET /v1/messages/conversation` -> current conversation
+- `GET /v1/agents/active` -> active agent state
+- `GET /v1/thoughts/latest` -> latest thought
 
-### Memory & Persistence
-- **Database**: `database.py` for MongoDB operations.
-- **Memory Management**: `memory.py` for storing and retrieving tagged memories.
-- **Validators**: `validators.py` enforces schema constraints in MongoDB.
+## Architecture (Runtime)
 
+- API server: FastAPI (`app/main.py`)
+- Worker: RQ worker (`python -m app.worker`)
+- Queue transport: Redis
+- Persistence: MongoDB
+- Background loops: emotional decay + periodic thinking
 
-### APIs
-- **Agents**: `/v1/agents` – list all agents, get active agent.
-- **Messages**: `/v1/messages` – submit user messages, retrieve conversations.
-- **Jobs**: `/v1/jobs/{id}` – check async job status.
-- **Meta**: `/v1/meta` – API version, health check.
-  - `/v1/meta/queue` – queue diagnostics (worker count, queue backlog).
-- **Root**: `/v1/` – get active agent name.
+## Prerequisites
 
+- Python `3.10+`
+- Redis `6+`
+- MongoDB `6+`
+- Optional: Docker Desktop (recommended for cross-platform local infra)
 
-### Integrations
-- **OpenAI**: `openai.py` for structured responses.
-- **DeepSeek**: `deepseek.py` for alternative model integration.
+## Local Setup
 
+### 1) Start Redis and MongoDB
 
----
+Docker (recommended, same on macOS/Linux/Windows):
 
-
-## 🔐 Authentication
-
-
-### Features
-- **Guest sessions**: `POST /v1/auth/guest` → creates an anonymous but tokenized identity (guest_<uuid>).
-
-- **Claim account**: `POST /v1/auth/claim` → upgrade a guest with email, username, and password.
-
-- **Login**: `POST /v1/auth/login` → authenticate existing accounts.
-
-- **Refresh**: `POST /v1/auth/refresh` → rotate refresh + access tokens (refresh stored in HttpOnly cookie).
-  Requires `X-CSRF-Token` header matching the `refresh_csrf` cookie value.
-
-- **Logout**: `POST /v1/auth/logout` → revoke current session.
-
-- **Tokens**:
-
--  - Access tokens (JWT): short-lived, carry `user_id`, `username`, `sid`.
-
-- - Refresh tokens: opaque, session-bound, rotated on each use.
-
-- **Password storage**: Argon2id with per-user salt + optional global pepper.
-  
-### Using Tokens in Postman
-1. Call `/v1/auth/guest` or `/v1/auth/login` to get an access_token.
-2. In Postman → Authorization tab → Type: **Bearer Token** → paste the access token.
-3. Now protected endpoints will work.
-
-### Protected vs Public Endpoints
-Public
-- /v1/meta/ping
-- /v1/meta/version
-- /v1/auth/login
-- /v1/auth/guest
-- /v1/auth/logout
-- /v1/auth/refresh (requires refresh cookies + `X-CSRF-Token`)
-
-Auth-required (guest or user)
-- /v1/messages/*
-- /v1/jobs/*
-- /v1/agents/*
-- /v1/auth/claim
-- /v1/auth/me
-
-### Summary
-- All user-related endpoints now require at least a guest token.
-
-- Tokens are short-lived; refresh flow handles rotation.
-
-- Passwords are hashed with Argon2id + pepper.
-
-- Sessions and refresh tokens are stored/revoked server-side.
-  
----
-
-## ⚙️ Configuration
-Configuration is managed via environment variables (`.env`).
-
-
-### Key Variables
-- `BOT_NAME` – agent display name.
-- `OPENAI_API_KEY` – OpenAI key.
-- `GPT_FAST_MODEL`, `GPT_QUALITY_MODEL` – model IDs.
-- `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` – DeepSeek configuration.
-- `MONGO_CONNECTION`, `DATABASE_NAME` – MongoDB connection.
-- `REDIS_URL` or `REDIS_TLS_URL` – Redis connection string.
-- `REDIS_CA_CERT` – CA bundle path for `rediss://` verification.
-- `WEB_UI_DOMAIN` – Allowed frontend domain.
-- `APP_ENV` – app environment (`development`/`production`).
-- `JWT_SECRET_ENV` – long random JWT signing secret.
-- `ARGON2_PEPPER_ENV` – long random password pepper.
-- `ACCESS_TTL_MIN` – access token TTL in minutes (default `15`).
-- `REFRESH_TTL_DAYS` – refresh token TTL in days (default `90`).
-
-- To create a secret to use for JWT and/or ARGON: `python -c "import secrets; print(secrets.token_urlsafe(64))"` 
-
-### Rates & Retention
-- Emotional Decay: every 240s.
-- Thinking: every 900s.
-- Conversation message retention: 10.
-
-
----
-
-
-## 🚀 Getting Started
-
-
-### Requirements
-- Python 3.10+
-- Redis server
-- MongoDB
-
-### Running the API Locally
-1. Make sure **Redis** and **MongoDB** are running locally or accessible. Redis - Run Docker desktop, then in the command prompt:
 ```bash
 docker run -d --name redis-stack -p 6379:6379 redis/redis-stack:latest
+docker run -d --name mongo -p 27017:27017 -v mongo_data:/data/db mongo:7
 ```
 
+### 2) Create and activate a virtual environment
 
-2. Install dependencies and Start the FastAPI server:
+macOS/Linux:
+
 ```bash
-python -m venv venv
-venv\Scripts\activate
+cd SyntheticSoulAPI
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
+Windows PowerShell:
+
+```powershell
+cd SyntheticSoulAPI
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Windows Command Prompt:
+
+```bat
+cd SyntheticSoulAPI
+py -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+### 3) Install dependencies
+
+```bash
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 ```
-The API will be available at: [http://localhost:8000](http://localhost:8000)
 
+### 4) Create `.env`
 
-3. Start the background worker in a separate terminal:
+Minimum local `.env` (safe template values, replace keys):
+
+```env
+APP_ENV=development
+BOT_NAME=jasmine
+MODE=lite
+
+MONGO_CONNECTION=mongodb://127.0.0.1:27017
+DATABASE_NAME=synthetic_soul
+
+REDIS_URL=redis://127.0.0.1:6379/0
+
+OPENAI_API_KEY=replace_me
+GPT_FAST_MODEL=gpt-4o-mini
+GPT_QUALITY_MODEL=gpt-5-mini
+
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_API_KEY=replace_me
+DEEPSEEK_MODEL=deepseek-reasoner
+
+JWT_SECRET_ENV=replace_with_long_random_secret
+ARGON2_PEPPER_ENV=replace_with_long_random_pepper
+
+WEB_UI_DOMAIN=http://127.0.0.1:5173
+DEBUG_MODE=true
+```
+
+Generate strong secrets quickly:
+
 ```bash
-rq worker
+python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
----
+### 5) Run API server
 
+macOS/Linux:
 
-## 📡 Usage
+```bash
+./.venv/bin/uvicorn app.main:app --reload
+```
 
-### Authentication Flow
-1. Guest session
-   ```http
-    POST /v1/auth/guest
-    ```
+Windows:
 
-    Response
-    ```http
-    {
-    "access_token": "...",
-    "username": "guest_123...",
-    "expires_in": 900
-    }
-    ```
+```powershell
+.\.venv\Scripts\python -m uvicorn app.main:app --reload
+```
 
-2. Claim account
-    ```http
-    POST /v1/auth/claim
-    {
-    "email": "me@example.com",
-    "username": "alice",
-    "password": "secret123"
-    }
-    ```
+### 6) Run worker (separate terminal)
 
-3. Login
-    ```http
-    POST /v1/auth/login
-    {
-    "email": "me@example.com",
-    "password": "secret123"
-    }
-    ```
-4. Refresh
-   ```http
-    POST /v1/auth/refresh
-    X-CSRF-Token: <refresh_csrf cookie value>
-    ```
-    (Uses HttpOnly refresh cookie + CSRF token header; server rotates refresh + access tokens.)
+macOS/Linux:
 
-5. Logout
-   ```http
-    POST /v1/auth/logout
-    ```
-    Revokes session and clears refresh cookie.
+```bash
+./.venv/bin/python -m app.worker
+```
 
-### Submit a Message
+Windows:
+
+```powershell
+.\.venv\Scripts\python -m app.worker
+```
+
+Notes:
+
+- On macOS, worker defaults to `SimpleWorker` mode to avoid ObjC `fork()` crashes.
+- To force classic forking worker: `RQ_USE_FORK_WORKER=true`.
+
+### 7) Verify service health
+
+```bash
+curl http://127.0.0.1:8000/v1/meta/ping
+curl http://127.0.0.1:8000/v1/meta/version
+curl http://127.0.0.1:8000/v1/meta/queue
+```
+
+OpenAPI UI:
+
+- Swagger: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+
+## Authentication Model
+
+Auth supports guest-first sessions and password accounts.
+
+### Tokens
+
+- Access token: JWT in `Authorization: Bearer ...`
+- Refresh token: cookie-bound, rotated on refresh
+
+### Refresh security (two-key check)
+
+`POST /v1/auth/refresh` requires:
+
+1. refresh cookies (`sid`, `rtoken`)
+2. `X-CSRF-Token` header matching `refresh_csrf` cookie
+
+This prevents cross-site refresh abuse while keeping browser-cookie refresh flow.
+
+## Typical API Flow
+
+### 1) Create guest
+
+```http
+POST /v1/auth/guest
+```
+
+Example response:
+
+```json
+{
+  "access_token": "...",
+  "username": "guest_xxx",
+  "expires_in": 900
+}
+```
+
+### 2) Submit message
+
 ```http
 POST /v1/messages/submit
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
 {
-"message": "How are you feeling today?",
-"type": "dm"
+  "message": "Good morning",
+  "type": "dm"
 }
 ```
 
+Example response (`202 Accepted`):
 
-Response:
 ```json
 {
-"job_id": "abc123",
-"status": "queued"
+  "job_id": "uuid",
+  "status": "queued"
 }
 ```
 
+### 3) Poll job
 
-### Poll Job Status
 ```http
-GET /v1/jobs/abc123
+GET /v1/jobs/{job_id}
+Authorization: Bearer <access_token>
 ```
 
-Response:
-```json
-{
-"job_id": "8bbf5e53-a9b5-4020-bf2d-bde3026a26e4",
-    "status": "succeeded",
-    "progress": 1.0,
-    "result": {
-        "response": "I’m doing really well, thank you — that made my day to hear! I’m so happy we’ve been chatting ♡",
-        "time": 22,
-        "expression": "happy"
-    },
-    "error": null
-}
+Status values: `queued`, `running`, `succeeded`, `failed`
+
+## Queue Diagnostics
+
+`GET /v1/meta/queue` returns:
+
+- worker count and worker states
+- queue backlog per queue (`high/default/low`)
+- total backlog
+- redis connectivity signal
+
+Use this endpoint first when jobs remain queued.
+
+## Troubleshooting
+
+### Jobs stuck in `queued`
+
+Symptoms:
+
+- `POST /v1/messages/submit` returns `202`
+- `GET /v1/jobs/{id}` returns `200` repeatedly with `status=queued`
+
+Checks:
+
+1. Ensure worker process is running.
+2. Check `GET /v1/meta/queue`:
+   - `worker_count` should be `> 0`
+   - `total_backlog` should decrease over time
+
+### macOS worker crash (`fork()` / ObjC error)
+
+If you see ObjC `initialize`/`fork` crash logs, run worker with current default (`SimpleWorker`) via:
+
+```bash
+./.venv/bin/python -m app.worker
 ```
 
-### Get Active Agent
-```http
-GET /v1/agents/active
-```
+### 401 on protected endpoints right after startup
 
+During initial app boot, client may request protected resources before guest token acquisition. This is transient and expected.
 
-### Root
-```http
-GET /v1/
-```
+### Refresh fails (`no_refresh` / `csrf_mismatch`)
 
-## 🧠 Philosophy
-*Jasmine* explores affective computing and digital companionship by blending artificial intelligence with principles from psychology and human relationship studies. The goal is not just interaction but **evolution**—an AI that grows and adapts with users over time.
+- Ensure browser sends cookies (`credentials: include`)
+- Ensure client sets `X-CSRF-Token` from `refresh_csrf` cookie
+- Ensure client and API origins are configured in CORS
 
+### Missing expression image 404s
 
----
+Ensure expression assets exist in `app/assets/expressions/<BOT_NAME>/` and names match expression strings.
 
+## Configuration Reference
 
-## 📌 Roadmap
-- Enhanced relationship graphs between multiple users.
-- Expanded multi-agent simulations.
-- Advanced long-term personality drift and adaptation.
-- Robust memory retrieval system
-- Function calling, allowing for deliberate execution certain actions/functions
-- Non-reaction based messaging. Agent can choose to reach out first
-- Advanced groupchat context system
-- Handling of user sending multiple messages before response is generated
-- Agents builds personality profiles of users through interactions
-- Option for agent to schedule a response for later
+Required for local runtime:
 
+- `MONGO_CONNECTION`
+- `DATABASE_NAME`
+- `OPENAI_API_KEY`
+- `GPT_FAST_MODEL`
+- `GPT_QUALITY_MODEL`
+- `JWT_SECRET_ENV`
+- `ARGON2_PEPPER_ENV`
 
----
+Optional/commonly used:
 
+- `REDIS_URL` (defaults to `redis://localhost:6379/0`)
+- `REDIS_TLS_URL`, `REDIS_CA_CERT`, `REDIS_TLS_INSECURE_SKIP_VERIFY`
+- `BOT_NAME`, `MODE`, `DEVELOPER_EMAIL`
+- `ACCESS_TTL_MIN`, `REFRESH_TTL_DAYS`
+- `THINKING_RATE_SECONDS`, `EMOTIONAL_DECAY_RATE_SECONDS`
+- `WEB_UI_DOMAIN`
+- `APP_ENV`, `DEBUG_MODE`
 
-## 🤝 Contributing
-Pull requests and experiments are welcome. This project is exploratory—expect rapid iteration.
+## Development Notes
 
+- Use queue diagnostics endpoint during worker/queue debugging.
+- Keep API and worker logs in separate terminals.
+- When changing contracts, update both API and WebUI in lockstep.
 
----
+## Contributing
 
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for contribution workflow and expectations.
 
-## 📄 License
-MIT License. See `LICENSE` file for details.
+## License
+
+MIT License.

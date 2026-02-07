@@ -35,7 +35,7 @@ app.add_middleware(
     allow_credentials=True,    # set to True only if you send cookies/Authorization
     allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
     allow_headers=["Content-Type","Authorization", "X-CSRF-Token", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
+    expose_headers=["X-Request-ID", "X-API-Version"],
 )
 
 app.mount("/static", StaticFiles(directory="app/assets"), name="static")
@@ -47,6 +47,7 @@ async def request_id_middleware(request: Request, call_next):
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-API-Version"] = API_VERSION
     return response
 
 

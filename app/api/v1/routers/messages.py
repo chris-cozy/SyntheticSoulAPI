@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from rq import Queue
 
 from app.domain.models import InternalMessageRequest, JobSubmissionResponse, MessageRequest
+from app.core.config import API_BASE_PATH
 from app.core.redis_queue import get_queue
 from app.services.auth import _ratelimit, auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
@@ -37,7 +38,7 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
         content={"job_id": job.id, "status": job.get_status()},
         status_code=202,
         headers={
-            "Location": f"/v1/jobs/{job.id}",
+            "Location": f"{API_BASE_PATH}/jobs/{job.id}",
             "Retry-After": "3",
         },
     )

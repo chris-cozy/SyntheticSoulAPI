@@ -3,8 +3,15 @@ import os
 
 load_dotenv()
 
-API_VERSION = "1.0.0"
-API_BASE_PATH = "/v1"
+API_VERSION = "1.1.0"
+_version_parts = API_VERSION.split(".")
+if len(_version_parts) != 3 or not all(p.isdigit() for p in _version_parts):
+    raise RuntimeError(f"API_VERSION must be semver 'MAJOR.MINOR.PATCH', got: {API_VERSION}")
+
+API_MAJOR_VERSION = int(_version_parts[0])
+API_MINOR_VERSION = int(_version_parts[1])
+API_PATCH_VERSION = int(_version_parts[2])
+API_BASE_PATH = f"/v{API_MAJOR_VERSION}"
 
 AGENT_NAME = os.getenv("BOT_NAME", "jasmine")
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()

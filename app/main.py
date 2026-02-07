@@ -1,11 +1,13 @@
 import logging
 import uuid
+from pathlib import Path
+from fastapi import HTTPException
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.lifespan import app_lifespan
-from app.core.config import ALLOWED_ORIGINS, API_BASE_PATH, API_VERSION
+from app.core.config import ALLOWED_ORIGINS, API_BASE_PATH, API_VERSION, _ALLOWED_EXPRESSIONS_EXTS
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -38,7 +40,10 @@ app.add_middleware(
     expose_headers=["X-Request-ID", "X-API-Version"],
 )
 
-app.mount("/static", StaticFiles(directory="app/assets"), name="static")
+_EXPRESSIONS_ROOT = Path("app/assets/expressions").resolve()
+_EXPRESSION_NAME_ALIASES = {
+    "neutral": "neutral_listening",
+}
 
 
 @app.middleware("http")
@@ -49,6 +54,45 @@ async def request_id_middleware(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
     response.headers["X-API-Version"] = API_VERSION
     return response
+
+
+@app.get("/static/expressions/{agent}/{filename:path}")
+async def static_expression_fallback(agent: str, filename: str):
+    """
+    Compatibility loader for expression assets:
+    - extension fallback (jpeg/jpg/png/webp/gif)
+    - neutral -> neutral_listening alias
+    """
+    safe_agent = agent.strip().lower()
+    base_name = Path(filename).name
+    stem = Path(base_name).stem
+    requested_ext = Path(base_name).suffix.lower()
+
+    agent_dir = (_EXPRESSIONS_ROOT / safe_agent).resolve()
+    if not str(agent_dir).startswith(str(_EXPRESSIONS_ROOT)):
+        raise HTTPException(status_code=404, detail="expression_not_found")
+
+    names_to_try = [stem]
+    alias = _EXPRESSION_NAME_ALIASES.get(stem)
+    if alias:
+        names_to_try.append(alias)
+
+    exts_to_try = []
+    if requested_ext in _ALLOWED_EXPRESSIONS_EXTS:
+        exts_to_try.append(requested_ext)
+    for ext in _ALLOWED_EXPRESSIONS_EXTS:
+        if ext not in exts_to_try:
+            exts_to_try.append(ext)
+
+    for name in names_to_try:
+        for ext in exts_to_try:
+            candidate = (agent_dir / f"{name}{ext}").resolve()
+            if not str(candidate).startswith(str(agent_dir)):
+                continue
+            if candidate.is_file():
+                return FileResponse(candidate)
+
+    raise HTTPException(status_code=404, detail="expression_not_found")
 
 
 def _error_body(code: str, message: str, request_id: str):
@@ -104,6 +148,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+app.mount("/static", StaticFiles(directory="app/assets"), name="static")
 
 
 # Routers

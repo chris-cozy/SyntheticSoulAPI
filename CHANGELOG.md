@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.1] - 2026-02-08
 
 ### Added
 - API request correlation via `X-Request-ID` response header.
@@ -51,6 +51,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Failure-path handling for reply generation jobs to surface terminal failed state consistently.
 - Missing expression asset resolution when UI requested mismatched name/extension
   (e.g., `neutral.jpeg` vs `neutral_listening.png`).
+
+### Removed
+- Legacy DeepSeek configuration surface and unused `app/services/deepseek.py` module.
+- DeepSeek references from setup and overview documentation.
 
 ### Security
 - Non-dev startup validation for auth secrets and Redis TLS safety blocks default JWT/Argon2 placeholder secrets, enforces minimum secret lengths, and disallows insecure Redis TLS verification outside dev/test/local.

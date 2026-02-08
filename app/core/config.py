@@ -32,11 +32,6 @@ OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
 OLLAMA_FAST_MODEL = os.getenv("OLLAMA_FAST_MODEL")
 OLLAMA_QUALITY_MODEL = os.getenv("OLLAMA_QUALITY_MODEL")
 
-# Deepseek
-DEEPSEEK_BASE_URL = os.getenv('DEEPSEEK_BASE_URL')
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
-DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL')
-
 LITE_MODE = os.getenv("MODE") == "lite"
 
 # Mongo runtime mode

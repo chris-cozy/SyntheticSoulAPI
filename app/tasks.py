@@ -32,6 +32,7 @@ def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     RQ job entrypoint. Runs your async handle_message() and returns its result.
     RQ persists the return value as job.result; we also write simple progress meta.
     """
+    job = None
     try:
         job = get_current_job()
         if job:
@@ -39,7 +40,7 @@ def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
             job.save_meta()
             publish_progress(job.id, 0.1)
     except Exception:
-        job = None
+        pass
         
     # Run async stage on persistent loop for worker process.
     result = _run_async(generate_response(request))
@@ -47,23 +48,26 @@ def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     user_id = result.user_id
     queries = result.queries
     
-    q = get_queue()
-    q.enqueue(
-        post_processing_task,
-        user_id,
-        queries,
-        depends_on=job,     # ensures it runs after this job finishes
-        job_timeout=600,
-    )
+    # Post-processing is best-effort and should not fail the primary reply job.
+    try:
+        q = get_queue()
+        q.enqueue(
+            post_processing_task,
+            user_id,
+            queries,
+            depends_on=job,     # ensures it runs after this job finishes
+            job_timeout=600,
+        )
+    except Exception as e:
+        print(f"Warning - failed to enqueue post_processing_task: {e}")
 
     if job:
         job.meta["progress"] = 0.6
         job.save_meta()
         publish_progress(job.id, 0.6)
 
-    # IMPORTANT: return ONLY the MessageResponse so client contracts remain unchanged
-    # Use model.dump() for Pydantic object → plain dict (if needed)
-    return result.message_response
+    # Return plain dict to keep job result serialization simple for API/UI clients.
+    return result.message_response.model_dump()
 
 
 def post_processing_task(user_id: str, queries: list):

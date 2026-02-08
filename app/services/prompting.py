@@ -250,18 +250,19 @@ def build_response_prompt(
     example_expression = allowed_expressions[0] if allowed_expressions else "neutral"
     example_respond = {
         "response_choice": "respond", 
-        "reason": f"Clarifying briefly adds value without derailing the thread with {user_id}",
+        "reason": "<brief context-grounded reason for responding>",
         "response": {
-            "message": "I just wanted to let you know that I'm here for you",
-            "purpose": "To comfort, and reassure that I'm there for them",
-            "tone": "Warm, Affectionate",
+            "message": "<1-3 sentence contextual reply>",
+            "purpose": "<single clear conversational goal>",
+            "tone": "<single concise tone label>",
         },
         "expression": example_expression,
     }
     example_ignore  = {
         "response_choice": "ignore",  
-        "reason": "They were rude and disrespectful, I don't like that",
-        "response": {}
+        "reason": "<brief context-grounded reason for ignoring>",
+        "response": {},
+        "expression": example_expression,
     }
     
     body = f"""

@@ -4,7 +4,20 @@ from fastapi import APIRouter, HTTPException
 from rq import Queue, Worker
 
 from app.core.redis_queue import get_redis
-from app.core.config import API_BASE_PATH, API_MAJOR_VERSION, API_MINOR_VERSION, API_PATCH_VERSION, API_VERSION
+from app.core.config import (
+    API_BASE_PATH,
+    API_MAJOR_VERSION,
+    API_MINOR_VERSION,
+    API_PATCH_VERSION,
+    API_VERSION,
+    GPT_FAST,
+    GPT_QUALITY,
+    LLM_MODE,
+    OLLAMA_BASE_URL,
+    OLLAMA_FAST_MODEL,
+    OLLAMA_QUALITY_MODEL,
+    OPENAI_KEY,
+)
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -28,6 +41,35 @@ async def version():
 @router.get("/ping")
 async def ping():
     return {"status": "ok"}
+
+
+@router.get("/llm")
+async def llm_status():
+    """
+    Lightweight LLM provider diagnostics without exposing secrets.
+    """
+    if LLM_MODE == "local":
+        return {
+            "mode": "local",
+            "provider": "ollama",
+            "base_url": OLLAMA_BASE_URL,
+            "models": {
+                "fast": OLLAMA_FAST_MODEL,
+                "quality": OLLAMA_QUALITY_MODEL,
+            },
+            "configured": bool(OLLAMA_FAST_MODEL and OLLAMA_QUALITY_MODEL),
+        }
+
+    return {
+        "mode": "hosted",
+        "provider": "openai",
+        "base_url": None,
+        "models": {
+            "fast": GPT_FAST,
+            "quality": GPT_QUALITY,
+        },
+        "configured": bool(OPENAI_KEY and GPT_FAST and GPT_QUALITY),
+    }
 
 
 def _queue_snapshot() -> dict:

@@ -3,7 +3,7 @@ import time
 import json
 
 from fastapi import HTTPException
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from datetime import datetime, timezone
 from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, post_processing_schema, get_memory_schema_lite, get_personality_emotion_delta_schema_lite
 from app.domain.memory import Memory
@@ -19,6 +19,33 @@ from app.services.prompting import _system_message, build_implicit_addressing_pr
 from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
 
         
+def _normalize_delta_payload(delta_payload: Any, allowed_keys: Set[str]) -> Dict[str, Any]:
+    payload = delta_payload if isinstance(delta_payload, dict) else {}
+    raw_deltas = payload.get("deltas")
+    clean_deltas: Dict[str, int] = {}
+
+    if isinstance(raw_deltas, dict):
+        for key, value in raw_deltas.items():
+            if key not in allowed_keys:
+                continue
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                clean_deltas[key] = int(round(value))
+
+    normalized: Dict[str, Any] = {"deltas": clean_deltas}
+
+    reason = payload.get("reason")
+    if isinstance(reason, str) and reason.strip():
+        normalized["reason"] = reason.strip()
+
+    confidence = payload.get("confidence")
+    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
+        normalized["confidence"] = max(0.0, min(1.0, float(confidence)))
+
+    return normalized
+
+
 async def generate_response(request: InternalMessageRequest) -> GenerateReplyTaskResponse:
         """
         Process a user message and return the bot's response.
@@ -228,23 +255,39 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             }
             
             response_decision  = await structured_query(queries + [prompt], get_response_schema())
+            invalid_response_decision = not isinstance(response_decision, dict)
+            if not isinstance(response_decision, dict):
+                response_decision = {
+                    "response_choice": IGNORE_CHOICE,
+                    "reason": "invalid_response_payload",
+                    "response": {},
+                    "expression": "neutral",
+                }
             
             queries.append({
                 "role": BOT_ROLE,
                 "content": f"This is {AGENT_NAME}'s decision of whether to respond, and their response if any: {json.dumps(response_decision )}"
             })
             
-            selected_expression = response_decision.get("expression")
+            selected_expression = str(response_decision.get("expression") or "neutral")
             
             agent_response_message: Optional[str] = None
-            if response_decision.get("response_choice") == RESPOND_CHOICE:
-                response_obj = response_decision.get("response") or {}
-                agent_response_message = response_obj.get("message")
+            response_obj = response_decision.get("response") or {}
+            response_choice = str(response_decision.get("response_choice") or "").strip().lower()
+            response_text = str(response_obj.get("message") or "").strip()
+
+            # Defensive normalization: if choice is malformed but response text exists, treat it as "respond".
+            if response_choice not in {RESPOND_CHOICE, IGNORE_CHOICE}:
+                invalid_response_decision = True
+                response_choice = RESPOND_CHOICE if response_text else IGNORE_CHOICE
+
+            if response_choice == RESPOND_CHOICE and response_text:
+                agent_response_message = response_text
                 
                 rich_message = {
-                    "message": response_obj.get("message"),
-                    "purpose": response_obj.get("purpose"),
-                    "tone": response_obj.get("tone"),
+                    "message": response_text,
+                    "purpose": str(response_obj.get("purpose") or "unspecified"),
+                    "tone": str(response_obj.get("tone") or "neutral"),
                     "timestamp": datetime.now(timezone.utc),
                     "sender_id": AGENT_NAME,
                     "sender_username": AGENT_NAME,
@@ -254,6 +297,28 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 await asyncio.gather(
                     insert_message_to_conversation(user_id, rich_message),
                     insert_message_to_message_memory(rich_message),
+                )
+
+            # DM-safe fallback: if decision payload was invalid and no reply text was produced,
+            # return a short deterministic response so clients do not surface a transport-level error string.
+            if (
+                agent_response_message is None
+                and invalid_response_decision
+                and getattr(request, "type", None) == DM_TYPE
+            ):
+                agent_response_message = "I hit a thinking issue on my side, but I should be good now. Could you resend that once?"
+                fallback_message = {
+                    "message": agent_response_message,
+                    "purpose": "recover_from_generation_error",
+                    "tone": "apologetic",
+                    "timestamp": datetime.now(timezone.utc),
+                    "sender_id": AGENT_NAME,
+                    "sender_username": AGENT_NAME,
+                    "from_agent": True,
+                }
+                await asyncio.gather(
+                    insert_message_to_conversation(user_id, fallback_message),
+                    insert_message_to_message_memory(fallback_message),
                 )
                 
             # Could add post response emotional delta
@@ -439,17 +504,18 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
     
 
 def alter_personality(personality_deltas, self) -> Any:
-    if not personality_deltas or not personality_deltas.get("deltas"):
-        print("Personality was not altered. No deltas.")
-        return self["personality"]
-    
     # Convert existing DB personality_matrix -> PersonalityMatrix
     flat = self["personality"].get("personality_matrix", {})
+    normalized_deltas = _normalize_delta_payload(personality_deltas, set(flat.keys()))
+    if not normalized_deltas.get("deltas"):
+        print("Personality was not altered. No deltas.")
+        return self["personality"]
+
     mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
     
     # Apply
     new_mat = apply_deltas_personality(
-        mat, PersonalityDelta(**personality_deltas), cap=3.0  # personality changes are slower
+        mat, PersonalityDelta(**normalized_deltas), cap=3.0  # personality changes are slower
     )
     
     # Put back into the persisted shape
@@ -461,16 +527,17 @@ def alter_personality(personality_deltas, self) -> Any:
     return self["personality"]
 
 async def alter_emotions(emotion_deltas, self) -> Any:
-    if not emotion_deltas or not emotion_deltas.get("deltas"):
+    current = self["emotional_status"]
+    normalized_deltas = _normalize_delta_payload(emotion_deltas, set(current["emotions"].keys()))
+    if not normalized_deltas.get("deltas"):
         print("Emotions were not altered. No deltas.")
         return self["emotional_status"]
-    
-    current = self["emotional_status"]
+
     emo = EmotionalState(
         emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
         reason=current.get("reason")
     )
-    new_state = apply_deltas_emotion(emo, EmotionalDelta(**emotion_deltas), cap=7.0)
+    new_state = apply_deltas_emotion(emo, EmotionalDelta(**normalized_deltas), cap=7.0)
     # persist back in your DB shape
     self["emotional_status"]["emotions"] = {
         k: new_state.emotions[k].model_dump() for k in new_state.emotions
@@ -483,12 +550,13 @@ async def alter_emotions(emotion_deltas, self) -> Any:
     return self["emotional_status"]
 
 async def alter_sentiments(sentiment_deltas, user)-> None:
-    if not sentiment_deltas or not sentiment_deltas.get("deltas"):
-        print("Sentiments were not altered. No deltas.")
-        return
-        
     # Convert existing DB sentiment_status -> SentimentMatrix
     flat = user["sentiment_status"]
+    normalized_deltas = _normalize_delta_payload(sentiment_deltas, set(flat["sentiments"].keys()))
+    if not normalized_deltas.get("deltas"):
+        print("Sentiments were not altered. No deltas.")
+        return
+
     mat = SentimentMatrix(
         sentiments={k: BoundedTrait(**v) for k, v in flat["sentiments"].items()},
         reason=flat.get("reason")
@@ -496,7 +564,7 @@ async def alter_sentiments(sentiment_deltas, user)-> None:
             
     # Apply
     new_mat = apply_deltas_sentiment(
-        mat, SentimentDelta(**sentiment_deltas), cap=5.0  # sentiment changes are slower
+        mat, SentimentDelta(**normalized_deltas), cap=5.0  # sentiment changes are slower
     )
     
     # Put back into the persisted shape        

@@ -14,7 +14,7 @@ The AI is named Jasmine, short for Just a Simulation Modeling Interactive Neural
 - Autonomous thought generation independent of direct prompts
 - Relationship dynamics that evolve based on interaction history
 - Background processing with Redis + RQ for async task execution
-- Structured response generation with OpenAI and DeepSeek integrations
+- Structured response generation with OpenAI (hosted) and Ollama (local) integrations
 
 ## Philosophy
 

@@ -12,7 +12,7 @@ The AI is named Jasmine, short for Just a Simulation Modeling Interactive Neural
 - Autonomous thinking loops independent of direct user prompts
 - Relationship dynamics that evolve based on interaction history
 - Async message processing with Redis + RQ workers
-- Structured LLM integration with OpenAI and DeepSeek providers
+- Structured LLM integration with OpenAI (hosted) and Ollama (local) providers
 
 ## Philosophy
 
@@ -30,7 +30,7 @@ Synthetic Soul API is a FastAPI service that powers the runtime backend with:
 - authenticated guest/user sessions
 - async message processing via Redis + RQ
 - persistent memory/state in MongoDB
-- optional LLM backends (OpenAI, DeepSeek, Ollama)
+- optional LLM backends (OpenAI, Ollama)
 
 This document is a full setup and operations guide for local development on macOS, Linux, or Windows.
 
@@ -156,10 +156,6 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 OLLAMA_API_KEY=ollama
 OLLAMA_FAST_MODEL=qwen2.5:7b
 OLLAMA_QUALITY_MODEL=qwen2.5:14b
-
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_API_KEY=replace_me
-DEEPSEEK_MODEL=deepseek-reasoner
 
 JWT_SECRET_ENV=replace_with_long_random_secret
 ARGON2_PEPPER_ENV=replace_with_long_random_pepper

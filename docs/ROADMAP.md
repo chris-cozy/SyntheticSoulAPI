@@ -4,6 +4,7 @@ This roadmap reflects active and planned directions for Synthetic Soul.
 
 ## Planned Features
 
+- Handling multiple messages being sent before the agent finishes responding.
 - Enhanced relationship graphs between multiple users
 - Expanded multi-agent simulations
 - Advanced long-term personality drift and adaptation
@@ -14,7 +15,6 @@ This roadmap reflects active and planned directions for Synthetic Soul.
 - Better handling for multiple user messages before a response is generated
 - Agent-generated user personality profiles from repeated interactions
 - Option for agents to schedule responses for later delivery
-- Implementation of local LLM usage through Ollama as an additional option to paid OpenAI API usage
 
 ## How to Use This Roadmap
 

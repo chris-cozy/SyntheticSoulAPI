@@ -22,6 +22,7 @@ The AI is named Jasmine, short for Just a Simulation Modeling Interactive Neural
 
 - [Project Overview](docs/PROJECT_OVERVIEW.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](docs/CONTRIBUTING.md)
 
 Synthetic Soul API is a FastAPI service that powers the runtime backend with:
@@ -63,6 +64,7 @@ Runtime version metadata:
 - `GET /v1/auth/me` -> current identity claims
 - `POST /v1/messages/submit` -> enqueue async response job
 - `GET /v1/jobs/{job_id}` -> poll job status/result
+- `GET /v1/jobs/{job_id}/events` -> SSE job progress/status stream
 - `GET /v1/messages/conversation` -> current conversation
 - `GET /v1/agents/active` -> active agent state
 - `GET /v1/thoughts/latest` -> latest thought
@@ -134,7 +136,12 @@ APP_ENV=development
 BOT_NAME=jasmine
 MODE=lite
 LLM_MODE=hosted
+MONGO_MODE=local
 
+MONGO_CONNECTION_LOCAL=mongodb://127.0.0.1:27017
+# Optional hosted Mongo URI for easy switching:
+MONGO_CONNECTION_HOSTED=mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority
+# Legacy fallback (still supported):
 MONGO_CONNECTION=mongodb://127.0.0.1:27017
 DATABASE_NAME=synthetic_soul
 
@@ -183,6 +190,7 @@ ollama pull qwen2.5:14b
 
 ```env
 LLM_MODE=local
+MONGO_MODE=local
 OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 OLLAMA_API_KEY=ollama
 OLLAMA_FAST_MODEL=qwen2.5:7b
@@ -317,6 +325,27 @@ Authorization: Bearer <access_token>
 
 Status values: `queued`, `running`, `succeeded`, `failed`
 
+### 4) Stream job events (recommended)
+
+For long-running local-model jobs, use SSE to get push updates instead of frequent polling:
+
+```http
+GET /v1/jobs/{job_id}/events?access_token=<access_token>
+```
+
+SSE event types:
+
+- `progress` -> progress updates from Redis pub/sub (`job:{job_id}`)
+- `status` -> normalized job status snapshots
+- `done` -> terminal status (`succeeded` or `failed`)
+
+Recommended client flow:
+
+1. `POST /v1/messages/submit` to get `job_id`
+2. Open `EventSource` on `/v1/jobs/{job_id}/events`
+3. On `done`, make one final `GET /v1/jobs/{job_id}` to fetch canonical `result`
+4. Fall back to polling if SSE disconnects
+
 ## Queue Diagnostics
 
 `GET /v1/meta/queue` returns:
@@ -370,13 +399,16 @@ Ensure expression assets exist in `app/assets/expressions/<BOT_NAME>/` and names
 
 Required for local runtime:
 
-- `MONGO_CONNECTION`
 - `DATABASE_NAME`
 - `JWT_SECRET_ENV`
 - `ARGON2_PEPPER_ENV`
 
 Optional/commonly used:
 
+- `MONGO_MODE` (`hosted` or `local`, default: `hosted`)
+- `MONGO_CONNECTION_LOCAL` (used when `MONGO_MODE=local`, default: `mongodb://127.0.0.1:27017`)
+- `MONGO_CONNECTION_HOSTED` (used when `MONGO_MODE=hosted`)
+- `MONGO_CONNECTION` (legacy fallback if mode-specific URI is not set)
 - `LLM_MODE` (`hosted` or `local`, default: `hosted`)
 - Hosted mode:
   - `OPENAI_API_KEY`

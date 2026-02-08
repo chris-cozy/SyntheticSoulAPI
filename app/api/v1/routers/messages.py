@@ -10,6 +10,7 @@ from app.core.config import API_BASE_PATH
 from app.core.redis_queue import get_queue
 from app.services.auth import _ratelimit, auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
+from app.services.progress import publish_job_event
 from app.tasks import generate_reply_task
 
 
@@ -32,6 +33,7 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
     )
     job.meta["owner_user_id"] = user_id
     job.save_meta()
+    publish_job_event(job.id, progress=0.0, status="queued")
 
     # return 202 + Location header so clients can poll
     response = JSONResponse(

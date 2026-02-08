@@ -261,7 +261,8 @@ def build_response_prompt(
     example_ignore  = {
         "response_choice": "ignore",  
         "reason": "They were rude and disrespectful, I don't like that",
-        "response": {}
+        "response": {},
+        "expression": example_expression,
     }
     
     body = f"""

@@ -21,6 +21,17 @@ OPENAI_KEY = os.getenv('OPENAI_API_KEY')
 GPT_FAST = os.getenv('GPT_FAST_MODEL')
 GPT_QUALITY = os.getenv('GPT_QUALITY_MODEL')
 
+# LLM provider mode
+LLM_MODE = os.getenv("LLM_MODE", "hosted").strip().lower()
+if LLM_MODE not in {"hosted", "local"}:
+    raise RuntimeError("LLM_MODE must be either 'hosted' or 'local'.")
+
+# Ollama (OpenAI-compatible API)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
+OLLAMA_FAST_MODEL = os.getenv("OLLAMA_FAST_MODEL")
+OLLAMA_QUALITY_MODEL = os.getenv("OLLAMA_QUALITY_MODEL")
+
 # Deepseek
 DEEPSEEK_BASE_URL = os.getenv('DEEPSEEK_BASE_URL')
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
@@ -79,6 +90,33 @@ EXPRESSIONS_DIR = os.getenv("EXPRESSIONS_DIR") or os.path.join(os.path.dirname(_
 _ALLOWED_EXPRESSIONS_EXTS = {".jpeg", ".webp", ".gif", ".png", ".jpg"}
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def validate_llm_configuration() -> None:
+    if LLM_MODE == "local":
+        missing = [
+            key
+            for key, value in (
+                ("OLLAMA_FAST_MODEL", OLLAMA_FAST_MODEL),
+                ("OLLAMA_QUALITY_MODEL", OLLAMA_QUALITY_MODEL),
+            )
+            if not value
+        ]
+        if missing:
+            raise RuntimeError(f"Missing required local LLM config: {', '.join(missing)}")
+        return
+
+    missing = [
+        key
+        for key, value in (
+            ("OPENAI_API_KEY", OPENAI_KEY),
+            ("GPT_FAST_MODEL", GPT_FAST),
+            ("GPT_QUALITY_MODEL", GPT_QUALITY),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(f"Missing required hosted LLM config: {', '.join(missing)}")
 
 
 def validate_security_configuration() -> None:

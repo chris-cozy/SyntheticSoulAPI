@@ -4,7 +4,7 @@ import asyncio
 from fastapi import FastAPI
 
 import app.services.database as database_service
-from app.core.config import validate_security_configuration
+from app.core.config import validate_llm_configuration, validate_security_configuration
 from app.services.emotion_decay import emotion_decay_loop
 from app.services.expressions import refresh_expressions_cache
 from app.services.thinking import periodic_thinking
@@ -12,6 +12,7 @@ from app.services.thinking import periodic_thinking
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     validate_security_configuration()
+    validate_llm_configuration()
 
     print("Initializing database...")
     await database_service.init_db()

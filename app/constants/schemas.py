@@ -1,5 +1,5 @@
 
-from app.constants.constants import MAX_EMOTION_VALUE, MAX_PERSONALITY_VALUE, MAX_SENTIMENT_VALUE, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE
+from app.constants.constants import IGNORE_CHOICE, MAX_EMOTION_VALUE, MAX_PERSONALITY_VALUE, MAX_SENTIMENT_VALUE, MIN_EMOTION_VALUE, MIN_PERSONALITY_VALUE, MIN_SENTIMENT_VALUE, RESPOND_CHOICE
 
 def get_personality_status_schema():
 
@@ -661,21 +661,26 @@ def get_message_perception_schema():
                 "properties": {
                     "message": {
                         "description": "The message",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "purpose": {
                         "description": "Message purpose",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "tone": {
                         "description": "Message tone",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "thought": {
                         "description": "New thought",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                 },
+                "required": ["message", "purpose", "tone", "thought"],
                 "additionalProperties": False
             }
         }
@@ -779,33 +784,39 @@ def get_response_schema():
                 "properties": {
                     "response_choice": {
                         "description": "Respond or ignore",
-                        "type": "string"
+                        "type": "string",
+                        "enum": [RESPOND_CHOICE, IGNORE_CHOICE]
                     },
                     "reason": {
                         "description": "Reason for choice",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "response": {
                         "type": "object",
                         "properties": {
                             "message": {
                                 "description": "The message",
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                             },
                             "purpose": {
                                 "description": "Message purpose",
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                             },
                             "tone": {
                                 "description": "Message tone",
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                             },
                         },
                         "additionalProperties": False
                     },
                     "expression": {
                         "description": "The associated expression",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": ["response_choice", "reason", "response", "expression"],
@@ -1559,12 +1570,15 @@ def get_thought_schema():
                     "thought": {
                         "description": "The thought being had",
                         "type": "string",
+                        "minLength": 1
                     },
                     "new_expression": {
                         "description": "The new expression being made",
                         "type": "string",
+                        "minLength": 1
                     },
                 },
+                "required": ["thought", "new_expression"],
                 "additionalProperties": False,
             },
         },
@@ -2079,7 +2093,7 @@ def get_personality_emotion_delta_schema_lite():
                         }
                     }
                 },
-                "required": ["personality_deltas", "emotional_deltas"]
+                "required": ["personality_deltas", "emotion_deltas"]
             }
         }
     }
@@ -2197,9 +2211,11 @@ def get_message_appropriate_schema():
                 "properties": {
                     "message": {
                         "description": "Either no or a concise, context-aware message (1–3 sentences)",
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
+                "required": ["message"],
                 "additionalProperties": False
             }
         }

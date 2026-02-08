@@ -29,7 +29,7 @@ Synthetic Soul API is a FastAPI service that powers the runtime backend with:
 - authenticated guest/user sessions
 - async message processing via Redis + RQ
 - persistent memory/state in MongoDB
-- optional LLM backends (OpenAI, DeepSeek)
+- optional LLM backends (OpenAI, DeepSeek, Ollama)
 
 This document is a full setup and operations guide for local development on macOS, Linux, or Windows.
 
@@ -54,6 +54,7 @@ Runtime version metadata:
 - `GET /v1/meta/ping` -> liveness check
 - `GET /v1/meta/version` -> semver + versioning metadata
 - `GET /v1/meta/queue` -> Redis queue + worker diagnostics
+- `GET /v1/meta/llm` -> active LLM mode/provider/model diagnostics
 - `POST /v1/auth/guest` -> create guest session + access token
 - `POST /v1/auth/login` -> login with email/password
 - `POST /v1/auth/claim` -> convert guest account to password account
@@ -132,6 +133,7 @@ Minimum local `.env` (safe template values, replace keys):
 APP_ENV=development
 BOT_NAME=jasmine
 MODE=lite
+LLM_MODE=hosted
 
 MONGO_CONNECTION=mongodb://127.0.0.1:27017
 DATABASE_NAME=synthetic_soul
@@ -142,6 +144,12 @@ OPENAI_API_KEY=replace_me
 GPT_FAST_MODEL=gpt-4o-mini
 GPT_QUALITY_MODEL=gpt-5-mini
 
+# Local mode (Ollama, OpenAI-compatible API)
+OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
+OLLAMA_API_KEY=ollama
+OLLAMA_FAST_MODEL=qwen2.5:7b
+OLLAMA_QUALITY_MODEL=qwen2.5:14b
+
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_API_KEY=replace_me
 DEEPSEEK_MODEL=deepseek-reasoner
@@ -151,6 +159,42 @@ ARGON2_PEPPER_ENV=replace_with_long_random_pepper
 
 WEB_UI_DOMAIN=http://127.0.0.1:5173
 DEBUG_MODE=true
+```
+
+### 4a) Optional: run in local mode with Ollama
+
+If you want to run LLM calls locally instead of OpenAI:
+
+1. Install Ollama.
+2. Start Ollama:
+
+```bash
+ollama serve
+```
+
+3. Pull your chosen models (examples):
+
+```bash
+ollama pull qwen2.5:7b
+ollama pull qwen2.5:14b
+```
+
+4. Set `.env` for local mode:
+
+```env
+LLM_MODE=local
+OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
+OLLAMA_API_KEY=ollama
+OLLAMA_FAST_MODEL=qwen2.5:7b
+OLLAMA_QUALITY_MODEL=qwen2.5:14b
+```
+
+5. Restart API + worker so new env values are loaded.
+6. Verify configuration:
+
+```bash
+curl http://127.0.0.1:11434/api/tags
+curl http://127.0.0.1:8000/v1/meta/llm
 ```
 
 Generate strong secrets quickly:
@@ -198,6 +242,7 @@ Notes:
 curl http://127.0.0.1:8000/v1/meta/ping
 curl http://127.0.0.1:8000/v1/meta/version
 curl http://127.0.0.1:8000/v1/meta/queue
+curl http://127.0.0.1:8000/v1/meta/llm
 ```
 
 OpenAPI UI:
@@ -327,14 +372,21 @@ Required for local runtime:
 
 - `MONGO_CONNECTION`
 - `DATABASE_NAME`
-- `OPENAI_API_KEY`
-- `GPT_FAST_MODEL`
-- `GPT_QUALITY_MODEL`
 - `JWT_SECRET_ENV`
 - `ARGON2_PEPPER_ENV`
 
 Optional/commonly used:
 
+- `LLM_MODE` (`hosted` or `local`, default: `hosted`)
+- Hosted mode:
+  - `OPENAI_API_KEY`
+  - `GPT_FAST_MODEL`
+  - `GPT_QUALITY_MODEL`
+- Local mode (Ollama):
+  - `OLLAMA_BASE_URL` (default: `http://127.0.0.1:11434/v1`)
+  - `OLLAMA_API_KEY` (default: `ollama`)
+  - `OLLAMA_FAST_MODEL`
+  - `OLLAMA_QUALITY_MODEL`
 - `REDIS_URL` (defaults to `redis://localhost:6379/0`)
 - `REDIS_TLS_URL`, `REDIS_CA_CERT`, `REDIS_TLS_INSECURE_SKIP_VERIFY`
 - `BOT_NAME`, `MODE`, `DEVELOPER_EMAIL`

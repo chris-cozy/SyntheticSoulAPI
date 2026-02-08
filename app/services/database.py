@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -361,13 +361,14 @@ async def insert_message_to_conversation(
     try:
         db = await get_database()
         conversation_collection = db[CONVERSATION_COLLECTION]
+        normalized = _normalize_message_for_storage(message)
         await conversation_collection.update_one(
             {"user_id": user_id, "agent_name": agent_name}, 
             { 
             "$push": 
                 {
                     "messages": {
-                        "$each": [message],
+                        "$each": [normalized],
                         "$slice": -1000 
                         }
                     },
@@ -378,14 +379,37 @@ async def insert_message_to_conversation(
     except Exception as e:
         print(e)
 
+
+def _safe_string(value: Any, fallback: str) -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+
+def _normalize_message_for_storage(message: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(message or {})
+    normalized["message"] = _safe_string(normalized.get("message"), "")
+    normalized["purpose"] = _safe_string(normalized.get("purpose"), "unspecified")
+    normalized["tone"] = _safe_string(normalized.get("tone"), "neutral")
+    normalized["sender_id"] = _safe_string(normalized.get("sender_id"), "unknown")
+    normalized["sender_username"] = _safe_string(normalized.get("sender_username"), "unknown")
+    normalized["from_agent"] = bool(normalized.get("from_agent", False))
+
+    ts = normalized.get("timestamp")
+    normalized["timestamp"] = ts if isinstance(ts, datetime) else datetime.now(timezone.utc)
+    return normalized
+
+
 async def insert_message_to_message_memory(
     message: dict[str, Any]
 ) -> None:
     try:
         db = await get_database()
         messsage_collection = db[MESSAGE_COLLECTION]
-        message["agent"] = AGENT_NAME
-        await messsage_collection.insert_one(message)
+        normalized = _normalize_message_for_storage(message)
+        normalized["agent"] = AGENT_NAME
+        await messsage_collection.insert_one(normalized)
     except Exception as e:
         print(e)
         

@@ -39,7 +39,20 @@ DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL')
 
 LITE_MODE = os.getenv("MODE") == "lite"
 
-MONGO_CONNECTION = os.getenv('MONGO_CONNECTION')
+# Mongo runtime mode
+MONGO_MODE = os.getenv("MONGO_MODE", "hosted").strip().lower()
+if MONGO_MODE not in {"hosted", "local"}:
+    raise RuntimeError("MONGO_MODE must be either 'hosted' or 'local'.")
+
+# Legacy single-URI fallback remains supported.
+MONGO_CONNECTION = os.getenv("MONGO_CONNECTION")
+MONGO_CONNECTION_HOSTED = os.getenv("MONGO_CONNECTION_HOSTED")
+MONGO_CONNECTION_LOCAL = os.getenv("MONGO_CONNECTION_LOCAL", "mongodb://127.0.0.1:27017")
+
+if MONGO_MODE == "local":
+    MONGO_CONNECTION = MONGO_CONNECTION_LOCAL or MONGO_CONNECTION
+else:
+    MONGO_CONNECTION = MONGO_CONNECTION_HOSTED or MONGO_CONNECTION
 
 DEVELOPER_EMAIL = os.getenv("DEVELOPER_EMAIL")
 

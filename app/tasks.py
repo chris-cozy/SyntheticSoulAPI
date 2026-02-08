@@ -4,7 +4,7 @@ from typing import Dict, Any
 from app.core.redis_queue import get_queue
 from app.domain.models import InternalMessageRequest
 from app.services.message_processor import generate_response, post_processing
-from app.services.progress import publish_progress
+from app.services.progress import publish_job_event, publish_progress
 
 _worker_loop: asyncio.AbstractEventLoop | None = None
 
@@ -42,32 +42,38 @@ def generate_reply_task(request: InternalMessageRequest) -> Dict[str, Any]:
     except Exception:
         pass
         
-    # Run async stage on persistent loop for worker process.
-    result = _run_async(generate_response(request))
-    
-    user_id = result.user_id
-    queries = result.queries
-    
-    # Post-processing is best-effort and should not fail the primary reply job.
     try:
-        q = get_queue()
-        q.enqueue(
-            post_processing_task,
-            user_id,
-            queries,
-            depends_on=job,     # ensures it runs after this job finishes
-            job_timeout=600,
-        )
-    except Exception as e:
-        print(f"Warning - failed to enqueue post_processing_task: {e}")
+        # Run async stage on persistent loop for worker process.
+        result = _run_async(generate_response(request))
+        
+        user_id = result.user_id
+        queries = result.queries
+        
+        # Post-processing is best-effort and should not fail the primary reply job.
+        try:
+            q = get_queue()
+            q.enqueue(
+                post_processing_task,
+                user_id,
+                queries,
+                depends_on=job,     # ensures it runs after this job finishes
+                job_timeout=600,
+            )
+        except Exception as e:
+            print(f"Warning - failed to enqueue post_processing_task: {e}")
 
-    if job:
-        job.meta["progress"] = 0.6
-        job.save_meta()
-        publish_progress(job.id, 0.6)
+        if job:
+            job.meta["progress"] = 0.6
+            job.save_meta()
+            publish_progress(job.id, 0.6)
+            publish_job_event(job.id, progress=1.0, status="succeeded")
 
-    # Return plain dict to keep job result serialization simple for API/UI clients.
-    return result.message_response.model_dump()
+        # Return plain dict to keep job result serialization simple for API/UI clients.
+        return result.message_response.model_dump()
+    except Exception:
+        if job:
+            publish_job_event(job.id, status="failed", error="job_failed")
+        raise
 
 
 def post_processing_task(user_id: str, queries: list):

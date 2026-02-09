@@ -159,8 +159,8 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             )
             response = _as_dict(response)
             
-            altered_personality = alter_personality(response.get("personality_deltas", {}), self)
-            current_emotions = await alter_emotions(response.get("emotion_deltas", {}), self)
+            altered_personality = alter_personality((response or {}).get("personality_deltas", {}), self)
+            current_emotions = await alter_emotions((response or {}).get("emotion_deltas", {}), self)
             
             timings["personality_emotion_deltas"] = time.perf_counter() - step_start
             
@@ -194,9 +194,9 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 })
             
             rich_message = {
-                "message": perception.get("message", request.message),
-                "purpose": perception.get("purpose"),
-                "tone": perception.get("tone"),
+                "message": (perception or {}).get("message", request.message),
+                "purpose": (perception or {}).get("purpose"),
+                "tone": (perception or {}).get("tone"),
                 "timestamp": received_dt,
                 "sender_id": user_id,
                 "sender_username": username,
@@ -211,7 +211,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 insert_message_to_message_memory(rich_message)
             )
             
-            thought_text = perception.get("thought")
+            thought_text = (perception or {}).get("thought")
             if thought_text and str(thought_text).lower() != "no":
                 add_thought_task = asyncio.create_task(add_thought({
                     "thought": thought_text,

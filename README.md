@@ -237,8 +237,8 @@ Windows:
 
 Notes:
 
-- On macOS, worker defaults to `SimpleWorker` mode to avoid ObjC `fork()` crashes.
-- To force classic forking worker: `RQ_USE_FORK_WORKER=true`.
+- On macOS and Windows, worker defaults to `SimpleWorker` mode to avoid `fork()` issues.
+- To force classic forking worker on fork-capable platforms (e.g., Linux): `RQ_USE_FORK_WORKER=true`.
 
 ### 7) Verify service health
 
@@ -375,6 +375,14 @@ If you see ObjC `initialize`/`fork` crash logs, run worker with current default 
 
 ```bash
 ./.venv/bin/python -m app.worker
+```
+
+### Windows worker crash (`AttributeError: module 'os' has no attribute 'fork'`)
+
+Use the standard worker entrypoint (it now selects `SimpleWorker` automatically on Windows):
+
+```powershell
+.\.venv\Scripts\python -m app.worker
 ```
 
 ### 401 on protected endpoints right after startup

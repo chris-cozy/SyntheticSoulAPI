@@ -377,9 +377,9 @@ If you see ObjC `initialize`/`fork` crash logs, run worker with current default 
 ./.venv/bin/python -m app.worker
 ```
 
-### Windows worker crash (`AttributeError: module 'os' has no attribute 'fork'`)
+### Windows worker crash (`os.fork` or `signal.SIGALRM` attribute errors)
 
-Use the standard worker entrypoint (it now selects `SimpleWorker` automatically on Windows):
+Use the standard worker entrypoint (it now selects `SimpleWorker` and Windows-safe timeout handling automatically):
 
 ```powershell
 .\.venv\Scripts\python -m app.worker

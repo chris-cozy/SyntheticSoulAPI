@@ -46,6 +46,10 @@ def _normalize_delta_payload(delta_payload: Any, allowed_keys: Set[str]) -> Dict
     return normalized
 
 
+def _as_dict(payload: Any) -> Dict[str, Any]:
+    return payload if isinstance(payload, dict) else {}
+
+
 async def generate_response(request: InternalMessageRequest) -> GenerateReplyTaskResponse:
         """
         Process a user message and return the bot's response.
@@ -153,6 +157,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 get_personality_emotion_delta_schema_lite(),
                 quality=False
             )
+            response = _as_dict(response)
             
             altered_personality = alter_personality(response.get("personality_deltas", {}), self)
             current_emotions = await alter_emotions(response.get("emotion_deltas", {}), self)
@@ -181,6 +186,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 get_message_perception_schema(), 
                 quality=False
             )
+            perception = _as_dict(perception)
             
             queries.append({
                 "role": BOT_ROLE,
@@ -406,6 +412,7 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
                     ),
                 }
         response = await structured_query(queries + [prompt], post_processing_schema(), False)
+        response = _as_dict(response)
         
         queries.append({"role": BOT_ROLE, "content": f" This is {AGENT_NAME}'s refreshed summary of {user_id}, updated extrinsic relationship with {user_id}, sentiment change towards {user_id}, and updated self-perception: {json.dumps(response)}"})
         
@@ -433,6 +440,7 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         }
             
         response = await structured_query(queries + [prompt], get_memory_schema_lite(), quality=False)
+        response = _as_dict(response)
         
         created_memory = False
         if response:
@@ -588,5 +596,6 @@ async def check_implicit_addressed(user_id: str, username: str, message: str, re
                 )
             )
         }], implicitly_addressed_schema())
+    implicit_addressing_result = _as_dict(implicit_addressing_result)
     
-    return implicit_addressing_result["implicitly_addressed"] == 'yes'
+    return implicit_addressing_result.get("implicitly_addressed") == "yes"

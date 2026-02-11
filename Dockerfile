@@ -12,8 +12,8 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY requirements.txt ./requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-COPY --chown=app:app app ./app
-RUN chmod -R u=rwX,go=rX /app/app
+COPY app ./app
+RUN chown -R app:app /app/app && chmod -R u=rwX,go=rX /app/app
 
 USER app
 

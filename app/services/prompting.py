@@ -265,9 +265,11 @@ def build_response_prompt(
         "expression": example_expression,
     }
     
+    bullet_lines = "\n- ".join(bullets)
+
     body = f"""
         Key details (decision-specific):
-        - {'\n- '.join(bullets)}
+        - {bullet_lines}
 
         Task:
         Decide whether to respond or ignore the latest user message. Consider your emotional state, personality traits, your relationship/perception of {user_id}, and recent interactions.

@@ -84,6 +84,47 @@ Runtime version metadata:
 - MongoDB `6+`
 - Optional: Docker Desktop (recommended for cross-platform local infra)
 
+## Containerized API (Docker)
+
+Use this when deploying the API on a Linux server with Docker installed.
+
+### 1) Build the image
+
+```bash
+docker build -t synthetic-soul-api:latest .
+```
+
+### 2) Run with Docker Compose
+
+```bash
+docker compose -f docker-compose.api.yml up -d --build
+```
+
+This compose file runs only the API container. It reads runtime secrets/config from `.env`.
+
+### 3) Configure Redis/Mongo endpoints for container networking
+
+Inside a container, `127.0.0.1` points to the container itself (not your host server). Set:
+
+- `REDIS_URL` to a reachable Redis host
+- `MONGO_CONNECTION_LOCAL` or `MONGO_CONNECTION_HOSTED` to a reachable Mongo host
+
+If Redis/Mongo run directly on the Linux host, use `host.docker.internal` (already mapped in `docker-compose.api.yml`):
+
+```env
+MONGO_MODE=local
+MONGO_CONNECTION_LOCAL=mongodb://host.docker.internal:27017
+REDIS_URL=redis://host.docker.internal:6379/0
+```
+
+### 4) Verify container health
+
+```bash
+docker ps
+docker logs -f synthetic-soul-api
+curl http://127.0.0.1:8000/v1/meta/ping
+```
+
 ## Local Setup
 
 ### 1) Start Redis and MongoDB

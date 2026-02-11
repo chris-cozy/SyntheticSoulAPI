@@ -1,0 +1,56 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synthetic-soul-api:latest
+    container_name: synthetic-soul-api
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    networks:
+      default:
+      shared:
+        aliases:
+          - api
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synthetic-soul-api:latest
+    container_name: synthetic-soul-worker
+    env_file:
+      - .env
+    command: python -m app.worker
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  reverse-proxy:
+    image: caddy:2-alpine
+    container_name: synthetic-soul-proxy
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  shared:
+    name: ${SHARED_DOCKER_NETWORK:-synthetic-soul-shared}
+    external: true

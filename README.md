@@ -84,6 +84,107 @@ Runtime version metadata:
 - MongoDB `6+`
 - Optional: Docker Desktop (recommended for cross-platform local infra)
 
+## Containerized Deployment (Docker)
+
+Use this for Linux server deployment. Two compose modes are available:
+
+### Option A: API + Worker only (external Redis/Mongo)
+
+Runs `api` + `worker` + reverse proxy and expects Redis/Mongo to exist outside this compose project.
+
+```bash
+docker compose -f docker-compose.api.yml up -d --build
+```
+
+`docker-compose.api.yml` reads env vars from `.env`.
+
+If Redis/Mongo run directly on the Linux host, use:
+
+```env
+MONGO_MODE=local
+MONGO_CONNECTION_LOCAL=mongodb://host.docker.internal:27017
+REDIS_URL=redis://host.docker.internal:6379/0
+```
+
+(`host.docker.internal` is mapped in this file using `extra_hosts`.)
+
+### Option B: Full backend stack (API + Worker + Redis + Mongo)
+
+Runs everything in containers (including reverse proxy + data services + persistent volumes):
+
+```bash
+docker compose up -d --build
+```
+
+`docker-compose.yml` automatically wires:
+
+- API + worker to `redis://redis:6379/0`
+- API + worker to `mongodb://mongo:27017`
+- persistent volumes (`redis_data`, `mongo_data`, `caddy_data`, `caddy_config`)
+
+For this mode, keep `.env` focused on app settings/secrets (for example LLM keys, `DATABASE_NAME`, JWT/Argon2 secrets).
+
+### Reverse proxy (Caddy) behavior
+
+- Internet traffic enters through Caddy on ports `80/443`.
+- Caddy reverse-proxies requests to internal service `api:8000`.
+- TLS certificates are automatic via Let's Encrypt when:
+  - `API_DOMAIN` points to your server public IP via DNS
+  - ports `80` and `443` are open in firewall/security group
+- Set these in `.env`:
+
+```env
+API_DOMAIN=api.example.com
+```
+
+For local-only testing without a public domain, set:
+
+```env
+API_DOMAIN=localhost
+```
+
+### Hardened production env template
+
+- Copy from `.env.production.example` to `.env` and fill secrets/URIs.
+- Keep `APP_ENV=production` and `DEBUG_MODE=false`.
+
+### Shared network for Discord bot (same server, no public API required)
+
+Use a shared external Docker network so the bot can call the API privately via `http://api:8000`.
+
+1. Create the network once on the server:
+
+```bash
+docker network create synthetic-soul-shared
+```
+
+2. Start this API stack (it now joins `synthetic-soul-shared` automatically):
+
+```bash
+docker compose up -d --build
+```
+
+3. In the bot project, attach the bot service to the same external network and set its API base URL to `http://api:8000`.
+   - Example file: `docs/discord-bot-compose.example.yml`
+   - If needed, override network name with `SHARED_DOCKER_NETWORK` in `.env`.
+
+### Verify runtime health
+
+```bash
+docker compose ps
+docker logs -f synthetic-soul-proxy
+docker logs -f synthetic-soul-api
+docker logs -f synthetic-soul-worker
+curl -k https://127.0.0.1/v1/meta/ping
+```
+
+To stop either mode:
+
+```bash
+docker compose down
+docker compose -f docker-compose.api.yml down
+```
+
 ## Local Setup
 
 ### 1) Start Redis and MongoDB
@@ -237,8 +338,8 @@ Windows:
 
 Notes:
 
-- On macOS, worker defaults to `SimpleWorker` mode to avoid ObjC `fork()` crashes.
-- To force classic forking worker: `RQ_USE_FORK_WORKER=true`.
+- On macOS and Windows, worker defaults to `SimpleWorker` mode to avoid `fork()` issues.
+- To force classic forking worker on fork-capable platforms (e.g., Linux): `RQ_USE_FORK_WORKER=true`.
 
 ### 7) Verify service health
 
@@ -375,6 +476,14 @@ If you see ObjC `initialize`/`fork` crash logs, run worker with current default 
 
 ```bash
 ./.venv/bin/python -m app.worker
+```
+
+### Windows worker crash (`os.fork` or `signal.SIGALRM` attribute errors)
+
+Use the standard worker entrypoint (it now selects `SimpleWorker` and Windows-safe timeout handling automatically):
+
+```powershell
+.\.venv\Scripts\python -m app.worker
 ```
 
 ### 401 on protected endpoints right after startup

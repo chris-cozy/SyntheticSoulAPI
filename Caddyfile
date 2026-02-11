@@ -1,0 +1,12 @@
+{$API_DOMAIN:localhost} {
+	encode zstd gzip
+
+	reverse_proxy api:8000
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

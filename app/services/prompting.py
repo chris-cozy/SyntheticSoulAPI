@@ -25,10 +25,10 @@ def build_emotion_delta_prompt_thinking(
     Returns:
         str: A clean, dynamic prompt string.
     """
-    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
+    emotion_keys = list(agent['emotional_status']['emotions'].keys())
     
     body = f"""
-        You are {agent["name"]}. Below are the key details of your current state and context:
+        You are {agent['name']}. Below are the key details of your current state and context:
         - Latest thought: {latest_thought}
         
         Task:
@@ -77,8 +77,8 @@ def build_personality_emotional_delta_prompt(
         latest_thought=latest_thought,
     )
 
-    personality_keys = list(agent["personality"]["personality_matrix"].keys())
-    emotion_keys = list(agent["emotional_status"]["emotions"].keys())
+    personality_keys = list(agent['personality']['personality_matrix'].keys())
+    emotion_keys = list(agent['emotional_status']['emotions'].keys())
     
     body = f"""
     Task:
@@ -107,7 +107,7 @@ def build_personality_emotional_delta_prompt(
         - Personality evolves slowly. Prefer small steps (typical in [-{typical_personality_cap}, +{typical_personality_cap}]); only exceed that for major, sustained changes.
         - Do **not** output absolute values—only **deltas** to apply to current values.
         - If nothing should change, return an empty "deltas" object.
-        - Keep changes coherent with existing values and the relationship with {user["user_id"]}.
+        - Keep changes coherent with existing values and the relationship with {user['user_id']}.
     
     Guidance for emotions:
         - Possible emotion keys: {emotion_keys}. Use only these keys.
@@ -161,7 +161,7 @@ def build_message_perception_prompt(
     
     body = f"""        
         Task:
-        Interpret the purpose and tone of the latest message from {user["user_id"]}.
+        Interpret the purpose and tone of the latest message from {user['user_id']}.
         Consider possible misinterpretations based on your emotional state, personality, and the conversation context.
         Also decide whether this message—considering your previous thoughts—has fulfilled or overridden a prior directive. If yes, return a new thought that reflects the updated state; if not, return "no".
 
@@ -403,27 +403,27 @@ def build_post_processing_prompt(
         if context_section
         else textwrap.dedent(f"""
         You are {agent_name}. Below are the key details prior to this update:
-        - Summary of {user["user_id"]} (before): {user["summary"]}
-        - Your current sentiments toward {user["user_id"]} are: {user["sentiment_status"]}
-        - Evaluate how your sentiments toward {user["user_id"]} changed after the most recent exchange.
+        - Summary of {user['user_id']} (before): {user['summary']}
+        - Your current sentiments toward {user['user_id']} are: {user['sentiment_status']}
+        - Evaluate how your sentiments toward {user['user_id']} changed after the most recent exchange.
         """).rstrip() + "\n"
     )
     
     options_json = json.dumps(list(extrinsic_relationship_options), ensure_ascii=False)
-    sentiment_keys = list(user["sentiment_status"]["sentiments"].keys())
+    sentiment_keys = list(user['sentiment_status']['sentiments'].keys())
     
     body = f"""
         Task:
         Update the following based on the latest exchange:
-        1) A refreshed summary of {user["user_id"]}. If nothing changed, keep it the same.
-        2) The extrinsic relationship label between you and {user["user_id"]}. Choose exactly one from the allowed options.
+        1) A refreshed summary of {user['user_id']}. If nothing changed, keep it the same.
+        2) The extrinsic relationship label between you and {user['user_id']}. Choose exactly one from the allowed options.
         3) Your identity — a first-person description of how you currently see yourself (self-perception).
-        4) Suggest small, realistic changes (deltas) to your sentiments toward {user["user_id"]}.
+        4) Suggest small, realistic changes (deltas) to your sentiments toward {user['user_id']}.
         Do not output absolute values; output only integer deltas per changed sentiment.
 
         Output format (JSON object):
         {{
-        "summary": "Your updated description of {user["user_id"]}",
+        "summary": "Your updated description of {user['user_id']}",
         "extrinsic_relationship": "<one_of_allowed_options>",
         "identity": "Your updated identity",
         "sentiment_deltas": 
@@ -972,17 +972,17 @@ def _format_shared_context(
     lines = [
         f"You are {agent_name}. Below are the key details of your current state and context:",
         "",
-        f"- Current sentiment toward {user["user_id"]}: {user["sentiment_status"]}",
-        f"- Your perspective of {user["user_id"]}: {user["summary"]}",
-        f"- Relationship with {user["user_id"]} (intrinsic): {user["intrinsic_relationship"]}",
-        f"- Relationship with {user["user_id"]} (extrinsic): {user["extrinsic_relationship"]}",
-        f"- {user["user_id"]} goes by: {user["username"]}",
+        f"- Current sentiment toward {user['user_id']}: {user['sentiment_status']}",
+        f"- Your perspective of {user['user_id']}: {user['summary']}",
+        f"- Relationship with {user['user_id']} (intrinsic): {user['intrinsic_relationship']}",
+        f"- Relationship with {user['user_id']} (extrinsic): {user['extrinsic_relationship']}",
+        f"- {user['user_id']} goes by: {user['username']}",
         
     ]
     if latest_thought:
         lines.append(f"- Latest thoughts: {latest_thought}")
     lines.extend([
-        f"- Recent conversation with {user["user_id"]}: {recent_messages}",
+        f"- Recent conversation with {user['user_id']}: {recent_messages}",
         f"- Broader recent messages: {recent_all_messages}",
         f"- Date: {received_date}",
         f'- Latest user message: "{user_message}"',
@@ -1018,9 +1018,9 @@ def build_message_appropriate_prompt(
         header = context_section.rstrip() + "\n"
     else:
         header = textwrap.dedent(f"""
-        You are {agent_name}. You are considering sending a proactive message to user {user["user_id"]} (goes by {user["username"]}).
+        You are {agent_name}. You are considering sending a proactive message to user {user['user_id']} (goes by {user['username']}).
         - Your information: {self}
-        - Recent conversation with {user["user_id"]}: {recent_user_messages}
+        - Recent conversation with {user['user_id']}: {recent_user_messages}
         - Candidate message: {message}
         """).rstrip() + "\n"
         

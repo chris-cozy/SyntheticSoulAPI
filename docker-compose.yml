@@ -46,6 +46,11 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+    networks:
+      default:
+      shared:
+        aliases:
+          - api
     restart: unless-stopped
 
   worker:
@@ -91,3 +96,8 @@ volumes:
   mongo_data:
   caddy_data:
   caddy_config:
+
+networks:
+  shared:
+    name: ${SHARED_DOCKER_NETWORK:-synthetic-soul-shared}
+    external: true

@@ -9,6 +9,11 @@ services:
       - .env
     expose:
       - "8000"
+    networks:
+      default:
+      shared:
+        aliases:
+          - api
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -44,3 +49,8 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  shared:
+    name: ${SHARED_DOCKER_NETWORK:-synthetic-soul-shared}
+    external: true

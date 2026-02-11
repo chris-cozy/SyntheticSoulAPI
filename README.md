@@ -148,6 +148,26 @@ API_DOMAIN=localhost
 - Copy from `.env.production.example` to `.env` and fill secrets/URIs.
 - Keep `APP_ENV=production` and `DEBUG_MODE=false`.
 
+### Shared network for Discord bot (same server, no public API required)
+
+Use a shared external Docker network so the bot can call the API privately via `http://api:8000`.
+
+1. Create the network once on the server:
+
+```bash
+docker network create synthetic-soul-shared
+```
+
+2. Start this API stack (it now joins `synthetic-soul-shared` automatically):
+
+```bash
+docker compose up -d --build
+```
+
+3. In the bot project, attach the bot service to the same external network and set its API base URL to `http://api:8000`.
+   - Example file: `docs/discord-bot-compose.example.yml`
+   - If needed, override network name with `SHARED_DOCKER_NETWORK` in `.env`.
+
 ### Verify runtime health
 
 ```bash

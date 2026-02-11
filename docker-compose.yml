@@ -44,8 +44,8 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-    ports:
-      - "${PORT:-8000}:8000"
+    expose:
+      - "8000"
     restart: unless-stopped
 
   worker:
@@ -69,6 +69,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  reverse-proxy:
+    image: caddy:2-alpine
+    container_name: synthetic-soul-proxy
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   redis_data:
   mongo_data:
+  caddy_data:
+  caddy_config:

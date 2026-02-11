@@ -7,8 +7,8 @@ services:
     container_name: synthetic-soul-api
     env_file:
       - .env
-    ports:
-      - "${PORT:-8000}:8000"
+    expose:
+      - "8000"
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -24,3 +24,23 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+  reverse-proxy:
+    image: caddy:2-alpine
+    container_name: synthetic-soul-proxy
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

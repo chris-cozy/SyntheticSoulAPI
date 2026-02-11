@@ -90,7 +90,7 @@ Use this for Linux server deployment. Two compose modes are available:
 
 ### Option A: API + Worker only (external Redis/Mongo)
 
-Runs `api` + `worker` and expects Redis/Mongo to exist outside this compose project.
+Runs `api` + `worker` + reverse proxy and expects Redis/Mongo to exist outside this compose project.
 
 ```bash
 docker compose -f docker-compose.api.yml up -d --build
@@ -110,7 +110,7 @@ REDIS_URL=redis://host.docker.internal:6379/0
 
 ### Option B: Full backend stack (API + Worker + Redis + Mongo)
 
-Runs everything in containers, including data services and persistent volumes:
+Runs everything in containers (including reverse proxy + data services + persistent volumes):
 
 ```bash
 docker compose up -d --build
@@ -120,17 +120,42 @@ docker compose up -d --build
 
 - API + worker to `redis://redis:6379/0`
 - API + worker to `mongodb://mongo:27017`
-- persistent volumes (`redis_data`, `mongo_data`)
+- persistent volumes (`redis_data`, `mongo_data`, `caddy_data`, `caddy_config`)
 
 For this mode, keep `.env` focused on app settings/secrets (for example LLM keys, `DATABASE_NAME`, JWT/Argon2 secrets).
+
+### Reverse proxy (Caddy) behavior
+
+- Internet traffic enters through Caddy on ports `80/443`.
+- Caddy reverse-proxies requests to internal service `api:8000`.
+- TLS certificates are automatic via Let's Encrypt when:
+  - `API_DOMAIN` points to your server public IP via DNS
+  - ports `80` and `443` are open in firewall/security group
+- Set these in `.env`:
+
+```env
+API_DOMAIN=api.example.com
+```
+
+For local-only testing without a public domain, set:
+
+```env
+API_DOMAIN=localhost
+```
+
+### Hardened production env template
+
+- Copy from `.env.production.example` to `.env` and fill secrets/URIs.
+- Keep `APP_ENV=production` and `DEBUG_MODE=false`.
 
 ### Verify runtime health
 
 ```bash
 docker compose ps
+docker logs -f synthetic-soul-proxy
 docker logs -f synthetic-soul-api
 docker logs -f synthetic-soul-worker
-curl http://127.0.0.1:8000/v1/meta/ping
+curl -k https://127.0.0.1/v1/meta/ping
 ```
 
 To stop either mode:

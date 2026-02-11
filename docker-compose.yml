@@ -1,0 +1,74 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: synthetic-soul-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: synthetic-soul-mongo
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synthetic-soul-api:latest
+    container_name: synthetic-soul-api
+    env_file:
+      - .env
+    environment:
+      MONGO_MODE: local
+      MONGO_CONNECTION_LOCAL: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
+      PORT: 8000
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8000}:8000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synthetic-soul-api:latest
+    container_name: synthetic-soul-worker
+    env_file:
+      - .env
+    environment:
+      MONGO_MODE: local
+      MONGO_CONNECTION_LOCAL: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
+      RQ_USE_FORK_WORKER: "true"
+    command: python -m app.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  mongo_data:

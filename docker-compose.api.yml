@@ -12,3 +12,15 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synthetic-soul-api:latest
+    container_name: synthetic-soul-worker
+    env_file:
+      - .env
+    command: python -m app.worker
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

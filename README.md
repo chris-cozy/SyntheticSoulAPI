@@ -84,32 +84,21 @@ Runtime version metadata:
 - MongoDB `6+`
 - Optional: Docker Desktop (recommended for cross-platform local infra)
 
-## Containerized API (Docker)
+## Containerized Deployment (Docker)
 
-Use this when deploying the API on a Linux server with Docker installed.
+Use this for Linux server deployment. Two compose modes are available:
 
-### 1) Build the image
+### Option A: API + Worker only (external Redis/Mongo)
 
-```bash
-docker build -t synthetic-soul-api:latest .
-```
-
-### 2) Run with Docker Compose
+Runs `api` + `worker` and expects Redis/Mongo to exist outside this compose project.
 
 ```bash
 docker compose -f docker-compose.api.yml up -d --build
 ```
 
-This compose file runs only the API container. It reads runtime secrets/config from `.env`.
+`docker-compose.api.yml` reads env vars from `.env`.
 
-### 3) Configure Redis/Mongo endpoints for container networking
-
-Inside a container, `127.0.0.1` points to the container itself (not your host server). Set:
-
-- `REDIS_URL` to a reachable Redis host
-- `MONGO_CONNECTION_LOCAL` or `MONGO_CONNECTION_HOSTED` to a reachable Mongo host
-
-If Redis/Mongo run directly on the Linux host, use `host.docker.internal` (already mapped in `docker-compose.api.yml`):
+If Redis/Mongo run directly on the Linux host, use:
 
 ```env
 MONGO_MODE=local
@@ -117,12 +106,38 @@ MONGO_CONNECTION_LOCAL=mongodb://host.docker.internal:27017
 REDIS_URL=redis://host.docker.internal:6379/0
 ```
 
-### 4) Verify container health
+(`host.docker.internal` is mapped in this file using `extra_hosts`.)
+
+### Option B: Full backend stack (API + Worker + Redis + Mongo)
+
+Runs everything in containers, including data services and persistent volumes:
 
 ```bash
-docker ps
+docker compose up -d --build
+```
+
+`docker-compose.yml` automatically wires:
+
+- API + worker to `redis://redis:6379/0`
+- API + worker to `mongodb://mongo:27017`
+- persistent volumes (`redis_data`, `mongo_data`)
+
+For this mode, keep `.env` focused on app settings/secrets (for example LLM keys, `DATABASE_NAME`, JWT/Argon2 secrets).
+
+### Verify runtime health
+
+```bash
+docker compose ps
 docker logs -f synthetic-soul-api
+docker logs -f synthetic-soul-worker
 curl http://127.0.0.1:8000/v1/meta/ping
+```
+
+To stop either mode:
+
+```bash
+docker compose down
+docker compose -f docker-compose.api.yml down
 ```
 
 ## Local Setup

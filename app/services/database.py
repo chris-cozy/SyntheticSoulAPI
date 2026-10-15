@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from app.constants.constants import AGENT_RICH_COLLECTION, AGENT_LITE_COLLECTION, AGENT_NAME_PROPERTY, AUTH_COLLECTION, BASE_EMOTIONAL_STATUS, BASE_EMOTIONAL_STATUS_LITE, BASE_PERSONALITY, BASE_SENTIMENT_MATRIX, BASE_SENTIMENT_MATRIX_LITE, CONVERSATION_COLLECTION, INTRINSIC_RELATIONSHIPS, MEMORY_COLLECTION, MESSAGE_COLLECTION, MYERS_BRIGGS_PERSONALITIES, SESSIONS_COLLECTION, THOUGHT_COLLECTION, USER_RICH_COLLECTION, USER_LITE_COLLECTION
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 from app.core.config import AGENT_NAME, LITE_MODE, MONGO_CONNECTION, DATABASE_NAME
 
 from app.constants.validators import AGENT_RICH_VALIDATOR, AUTH_VALIDATOR, MEMORY_VALIDATOR, MESSAGES_VALIDATOR, SESSIONS_VALIDATOR, THOUGHT_VALIDATOR, USER_RICH_VALIDATOR
@@ -61,6 +62,7 @@ async def _ensure_indexes(db):
     
     await db[USER_COLLECTION].create_index([("user_id", 1), ("agent_perspective", 1)],unique=True,name="user_id_agent_perspective")
     await db[USER_COLLECTION].create_index([("username", 1), ("agent_perspective", 1)],unique=True,name="username_agent_perspective")
+    await db[USER_COLLECTION].create_index([("agent_perspective", 1), ("last_interaction", -1)])
     
     await db[CONVERSATION_COLLECTION].create_index(
         [("user_id", 1), ("agent_name", 1)],
@@ -75,7 +77,7 @@ async def _ensure_indexes(db):
     await db[MEMORY_COLLECTION].create_index("tags", name="tags")
     await db[MEMORY_COLLECTION].create_index("recall_count", name="recalls")
     
-    await db[THOUGHT_COLLECTION].create_index("agent_name", name="agent_name")
+    await db[THOUGHT_COLLECTION].create_index([("agent_name", 1), ("_id", -1)])
     
     # Sessions
     await db[SESSIONS_COLLECTION].create_index("_id", name="sid_unique")
@@ -115,6 +117,8 @@ async def init_db() -> None:
     timings["initialize_collections"] = time.perf_counter() - t
     
     _db_init_done = True
+    from app.services.accounting import initialize_accounting
+    await initialize_accounting(_db_client.get_database(_get_db_name()))
     timings["total_init_db"] = time.perf_counter() - t0
     
     # One-line timing summary
@@ -336,7 +340,7 @@ async def get_tagged_memories(
         db = await get_database()
         memory_collection = db[MEMORY_COLLECTION]
         
-        query: dict[str, Any] = {"tags": tag}
+        query: dict[str, Any] = {"agent_name": AGENT_NAME, "tags": tag}
         if before_id:
             query["_id"] = {"$lt": ObjectId(before_id)}
             
@@ -358,26 +362,13 @@ async def insert_message_to_conversation(
     message: dict[str, Any],
     agent_name: str =AGENT_NAME,
 ) -> None:
-    try:
-        db = await get_database()
-        conversation_collection = db[CONVERSATION_COLLECTION]
-        normalized = _normalize_message_for_storage(message)
-        await conversation_collection.update_one(
-            {"user_id": user_id, "agent_name": agent_name}, 
-            { 
-            "$push": 
-                {
-                    "messages": {
-                        "$each": [normalized],
-                        "$slice": -1000 
-                        }
-                    },
-                "$setOnInsert": {"user_id": user_id, "agent_name": agent_name}
-            },
-            upsert=True
-        )
-    except Exception as e:
-        print(e)
+    db = await get_database()
+    await db[CONVERSATION_COLLECTION].update_one(
+        {"user_id": user_id, "agent_name": agent_name},
+        {"$push": {"messages": {"$each": [_normalize_message_for_storage(message)], "$slice": -1000}},
+         "$setOnInsert": {"user_id": user_id, "agent_name": agent_name}},
+        upsert=True,
+    )
 
 
 def _safe_string(value: Any, fallback: str) -> str:
@@ -404,28 +395,17 @@ def _normalize_message_for_storage(message: dict[str, Any]) -> dict[str, Any]:
 async def insert_message_to_message_memory(
     message: dict[str, Any]
 ) -> None:
-    try:
-        db = await get_database()
-        messsage_collection = db[MESSAGE_COLLECTION]
-        normalized = _normalize_message_for_storage(message)
-        normalized["agent"] = AGENT_NAME
-        await messsage_collection.insert_one(normalized)
-    except Exception as e:
-        print(e)
+    db = await get_database()
+    normalized = _normalize_message_for_storage(message)
+    normalized["agent"] = AGENT_NAME
+    await db[MESSAGE_COLLECTION].insert_one(normalized)
         
 async def add_thought(
     thought: dict[str, Any],
     agent_name: str=AGENT_NAME,
 ) -> None:
-    try:
-        db = await get_database()
-        thought_collection = db[THOUGHT_COLLECTION]
-        
-        thought["agent_name"] = agent_name
-        
-        await thought_collection.insert_one(thought)
-    except Exception as e:
-        print(e)
+    db = await get_database()
+    await db[THOUGHT_COLLECTION].insert_one({**thought, "agent_name": agent_name})
         
 async def get_thoughts(
     count,
@@ -448,99 +428,29 @@ async def get_thoughts(
         print(e)
                
 async def add_memory(mem: Memory):
-    try:
-        db = await get_database()
-        memory_collection = db[MEMORY_COLLECTION]
-        doc = mem.model_dump()
-        await memory_collection.insert_one(doc)
-    except Exception as e:
-        print(e)
+    db = await get_database()
+    await db[MEMORY_COLLECTION].insert_one(mem.model_dump())
         
 async def update_tags(new_tags: List[str]):
-    try:
-        db = await get_database()
-        agent_lite_collection = db[AGENT_LITE_COLLECTION]
-        await agent_lite_collection.update_one(
-            {AGENT_NAME_PROPERTY: AGENT_NAME},
-            {"$addToSet": {"memory_tags": {"$each": new_tags}}}
-        )
-    except Exception as e:
-        print(e)
+    db = await get_database()
+    await db[AGENT_COLLECTION].update_one(
+        {AGENT_NAME_PROPERTY: AGENT_NAME},
+        {"$addToSet": {"memory_tags": {"$each": new_tags}}},
+    )
+
+
+async def next_interaction_sequence(user_id: str) -> int:
+    """Reserve exchange order atomically before enqueueing; gaps are harmless."""
+    db = await get_database()
+    profile = await db[USER_COLLECTION].find_one_and_update(
+        {"user_id": user_id, "agent_perspective": AGENT_NAME},
+        {"$inc": {"interaction_sequence": 1}},
+        projection={"interaction_sequence": 1}, return_document=ReturnDocument.AFTER,
+    )
+    if profile is None:
+        raise RuntimeError("Interaction profile is missing")
+    return profile["interaction_sequence"]
       
-async def update_summary_identity_relationship(user_id, summary, extrinsic_relationship, identity, agent_name=AGENT_NAME):
-    """Updates the user summary, agent identity, and user extrinsic relationship
-
-    Args:
-        agent_name (string): The agent's name
-        user_id (string): The user's ID
-        summary (string): The updated summary
-        extrinsic_relationship (string): The updated extrinsic relationship
-        identity (string): The updated identity
-    """
-    try:
-        db = await get_database()
-        if LITE_MODE:
-            agent_collection = db[AGENT_LITE_COLLECTION]
-            user_collection = db[USER_LITE_COLLECTION]
-        else:
-            agent_collection = db[AGENT_RICH_COLLECTION]
-            user_collection = db[USER_RICH_COLLECTION]
-
-        normalized_relationship = extrinsic_relationship
-        if normalized_relationship == "my romantic partner":
-            normalized_relationship = "romantic partner"
-        elif normalized_relationship == "my best friend":
-            normalized_relationship = "best friend"
-
-        await agent_collection.update_one({"name": agent_name}, {"$set": {"identity": str(identity)}})
-        await user_collection.update_one(
-            {"user_id": user_id, "agent_perspective": agent_name},
-            {"$set": {"summary": str(summary), "extrinsic_relationship": str(normalized_relationship)}},
-        )
-    except Exception as e:
-        print(e)
-        
-async def update_agent_emotions(emotions, agent_name=AGENT_NAME):
-    try:
-        db = await get_database()
-        if LITE_MODE:
-            agent_collection = db[AGENT_LITE_COLLECTION]
-        else:
-            agent_collection = db[AGENT_RICH_COLLECTION]
-        
-        await agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, {"$set": {"emotional_status": emotions}})
-    
-    except Exception as e:
-        print(e)
-        
-async def update_agent_expression(expression, agent_name=AGENT_NAME):
-    try:
-        db = await get_database()
-        if LITE_MODE:
-            agent_collection = db[AGENT_LITE_COLLECTION]
-        else:
-            agent_collection = db[AGENT_RICH_COLLECTION]
-        
-        await agent_collection.update_one({AGENT_NAME_PROPERTY: agent_name}, {"$set": {"global_expression": expression}})
-    
-    except Exception as e:
-        print(e)
-        
-async def update_user_sentiment(user_id, sentiments):
-    try:
-        db = await get_database()
-        if LITE_MODE:
-            user_collection = db[USER_LITE_COLLECTION]
-        else:
-            user_collection = db[USER_RICH_COLLECTION]
-        
-        await user_collection.update_one(
-            {"user_id": user_id},
-            {"$set": {"sentiment_status": sentiments, "last_interaction": datetime.now()}},
-        )
-    except Exception as e:
-        print(e)
-        
 async def ensure_user_and_profile(user_id: str, username: str, agent_name: str = AGENT_NAME):
     """
     idempotent: ensure 'users' identity + 'user_lite' perspective doc

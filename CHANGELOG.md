@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-11
+
+### Added
+- Hosted Decisions evaluation for state changes, subjective perception, addressing, participation, relationships, durable identity/summary gates, memory metadata, expressions and autonomous behavior.
+- Direct bounded Decisions deltas with per-dimension provenance and partial generative fallback preserving legacy calculations.
+- Revision-checked agent/user cognition updates, bounded conflict re-evaluation, uncertain-write readback and deterministic emotional decay.
+- Durable cost accounting across reply jobs, background work and autonomous passes; physical API attempts capture usage before SDK parsing, including retries and fallbacks.
+- Owner-authenticated `GET /v1/jobs/{job_id}/cost`, versioned decimal pricing estimates, incomplete/unknown accounting and diagnostics in `/v1/meta/llm`.
+- Cost/latency reporting and isolated baseline/Decisions replay with fixed application time, seeded randomness, cold/warm cohorts and labeled review scenarios.
+- Automated regression tests and CI test execution.
+
+### Changed
+- Upgraded OpenAI SDK to `3.26.0` and compatible dependencies; Decisions is enabled by default in hosted mode with `DECISIONS_ENABLED=false` as an opt-out, and local Ollama stays on the generative path.
+- Preserved original user input independently of perceived metadata, constrained outreach to real profiles with at most three recipients, and selected expressions from installed assets.
+- Kept personality changes interaction-local and cost differences observational, without a lower-cost acceptance requirement.
+- Accepted validated routine subjective Decisions results without a confidence veto, removed standalone expression recovery, and limited native recovery to one attempt per reply/background/autonomy phase while preserving accepted results and recording exhaustion.
+- Batched compatible refresh and memory decisions within the original stages; shortened per-dimension questions and supplied shared state guidance once, with compact native evidence and prose context preserving emotions, personality, relationships and independent outreach checks.
+
+### Fixed
+- Prevented cost reconciliation from overwriting concurrent worker completion, refreshed interaction timestamps independently of sentiment changes, bounded outreach context with targeted older-contact lookup, and removed fixed agent names from native prompts.
+- Propagated required persistence failures, guarded user refreshes with durable exchange sequences, scoped tagged recall to the active agent, and prioritized explicitly named outreach contacts before memory-linked candidates.
+- Reserved per-user background dependency chains at submission so faster later replies cannot skip earlier durable updates; retained deferred payloads independently of reply-result expiry and released later work after predecessor failures.
+- Preserved both the pre-message thought and any perception-updated thought in native reply context, including directive status, without changing thought-generation rules.
+
 ## [1.1.1] - 2026-02-08
 
 ### Added

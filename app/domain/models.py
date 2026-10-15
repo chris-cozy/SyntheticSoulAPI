@@ -11,6 +11,7 @@ class InternalMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     user_id: str
     type: MessageType
+    sequence: Optional[int] = Field(default=None, ge=1)
 
 class MessageResponse(BaseModel):
     response: Optional[str]

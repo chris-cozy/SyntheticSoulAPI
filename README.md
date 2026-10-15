@@ -20,7 +20,7 @@ The AI is named Jasmine, short for Just a Simulation Modeling Interactive Neural
 
 ## Project Docs
 
-- [Project Overview](docs/PROJECT_OVERVIEW.md)
+- [Runtime Flow and Project Overview](docs/PROJECT_OVERVIEW.md) (canonical implementation reference)
 - [Roadmap](docs/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](docs/CONTRIBUTING.md)
@@ -36,7 +36,7 @@ This document is a full setup and operations guide for local development on macO
 
 ## API Versioning
 
-Current version: `1.1.0`
+Current version: `1.2.0`
 
 Versioning policy:
 
@@ -71,11 +71,7 @@ Runtime version metadata:
 
 ## Architecture (Runtime)
 
-- API server: FastAPI (`app/main.py`)
-- Worker: RQ worker (`python -m app.worker`)
-- Queue transport: Redis
-- Persistence: MongoDB
-- Background loops: emotional decay + periodic thinking
+See the [canonical runtime flow](docs/PROJECT_OVERVIEW.md#runtime-flow-canonical-reference) for component ownership, request/background processing, state, ordering, Decisions, autonomy, persistence failures and accounting contracts.
 
 ## Prerequisites
 
@@ -533,6 +529,56 @@ Optional/commonly used:
 - `APP_ENV`, `DEBUG_MODE`
 
 ## Development Notes
+
+### Decisions conversion and cost comparison
+
+Decisions is enabled by default in hosted mode. Keep **both the API and worker environments** consistent and restart them after configuration changes:
+
+```dotenv
+DECISIONS_ENABLED=true
+DECISIONS_MODEL=gpt-6-luna
+DECISIONS_FEATURES=all
+COST_TRACKING_ENABLED=true
+```
+
+Set `DECISIONS_ENABLED=false` in both environments to use the generative baseline. Local Ollama mode continues using generation regardless of this flag.
+
+See the [canonical runtime flow](docs/PROJECT_OVERVIEW.md#provider-modes-and-decisions) for feature selection and direct acceptance policy, and its [recovery and persistence contracts](docs/PROJECT_OVERVIEW.md#concurrency-recovery-and-persistence-failures) for failure behavior.
+
+After submitting a message, query authenticated `GET /v1/jobs/{job_id}/cost` with the owner's access token. The [accounting contract](docs/PROJECT_OVERVIEW.md#accounting-and-completion) defines provisional, complete and unknown totals.
+
+Compare collected runs with:
+
+```bash
+python -m scripts.cost_report --owner USER_ID
+# Or provide a JSON list of exported /cost responses:
+python -m scripts.cost_report --json summaries.json
+```
+
+The report separates complete and incomplete runs, autonomous costs, baseline/Decisions variants and cold/warm cohorts. It reports average/p95 costs and latency, fallback rates, and differences in either direction. Estimates use versioned [OpenAI pricing](https://developers.openai.com/api/docs/pricing) and [Decisions billing](https://developers.openai.com/api/docs/guides/decisions); they are not invoice reconciliation or historical backfills.
+
+For a controlled replay, supply a Mongo Extended JSON snapshot containing the active agent, the owner's perspective profile, and optional conversations/messages/memories/thoughts. The snapshot shape is `{ "owner_id": "...", "agent_name": "jasmine", "mode": "lite", "collections": { "agent_lite": [...], "user_lite": [...] } }`; retain original `_id` values and exclude authentication/session data.
+
+```bash
+python -m scripts.replay --snapshot snapshot.json
+# Explicit live comparison in isolated test databases; incurs provider charges:
+python -m scripts.replay --snapshot snapshot.json --live --autonomy --output .validation/replay-results.json
+```
+
+Replay defaults to local MongoDB and creates temporary databases under `syntheticsoul_replay_`. Each variant starts from the same snapshot with fixed application time and seeded randomness. Each cold/warm repetition resets that snapshot; messages within a multi-message case retain their evolving state. Actual cache hits are observed from usage and model outputs remain stochastic. The included cases cover affection, conflict/recovery, ambiguous addressing, boundaries, commitments, corrections and repetition. Review voice, subjective interpretation, identity continuity, durable memory and appropriate outreach using the supplied labels; baseline output is not ground truth. Lower cost and exact state trajectories are not acceptance requirements. Run tests with `python -m unittest discover -s tests -v`.
+
+For actual API and RQ worker integration, provide dedicated loopback MongoDB at port `27028` and Redis at port `16379`, database `15`, then run:
+
+```bash
+python -m scripts.local_validation --provider fixture --output .validation/local-fixture.json
+python -m scripts.local_validation --provider live --output .validation/local-live.json
+```
+
+The runner starts hidden API/worker processes and checks guest authentication, job ownership, reply/background completion, usage accounting, original-message persistence and cost lookup after Redis job deletion. It refuses shared service ports, cleans up its own processes and isolated databases, and keeps tokens/credentials out of reports. Fixture results exercise the full local pipeline with fixed HTTP responses; their costs and model behavior are synthetic. Live mode makes provider calls using the configured key and incurs API charges. Public replies are retained for review.
+
+Generated validation reports, snapshots, and captures are local artifacts and are not tracked in Git. Keep new outputs under `.validation/`; historical local reports under `docs/validation/` are also ignored. Tests, synthetic scenario fixtures, and reusable validation tooling are maintained in the repository. Small stochastic samples do not establish quality equivalence or guaranteed cost savings.
+
+The live extended-conversation comparison identified a remaining factual-retention issue: an unrelated summary update can drop a date that later becomes unavailable to reply generation.
 
 - Use queue diagnostics endpoint during worker/queue debugging.
 - Keep API and worker logs in separate terminals.

@@ -1,9 +1,10 @@
 from dotenv import load_dotenv
 import os
+import math
 
 load_dotenv()
 
-API_VERSION = "1.1.0"
+API_VERSION = "1.2.0"
 _version_parts = API_VERSION.split(".")
 if len(_version_parts) != 3 or not all(p.isdigit() for p in _version_parts):
     raise RuntimeError(f"API_VERSION must be semver 'MAJOR.MINOR.PATCH', got: {API_VERSION}")
@@ -98,6 +99,19 @@ EXPRESSIONS_DIR = os.getenv("EXPRESSIONS_DIR") or os.path.join(os.path.dirname(_
 _ALLOWED_EXPRESSIONS_EXTS = {".jpeg", ".webp", ".gif", ".png", ".jpg"}
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+# Decisions defaults on in hosted mode; accounting applies to both variants.
+DECISIONS_ENABLED = os.getenv("DECISIONS_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+DECISIONS_MODEL = os.getenv("DECISIONS_MODEL", "gpt-6-luna")
+DECISIONS_FEATURE_NAMES = frozenset({"addressing", "state", "perception", "participation", "relationships", "identity_summary", "memory", "expressions", "autonomy"})
+_decision_features = os.getenv("DECISIONS_FEATURES", "all").strip().lower()
+DECISIONS_FEATURES = DECISIONS_FEATURE_NAMES if _decision_features == "all" else frozenset(x.strip() for x in _decision_features.split(",") if x.strip())
+if DECISIONS_FEATURES - DECISIONS_FEATURE_NAMES:
+    raise ValueError("DECISIONS_FEATURES contains unsupported feature names")
+DECISIONS_TIMEOUT_SECONDS = float(os.getenv("DECISIONS_TIMEOUT_SECONDS", "5"))
+if not math.isfinite(DECISIONS_TIMEOUT_SECONDS) or DECISIONS_TIMEOUT_SECONDS <= 0:
+    raise ValueError("Invalid Decisions timeout")
+COST_TRACKING_ENABLED = os.getenv("COST_TRACKING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 
 
 def validate_llm_configuration() -> None:

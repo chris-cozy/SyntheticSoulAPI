@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -11,7 +12,9 @@ from app.core.redis_queue import get_queue
 from app.services.auth import _ratelimit, auth_guard, identity
 from app.services.database import ensure_user_and_profile, get_conversation
 from app.services.progress import publish_job_event
-from app.tasks import generate_reply_task
+from app.services.background_queue import enqueue_exchange
+from app.services.accounting import begin_run, mark_phase
+from app.core import config
 
 
 router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(auth_guard)])
@@ -26,13 +29,17 @@ async def submit_message(request: MessageRequest, ident = Depends(identity)):
         await ensure_user_and_profile(user_id, token_username)
 
     q: Queue = get_queue()
-    job = q.enqueue(
-        generate_reply_task,
-        InternalMessageRequest(message=request.message, type=request.type, user_id=user_id),
-        job_timeout=600,
-    )
-    job.meta["owner_user_id"] = user_id
-    job.save_meta()
+    job_id = str(uuid4())
+    await begin_run(job_id, user_id, metadata={"agent_name": config.AGENT_NAME,
+        "flags": {"decisions": config.DECISIONS_ENABLED, "features": ",".join(sorted(config.DECISIONS_FEATURES))},
+        "variant": "decisions" if config.DECISIONS_ENABLED and config.LLM_MODE == "hosted" else "baseline"})
+    try:
+        job = await enqueue_exchange(q,
+            InternalMessageRequest(message=request.message, type=request.type, user_id=user_id), job_id)
+    except Exception:
+        await mark_phase(job_id, "reply", "failed", error="enqueue_failed")
+        await mark_phase(job_id, "background", "cancelled", error="reply_not_enqueued")
+        raise
     publish_job_event(job.id, progress=0.0, status="queued")
 
     # return 202 + Location header so clients can poll

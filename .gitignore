@@ -1,4 +1,7 @@
 venv/
+.venv/
+.validation/
+/docs/validation/
 __pycache__/
 .env
 *.log

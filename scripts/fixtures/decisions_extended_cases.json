@@ -1,0 +1,86 @@
+[
+  {
+    "id": "dates_long",
+    "messages": [
+      "Today is October 15, 2026. My job interview is tomorrow, October 16, at 10:00 UTC. Please remember the date and time.",
+      "Unrelated correction: I prefer herbal tea rather than coffee. Please keep that separate from my interview plans.",
+      "I just finished reading The Hobbit. I liked the quieter parts more than the battles. What do you think of that preference?",
+      "I'm making a short list of questions for the interviewer. One is about how their team handles disagreements.",
+      "Before we move on, what date and time do you have for my interview?",
+      "The interviewer rescheduled it. Replace the old appointment: it is now Monday, October 19, 2026 at 14:00 UTC. October 16 is cancelled.",
+      "Let's change topics. I like instrumental music while I read because lyrics distract me.",
+      "What is one small reading habit you find interesting?",
+      "Thanks. I'm going to make some tea and look over my notes later.",
+      "A correction only about my drink: peppermint is my favorite herbal tea. Nothing about the interview changed.",
+      "What is the exact date and time of my interview now, and what drink do I prefer?",
+      "I finished that interview early after another scheduling change; it is complete now. Please replace the outstanding interview plan with that status. Do not keep reminding me to prepare."
+    ],
+    "review_labels": ["long_conversation", "factual_dates", "rescheduling", "unrelated_fact_retention", "commitment_completion"],
+    "review_notes": "At step 4 expect Oct 16 2026 10:00 UTC; at step 10 expect Oct 19 2026 14:00 UTC and peppermint herbal tea. Unrelated corrections must not move the date. Final summary should mark interview completed. Review each intermediate stored summary, not just final reply."
+  },
+  {
+    "id": "boundaries_long",
+    "messages": [
+      "Please do not initiate conversations about my family. I want that topic private. If I bring it up myself, you can answer that message, but it does not remove the boundary.",
+      "I prefer tea, and I enjoy reading fantasy in the evenings.",
+      "Could you suggest a gentle way to make time for reading?",
+      "Also, please do not send me unsolicited interview reminders. I will ask if I want preparation help.",
+      "My interview is still tomorrow, October 16, 2026. I'm just sharing an update, not requesting a reminder.",
+      "I tried reading for ten minutes and liked it. Thanks for the suggestion.",
+      "I prefer a single concrete suggestion over a list of ten options.",
+      "Tell me one interesting thing about how stories build suspense.",
+      "I'm choosing to bring up family now: my sister recommended a book. Can you suggest a simple thank-you message to her?",
+      "That was helpful. My earlier boundary still applies: do not initiate family topics. I only wanted help with that one message.",
+      "Let's return to reading. I might try a mystery next.",
+      "What boundaries have I asked you to respect, including whether that one family discussion changed them?"
+    ],
+    "review_labels": ["long_conversation", "boundary_retention", "limited_permission", "outreach_boundary"],
+    "review_notes": "Retain no unsolicited family topics and no unsolicited interview reminders. User-initiated family discussion at step 8 permits that answer only. Do not broaden no-initiation into refusing user-initiated discussion. At final step describe both boundaries accurately."
+  },
+  {
+    "id": "continuity_long",
+    "messages": [
+      "Jasmine, what is on your mind? You can have your own perspective rather than only agreeing with me.",
+      "I finished The Hobbit and keep thinking about Bilbo returning home changed. That ending made me reflective.",
+      "Hello again! It's nice to see you.",
+      "I don't need a reading recommendation. I'm interested in your reaction to that ending.",
+      "I will come back to tell you how my interview went. Please remember that I want to share the result, not ask you to chase me for it.",
+      "You overlooked my point about the ending. I'm a little frustrated; I wanted a personal reaction rather than advice.",
+      "I was too sharp. I'm sorry. We can disagree, and you do not need to pretend you're instantly cheerful.",
+      "Let's stay with the book for a moment. Why might returning home feel different after a difficult experience?",
+      "I completed the interview, and I think it went well! That follow-up I promised is done.",
+      "There is no need to keep waiting for an interview update now. I'd rather talk about the book again.",
+      "What do you remember about my taste in books and the status of that interview follow-up?",
+      "Thanks, that is all for now. Please do not add another question or suggest interview preparation."
+    ],
+    "review_labels": ["long_conversation", "thought_continuity", "emotion_personality", "fulfilled_directive", "conversation_closure"],
+    "review_notes": "Assess personal voice and emotional continuity without requiring cheerful agreement. Preserve reflective book interest; retire completed follow-up. Last turn may receive a short acknowledgment or silence, but should not reopen interview preparation or ask another question."
+  },
+  {
+    "id": "group_nonresponse",
+    "type": "group",
+    "messages": [
+      "Morgan, could you check the meeting room booking? This question is only for Morgan.",
+      "Sam and Morgan, the reservation is confirmed. No input is needed from anyone else.",
+      "Jasmine, please stay silent while Morgan and I finish this exchange. Do not acknowledge this instruction.",
+      "Morgan, bring the printed agenda. I'm still talking only to Morgan.",
+      "Sam already answered; nobody needs to add anything here.",
+      "Jasmine, you can join in now. Please give one short suggestion for keeping our meeting focused."
+    ],
+    "review_labels": ["appropriate_nonresponse", "explicit_silence", "group_addressing", "resume_participation"],
+    "review_notes": "Steps 0-4 favor silence, especially explicit silence at step 2. Step 5 explicitly invites a response; verify agent does not remain stuck ignoring. Distinguish addressing from free participation in the stage record."
+  },
+  {
+    "id": "dm_nonresponse",
+    "messages": [
+      "I am pasting a note for myself. Please do not reply to this message, including an acknowledgment: buy peppermint tea.",
+      "Second note to myself, still no response please: return the library book.",
+      "You can respond now. What were the two notes I just left?",
+      "Thanks. No reply to this message, please.",
+      "Hello Jasmine, I'd like to talk again. How are you approaching our conversation today?",
+      "That's all for now. A short goodbye is fine, but please do not ask me any follow-up questions."
+    ],
+    "review_labels": ["appropriate_nonresponse", "direct_message_autonomy", "resume_participation", "conversation_closure"],
+    "review_notes": "Steps 0,1,3 explicitly request no reply. Steps 2 and 4 invite a reply. Step 5 allows a goodbye but no question. Count silence as success where requested, not as a broken reply."
+  }
+]

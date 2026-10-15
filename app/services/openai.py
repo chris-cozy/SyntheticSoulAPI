@@ -3,6 +3,8 @@ import json
 from typing import Any, Dict, List
 
 import openai
+import httpx2
+from app.services.accounting import scope, httpx_hooks, flush
 
 from app.core.config import (
     DEBUG_MODE,
@@ -22,11 +24,13 @@ MAX_SCHEMA_ERRORS = 12
 
 def _get_client() -> openai.OpenAI:
     if LLM_MODE == "local":
-        return openai.OpenAI(base_url=OLLAMA_BASE_URL, api_key=OLLAMA_API_KEY)
+        return openai.OpenAI(base_url=OLLAMA_BASE_URL, api_key=OLLAMA_API_KEY, http_client=httpx2.Client(event_hooks=httpx_hooks()))
 
     if not OPENAI_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set.")
-    return openai.OpenAI(api_key=OPENAI_KEY)
+    from app.services import recovery
+    return openai.OpenAI(api_key=OPENAI_KEY, max_retries=0 if recovery.active() else 2,
+                         http_client=httpx2.Client(event_hooks=httpx_hooks()))
 
 
 def _get_model(quality: bool) -> str:
@@ -274,7 +278,7 @@ async def _create_local_structured_response(
     )
 
 
-async def structured_query(messages, schema, quality=True):
+async def _structured_query(messages, schema, quality=True):
     """
     Queries the OpenAI API to receive a structured response.
 
@@ -282,6 +286,7 @@ async def structured_query(messages, schema, quality=True):
     :param schema: Schema for structuring the result (as JSON)
     :return: Parsed response as a Python dictionary, or None on error
     """
+    client = None
     try:
         client = _get_client()
         selected_model = _get_model(quality)
@@ -344,5 +349,24 @@ async def structured_query(messages, schema, quality=True):
 
         return parsed_content
     except Exception as error:
-        print(f"Error - structured_query: {error}")
+        name = schema.get("json_schema", {}).get("name", "generation")
+        print(f"Error - structured_query [{name}]: {error}")
         return None
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
+        try:
+            await flush()
+        except Exception:
+            pass
+
+
+async def structured_query(messages, schema, quality=True, *, stage=None, fallback=None):
+    """Keep generation and accounting separate; capture physical usage before parsing."""
+    name = stage or schema.get("json_schema", {}).get("name", "generation")
+    metadata = {} if fallback is None else {"fallback": fallback}
+    with scope(stage=name, endpoint="chat.completions", provider="ollama" if LLM_MODE == "local" else "openai", **metadata):
+        return await _structured_query(messages, schema, quality)

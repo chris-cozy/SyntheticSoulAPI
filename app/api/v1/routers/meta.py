@@ -2,6 +2,8 @@ import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from rq import Queue, Worker
+from app.core import config
+from app.services.pricing import PRICING_VERSION
 
 from app.core.redis_queue import get_redis
 from app.core.config import (
@@ -48,8 +50,17 @@ async def llm_status():
     """
     Lightweight LLM provider diagnostics without exposing secrets.
     """
+    diagnostics = {"decisions": {"enabled": config.DECISIONS_ENABLED and LLM_MODE == "hosted",
+        "configured_enabled": config.DECISIONS_ENABLED, "model": config.DECISIONS_MODEL,
+        "features": sorted(config.DECISIONS_FEATURES), "timeout_seconds": config.DECISIONS_TIMEOUT_SECONDS,
+        "acceptance": "validated_choice_or_score_without_confidence_veto",
+        "predicate_policy": "probability > 0.5; ties decline action",
+        "recovery_triggers": ["missing", "malformed", "refused", "provider_failure", "invalid_prose"],
+        "recovery": {"attempts_per_phase": 1, "phases": ["reply", "background", "autonomy"], "sdk_retries": 0}},
+        "accounting": {"enabled": config.COST_TRACKING_ENABLED, "pricing_version": PRICING_VERSION, "currency": "USD", "estimated": True}}
     if LLM_MODE == "local":
         return {
+            **diagnostics,
             "mode": "local",
             "provider": "ollama",
             "base_url": OLLAMA_BASE_URL,
@@ -61,6 +72,7 @@ async def llm_status():
         }
 
     return {
+        **diagnostics,
         "mode": "hosted",
         "provider": "openai",
         "base_url": None,

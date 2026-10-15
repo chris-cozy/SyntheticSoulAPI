@@ -13,8 +13,29 @@ from app.core.redis_queue import get_redis
 from app.domain.models import JobStatusResponse
 from app.services.database import get_database
 from app.services.auth import _ratelimit, auth_guard, identity
+from app.services import accounting
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _cost_job_status(job_id):
+    from rq.exceptions import NoSuchJobError
+    try:
+        return Job.fetch(job_id, connection=get_redis()).get_status(refresh=True)
+    except NoSuchJobError:
+        return None
+
+
+@router.get("/{job_id}/cost", dependencies=[Depends(auth_guard)])
+async def job_cost(job_id: str, ident=Depends(identity)):
+    user_id, _username, _sid = ident
+    await _ratelimit(f"rl:job_cost:{user_id}", limit=120, window_sec=60)
+    # Check owner before reconciliation; Mongo survives Redis result expiration.
+    payload = await accounting.get_cost(job_id, user_id,
+        rq_status_lookup=lambda jid: asyncio.to_thread(_cost_job_status, jid))
+    if payload is None:
+        raise HTTPException(status_code=404, detail="not_found")
+    return payload
 
 
 def _normalize_rq_status(rq_status: str) -> str:

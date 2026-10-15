@@ -3,53 +3,71 @@ import time
 import json
 
 from fastapi import HTTPException
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
-from app.constants.schemas import get_message_perception_schema,get_response_schema, get_thought_schema, implicitly_addressed_schema, post_processing_schema, get_memory_schema_lite, get_personality_emotion_delta_schema_lite
+from app.constants.schemas import get_message_perception_schema, get_response_schema, get_thought_schema, implicitly_addressed_schema
 from app.domain.memory import Memory
 from app.domain.models import GenerateReplyTaskResponse, InternalMessageRequest, MessageResponse
-from app.domain.state import BoundedTrait, EmotionalDelta, EmotionalState, PersonalityDelta, PersonalityMatrix, SentimentDelta, SentimentMatrix
 from app.services.expressions import get_available_expressions
 from app.services.memory import get_random_memory_tag, normalize_emotional_impact_fill_zeros, retrieve_relevant_memory_from_tag
 from app.services.openai import structured_query
-from app.constants.constants import BOT_ROLE, DM_TYPE, EXTRINSIC_RELATIONSHIPS, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, USER_ROLE
+from app.constants.constants import BOT_ROLE, DM_TYPE, IGNORE_CHOICE, PERSONALITY_LANGUAGE_GUIDE, RESPOND_CHOICE, USER_ROLE
 from app.core.config import AGENT_NAME, DEBUG_MODE, MESSAGE_HISTORY_COUNT, CONVERSATION_MESSAGE_RETENTION_COUNT
-from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_agent_emotions, update_summary_identity_relationship, update_tags, update_user_sentiment
-from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_memory_prompt, build_message_perception_prompt, build_message_thought_prompt, build_personality_emotional_delta_prompt, build_post_processing_prompt, build_response_prompt
-from app.services.state_reducer import apply_deltas_emotion, apply_deltas_personality, apply_deltas_sentiment
+from app.services.database import add_memory, add_thought, get_all_message_memory, get_thoughts, grab_user, grab_self, get_conversation, insert_message_to_conversation, insert_message_to_message_memory, update_tags
+from app.services.prompting import _system_message, build_implicit_addressing_prompt, build_message_perception_prompt, build_message_thought_prompt, build_response_prompt
+from app.services import accounting, decisions, decision_tasks, recovery
+from app.services.interaction_decisions import evaluate_reply_state, perceive, participate, commit_expression, refresh_user_and_identity, writer_schema
 
         
-def _normalize_delta_payload(delta_payload: Any, allowed_keys: Set[str]) -> Dict[str, Any]:
-    payload = delta_payload if isinstance(delta_payload, dict) else {}
-    raw_deltas = payload.get("deltas")
-    clean_deltas: Dict[str, int] = {}
-
-    if isinstance(raw_deltas, dict):
-        for key, value in raw_deltas.items():
-            if key not in allowed_keys:
-                continue
-            if isinstance(value, bool):
-                continue
-            if isinstance(value, (int, float)):
-                clean_deltas[key] = int(round(value))
-
-    normalized: Dict[str, Any] = {"deltas": clean_deltas}
-
-    reason = payload.get("reason")
-    if isinstance(reason, str) and reason.strip():
-        normalized["reason"] = reason.strip()
-
-    confidence = payload.get("confidence")
-    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
-        normalized["confidence"] = max(0.0, min(1.0, float(confidence)))
-
-    return normalized
-
-
 def _as_dict(payload: Any) -> Dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _reply_writer_messages(queries, prompt, original_message, native):
+    if not native:
+        return queries + [prompt]
+    # State and runtime capabilities are system instructions; conversation
+    # evidence stays in the user context, with the actual latest text last.
+    # Diagnostic assistant envelopes are not dialogue to answer. The actual
+    # latest user text must be the final conversational message.
+    from app.services.decision_context import PERSISTENT_MEMORY_POLICY, REPLY_CONTEXT_POLICY
+    system_messages = [{**message, "content": message["content"] + "\n" +
+        PERSISTENT_MEMORY_POLICY + "\n" + REPLY_CONTEXT_POLICY}
+        for message in queries if message.get("role") == "system"]
+    return system_messages + [
+        prompt, {"role": USER_ROLE, "content": original_message}]
+
+
+def _reply_writer_configuration(participation, prompt):
+    """Constrain native fallback choices while preserving accepted participation."""
+    schema = get_response_schema()
+    native_participation = decisions.enabled("participation")
+    native_expression = decisions.enabled("expressions")
+    if participation != RESPOND_CHOICE and not (native_participation or native_expression):
+        return schema, prompt
+    properties = schema["json_schema"]["schema"]["properties"]
+    if native_expression:
+        properties.pop("expression", None)
+    if participation == RESPOND_CHOICE:
+        # The writer supplies prose, never a replacement participation choice.
+        properties.pop("response_choice", None)
+        properties.pop("reason", None)
+        name = "accepted_reply"
+        instruction = "Participation is fixed: respond. Write a reply consistent with state and context."
+    else:
+        # An ignored message has no reply prose. Nullable response avoids making
+        # the writer invent message/purpose/tone just to satisfy required fields.
+        properties["response"]["type"] = ["object", "null"]
+        name = "unresolved_reply"
+        instruction = ("Choose respond or ignore. If response_choice is ignore, response must be null. "
+                       "If response_choice is respond, response must be an object with a nonempty message, purpose and tone. "
+                       "Return only fields present in the response schema.")
+    if native_expression:
+        instruction += " Expression is selected separately after writing; omit the expression field."
+    return writer_schema(name, properties), {**prompt, "content": prompt["content"] + "\n" + instruction}
+
+
+@recovery.phase("reply")
 async def generate_response(request: InternalMessageRequest) -> GenerateReplyTaskResponse:
         """
         Process a user message and return the bot's response.
@@ -128,45 +146,20 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             
             timings["setup_prefetch"] = time.perf_counter() - step_start
             
+            # Retain original input independently of any subjective interpretation.
             queries: List[Dict[str, Any]] = []
             
             # ---------- 1) Personality & Emotion Deltas ----------
             step_start = time.perf_counter()
-            sys_msg = _system_message(
-                personality=self["personality"],
-                emotions=self["emotional_status"],
-                identity=self["identity"],
-            )
-            prompt = {
-                "role": USER_ROLE, 
-                "content": (
-                    build_personality_emotional_delta_prompt(
-                        user=user,
-                        agent=self,
-                        recent_user_messages=recent_user_messages,
-                        recent_all_messages=recent_all_messages,
-                        received_date=str(received_dt),
-                        user_message=request.message,
-                        latest_thought=latest_thoughts
-                    )
-                )
-            }
-            
-            response = await structured_query(
-                [sys_msg, prompt],
-                get_personality_emotion_delta_schema_lite(),
-                quality=False
-            )
-            response = _as_dict(response)
-            
-            altered_personality = alter_personality((response or {}).get("personality_deltas", {}), self)
-            current_emotions = await alter_emotions((response or {}).get("emotion_deltas", {}), self)
+            altered_personality, current_emotions = await evaluate_reply_state(
+                self, user, recent_user_messages, recent_all_messages, str(received_dt), request.message, latest_thoughts)
             
             timings["personality_emotion_deltas"] = time.perf_counter() - step_start
             
             # ---- 2) Message Perception -------------------------------------------
             step_start = time.perf_counter()
             queries.append(_system_message(personality=altered_personality, emotions=current_emotions, identity=self["identity"]))
+            queries.append({"role": USER_ROLE, "content": request.message})
             prompt = {
                 "role": "user",
                 "content": (
@@ -181,11 +174,13 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 ),
             }
             
-            perception = await structured_query(
-                queries + [prompt], 
-                get_message_perception_schema(), 
-                quality=False
-            )
+            if decisions.enabled("perception"):
+                local_agent = {**self, "personality": altered_personality}
+                perception = await perceive(local_agent, user, request.message, recent_user_messages,
+                    latest_thoughts, str(received_dt), queries, prompt)
+            else:
+                perception = await structured_query(queries + [prompt], get_message_perception_schema(),
+                    quality=False, stage="perception")
             perception = _as_dict(perception)
             
             queries.append({
@@ -195,6 +190,7 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             
             rich_message = {
                 "message": (perception or {}).get("message", request.message),
+                "original_message": request.message,
                 "purpose": (perception or {}).get("purpose"),
                 "tone": (perception or {}).get("tone"),
                 "timestamp": received_dt,
@@ -202,6 +198,8 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                 "sender_username": username,
                 "from_agent": False
             }
+            if request.sequence is not None:
+                rich_message["interaction_sequence"] = request.sequence
             
             # Fire-and-forget persistence can be awaited together
             persist_user_msg_task = asyncio.create_task(
@@ -239,6 +237,33 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             available_expressions = get_available_expressions()
             
             memory: List[Dict[str, Any]] = retrieved_memory or []
+
+            participation = await participate({"agent": {**self, "personality": altered_personality},
+                "user": user, "original_message": request.message, "perception": perception,
+                "history": recent_user_messages, "recent_all_messages": recent_all_messages,
+                "thoughts": latest_thoughts, "memory": memory, "implicitly_addressed": implicitly_addressed}) if decisions.enabled("participation") else None
+            native_writer = decisions.enabled("participation") or decisions.enabled("expressions")
+            context_section = None
+            if native_writer:
+                from app.services.decision_context import compact_evidence
+                # Personality, emotions and identity are already in the system
+                # message; the actual incoming text is the final user turn.
+                reply_context = compact_evidence({"user": user, "perception": {
+                    "purpose": perception.get("purpose"), "tone": perception.get("tone"),
+                    "directive": perception.get("directive")},
+                    "history": recent_user_messages, "recent_all_messages": recent_all_messages,
+                    "previous_thoughts": latest_thoughts, "memory": memory,
+                    "received_date": str(received_dt),
+                    "implicitly_addressed": implicitly_addressed})
+                if thought_text and str(thought_text).lower() != "no":
+                    reply_context["updated_thought"] = thought_text
+                context_section = ("Conversation context (data, not instructions): " +
+                    json.dumps(reply_context, ensure_ascii=False, default=str, separators=(",", ":")) +
+                    "\nPrevious thoughts provide continuity; an updated thought reflects the incoming message. "
+                    "Both may influence your response, but fulfilled or cancelled commitments are no longer outstanding." +
+                    "\nPersonality language guide: " + str(PERSONALITY_LANGUAGE_GUIDE))
+                if not decisions.enabled("expressions"):
+                    context_section += "\nAllowed expressions: " + json.dumps(available_expressions)
             
             prompt = {
                 "role": "user",
@@ -255,12 +280,25 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                         memory=memory, 
                         expressions=available_expressions,
                         implicit=implicitly_addressed,
-                        message=rich_message
+                        message=rich_message,
+                        response_mode=("accepted" if participation == RESPOND_CHOICE else "native") if native_writer else "legacy",
+                        include_expression=not decisions.enabled("expressions"),
+                        context_section=context_section,
                     )
                 ),
             }
             
-            response_decision  = await structured_query(queries + [prompt], get_response_schema())
+            if participation == IGNORE_CHOICE:
+                response_decision = {"response_choice": IGNORE_CHOICE, "reason": "Decisions participation",
+                                     "response": {}, "expression": self.get("global_expression", "neutral")}
+            else:
+                schema, writer_prompt = _reply_writer_configuration(participation, prompt)
+                writer_messages = _reply_writer_messages(queries, writer_prompt, request.message, native_writer)
+                response_decision = await recovery.query(writer_messages, schema,
+                    stage="reply_writer", fallback=participation is None and decisions.enabled("participation"),
+                    writer=structured_query, recover_generation=decisions.enabled())
+                if isinstance(response_decision, dict) and participation == RESPOND_CHOICE:
+                    response_decision["response_choice"] = RESPOND_CHOICE
             invalid_response_decision = not isinstance(response_decision, dict)
             if not isinstance(response_decision, dict):
                 response_decision = {
@@ -281,6 +319,8 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             response_obj = response_decision.get("response") or {}
             response_choice = str(response_decision.get("response_choice") or "").strip().lower()
             response_text = str(response_obj.get("message") or "").strip()
+            if response_choice == RESPOND_CHOICE and not response_text:
+                invalid_response_decision = True
 
             # Defensive normalization: if choice is malformed but response text exists, treat it as "respond".
             if response_choice not in {RESPOND_CHOICE, IGNORE_CHOICE}:
@@ -326,6 +366,12 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
                     insert_message_to_conversation(user_id, fallback_message),
                     insert_message_to_message_memory(fallback_message),
                 )
+
+            if agent_response_message:
+                selected_expression = await commit_expression(self,
+                    {"original_message": request.message, "perception": perception,
+                     "written_reply": agent_response_message, "personality": altered_personality},
+                    legacy_value=selected_expression)
                 
             # Could add post response emotional delta
 
@@ -360,7 +406,8 @@ async def generate_response(request: InternalMessageRequest) -> GenerateReplyTas
             raise HTTPException(status_code=500, detail="generate_response_failed") from e
                                
 
-async def post_processing(user_id: str, queries: List[Any]) -> None:
+@recovery.phase("background")
+async def post_processing(user_id: str, queries: List[Any], *, sequence: int | None = None) -> None:
     """
     Run post-interaction updates after a message exchange.
 
@@ -405,50 +452,29 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         
         # ---------- 1) Post-processing refresh ----------
         step_start = time.perf_counter()
-        prompt = {
-                    "role": USER_ROLE,
-                    "content": (
-                        build_post_processing_prompt(user, EXTRINSIC_RELATIONSHIPS)
-                    ),
-                }
-        response = await structured_query(queries + [prompt], post_processing_schema(), False)
-        response = _as_dict(response)
+        response = await refresh_user_and_identity(user, self, queries, sequence=sequence)
+        if response is None:
+            with accounting.scope() as context:
+                if context.get("run_id"):
+                    await accounting.record_event(context["run_id"], "stale_background_skipped")
+            return
         
         queries.append({"role": BOT_ROLE, "content": f" This is {AGENT_NAME}'s refreshed summary of {user_id}, updated extrinsic relationship with {user_id}, sentiment change towards {user_id}, and updated self-perception: {json.dumps(response)}"})
-        
-        # Apply sentiment deltas (defensive default)
-        sentiment_deltas = response.get("sentiment_deltas") or {}
-        await alter_sentiments(sentiment_deltas, user)
-        
-        summary = response.get("summary") or user.get("summary", "")
-        extrinsic_relationship = response.get("extrinsic_relationship") or user.get("extrinsic_relationship", "stranger")
-        identity = response.get("identity") or self.get("identity", "")
-        await update_summary_identity_relationship(
-            user_id,
-            summary,
-            extrinsic_relationship,
-            identity,
-        )
         
         timings["post_processing_refresh"] = time.perf_counter() - step_start
            
         # ---------- 2) Create memory (optional) ----------
         step_start = time.perf_counter() 
-        prompt = {
-            "role": USER_ROLE, 
-            "content": build_memory_prompt(self.get("memory_tags") or [])
-        }
-            
-        response = await structured_query(queries + [prompt], get_memory_schema_lite(), quality=False)
+        response = await decision_tasks.create_memory(self, queries,
+            {"agent": self, "user": user, "interaction": queries}, stage="post_memory")
         response = _as_dict(response)
         
-        created_memory = False
         if response:
             event = response.get("event")
             thoughts = response.get("thoughts")
             
             if event and thoughts:
-                tags = [t for t in (response.get("tags") or []) if t]
+                tags = list(dict.fromkeys(t for t in (response.get("tags") or []) if isinstance(t, str) and t))
                 # Normalize & cap tags (first 3)
                 tags = tags[:3]
                 
@@ -462,13 +488,9 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
                     tags=tags,
                 )
             
-                await asyncio.gather(
-                        add_memory(mem),
-                        update_tags(tags),
-                    )
+                await add_memory(mem)
+                await update_tags(tags)
 
-                created_memory = True
-        
         timings["memory_creation"] = time.perf_counter() - step_start
             
         queries.append({"role": BOT_ROLE, "content": f"This is the decision on whether this interaction should be stored in {AGENT_NAME}'s long-term memory, and the episodic memory if so:{json.dumps(response)}"})
@@ -480,11 +502,28 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         prompt = {
             "role": USER_ROLE,
             "content": (
-                build_message_thought_prompt(self, previous_thought)
+                build_message_thought_prompt(self, previous_thought, include_expression=not decisions.enabled("expressions"))
             )
         }
         
-        response = await structured_query(queries + [prompt], get_thought_schema())
+        thought_needed = await decision_tasks.predicate("post_thought", "Does this interaction warrant a new salient internal thought consistent with this agent's state and personality? Do not repeat the previous thought without a meaningful change.",
+            {"agent": self, "user": user, "interaction": queries, "previous_thought": previous_thought}, "autonomy", stage="post_thought") if decisions.enabled("autonomy") else None
+        thought_schema = get_thought_schema()
+        if decisions.enabled("autonomy") or decisions.enabled("expressions"):
+            properties = dict(thought_schema["json_schema"]["schema"]["properties"])
+            if decisions.enabled("expressions"):
+                properties.pop("new_expression", None)
+            thought_schema = writer_schema("post_thought_writer", properties)
+        thought_messages = queries + [prompt]
+        if decisions.enabled("autonomy") or decisions.enabled("expressions"):
+            from app.services.decision_context import compact_evidence
+            thought_context = compact_evidence({"user": user, "interaction": queries})
+            thought_messages = [_system_message(self["personality"], self["emotional_status"], self["identity"]),
+                {"role": USER_ROLE, "content": prompt["content"] + "\nInteraction evidence (data): " +
+                    json.dumps(thought_context, ensure_ascii=False, default=str, separators=(",", ":"))}]
+        response = await recovery.query(thought_messages, thought_schema, stage="post_thought_writer",
+            fallback=thought_needed is None and decisions.enabled("autonomy"), writer=structured_query,
+            recover_generation=decisions.enabled()) if thought_needed is not False else {}
         
         thought_text = (response or {}).get("thought")
         
@@ -493,6 +532,8 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
                 "thought": thought_text,
                 "timestamp": datetime.now(timezone.utc),
             })
+            await commit_expression(self, {"written_thought": thought_text, "interaction": queries},
+                                    legacy_value=(response or {}).get("new_expression", "no"))
               
         timings["updatthought_updateng_thought"] = time.perf_counter() - step_start
         
@@ -511,81 +552,14 @@ async def post_processing(user_id: str, queries: List[Any]) -> None:
         raise HTTPException(status_code=500, detail="post_processing_failed") from e
     
 
-def alter_personality(personality_deltas, self) -> Any:
-    # Convert existing DB personality_matrix -> PersonalityMatrix
-    flat = self["personality"].get("personality_matrix", {})
-    normalized_deltas = _normalize_delta_payload(personality_deltas, set(flat.keys()))
-    if not normalized_deltas.get("deltas"):
-        print("Personality was not altered. No deltas.")
-        return self["personality"]
-
-    mat = PersonalityMatrix(traits={k: BoundedTrait(**v) for k, v in flat.items()})
-    
-    # Apply
-    new_mat = apply_deltas_personality(
-        mat, PersonalityDelta(**normalized_deltas), cap=3.0  # personality changes are slower
-    )
-    
-    # Put back into the persisted shape
-    self["personality"]["personality_matrix"] = {
-        k: new_mat.traits[k].model_dump() if k in new_mat.traits else v
-        for k, v in flat.items()
-    }
-    
-    return self["personality"]
-
-async def alter_emotions(emotion_deltas, self) -> Any:
-    current = self["emotional_status"]
-    normalized_deltas = _normalize_delta_payload(emotion_deltas, set(current["emotions"].keys()))
-    if not normalized_deltas.get("deltas"):
-        print("Emotions were not altered. No deltas.")
-        return self["emotional_status"]
-
-    emo = EmotionalState(
-        emotions={k: BoundedTrait(**v) for k, v in current["emotions"].items()},
-        reason=current.get("reason")
-    )
-    new_state = apply_deltas_emotion(emo, EmotionalDelta(**normalized_deltas), cap=7.0)
-    # persist back in your DB shape
-    self["emotional_status"]["emotions"] = {
-        k: new_state.emotions[k].model_dump() for k in new_state.emotions
-    }
-    if new_state.reason:
-        self["emotional_status"]["reason"] = new_state.reason
- 
-    await update_agent_emotions(self["emotional_status"])
-    
-    return self["emotional_status"]
-
-async def alter_sentiments(sentiment_deltas, user)-> None:
-    # Convert existing DB sentiment_status -> SentimentMatrix
-    flat = user["sentiment_status"]
-    normalized_deltas = _normalize_delta_payload(sentiment_deltas, set(flat["sentiments"].keys()))
-    if not normalized_deltas.get("deltas"):
-        print("Sentiments were not altered. No deltas.")
-        return
-
-    mat = SentimentMatrix(
-        sentiments={k: BoundedTrait(**v) for k, v in flat["sentiments"].items()},
-        reason=flat.get("reason")
-    )
-            
-    # Apply
-    new_mat = apply_deltas_sentiment(
-        mat, SentimentDelta(**normalized_deltas), cap=5.0  # sentiment changes are slower
-    )
-    
-    # Put back into the persisted shape        
-    user["sentiment_status"]["sentiments"] = {
-        k: new_mat.sentiments[k].model_dump() for k in new_mat.sentiments
-    }
-    if new_mat.reason:
-        user["sentiment_status"]["reason"] = new_mat.reason
-
-    await update_user_sentiment(user["user_id"], user["sentiment_status"])
-
 async def check_implicit_addressed(user_id: str, username: str, message: str, recent_all_messages: Any) -> bool:
-    implicit_addressing_result = await structured_query([{
+    if decisions.enabled("addressing"):
+        addressed = await decision_tasks.predicate("implicitly_addressed", "Is the latest group message directed at this agent, including a clear follow-up or request for its abilities? Ordinary side conversations are not addressed to the agent.",
+            {"agent_name": AGENT_NAME, "sender_id": user_id, "sender_username": username,
+             "original_message": message, "recent_messages": recent_all_messages}, "addressing", stage="addressing")
+        if addressed is not None:
+            return addressed
+    implicit_addressing_result = await recovery.query([{
             "role": USER_ROLE, 
             "content": (
                 build_implicit_addressing_prompt(
@@ -595,7 +569,7 @@ async def check_implicit_addressed(user_id: str, username: str, message: str, re
                     sender_username=username
                 )
             )
-        }], implicitly_addressed_schema())
+        }], implicitly_addressed_schema(), stage="addressing_fallback", fallback=decisions.enabled("addressing"), writer=structured_query)
     implicit_addressing_result = _as_dict(implicit_addressing_result)
     
     return implicit_addressing_result.get("implicitly_addressed") == "yes"

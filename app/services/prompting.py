@@ -207,7 +207,9 @@ def build_response_prompt(
     *,
     agent_name: str = AGENT_NAME,
     implicit: bool = True,
-    context_section: Optional[str] = None
+    context_section: Optional[str] = None,
+    response_mode: str = "legacy",
+    include_expression: bool = True,
 ) -> str:
     """
     Decide whether to respond or ignore the latest user message. If responding, compose a reply
@@ -216,6 +218,7 @@ def build_response_prompt(
     """
     allowed_expressions = list(dict.fromkeys(expressions))  # de-dupe, preserve order
     expressions_json = json.dumps(allowed_expressions, ensure_ascii=False)
+    expression_context = f"- Allowed expressions (only choose exactly one): {expressions_json}" if include_expression else ""
     
     header = (context_section.rstrip() + "\n") if context_section else textwrap.dedent(f"""
     You are {agent_name}. Below are the key details of your current state and context:
@@ -230,9 +233,27 @@ def build_response_prompt(
     - Broader recent messages: {recent_all_messages}
     - Current memory items: {memory}
     - Personality language guide: {personality_language_guide}
-    - Allowed expressions (only choose exactly one): {expressions_json}
+    {expression_context}
     """)
     
+    if response_mode != "legacy":
+        decision = ("Participation is already fixed: respond. Write the reply." if response_mode == "accepted" else
+                    "Choose respond or ignore based on your current state, context and boundaries. If you ignore, response must be null.")
+        return textwrap.dedent(header + "\n" + decision + "\n" + """
+        Follow the provided response schema. The response.message string contains the public conversational reply only.
+        Address the actual user's latest message, not the supplied background profile or state. Those details are
+        context for your voice and interpretation; do not acknowledge receiving them or claim to have recorded them.
+        Do not place an application response envelope, serialized schema, response_choice/reason/response object,
+        pipeline diagnostics or private reasoning inside that message string. JSON requested by the user is allowed,
+        but the application response envelope is never part of the public message.
+        Write 1-3 relaxed sentences unless the user's request calls for more. Match your current emotions and
+        personality language guide; preserve your independent bodyless identity and subjective interpretation.
+        Do not default to asking questions or offering next steps. Vary word choice, cadence and punctuation
+        naturally rather than repeating recent replies. Use emoticons (not emojis) when appropriate.
+        Supply purpose and tone only in their schema fields.
+        If the schema requests an expression, choose only an installed asset from the allowed expressions.
+        """).strip()
+
     # Decision bullets (implicit vs explicit)
     if implicit:
         scenario = f"- Decide whether to respond to or ignore the new message from {user_id}"
@@ -485,6 +506,8 @@ def build_thought_prompt(
     random_thought_prob: float = RANDOM_THOUGHT_PROBABILITY,
     # NEW: optional RNG for determinism in tests (pass random.Random(seed))
     rng: Optional[_random.Random] = None,
+    random_branch: Optional[bool] = None,
+    include_expression: bool = True,
 ) -> str:
     """
     Generate a structured prompt that determines whether the agent is currently
@@ -502,7 +525,7 @@ def build_thought_prompt(
     current_expression = self.get("global_expression", "") 
     possible_expressions = get_available_expressions()  
     
-    thought_vibe = sample_thought_vibe()
+    thought_vibe = sample_thought_vibe(rng)
     
     # Normalize messages display
     if isinstance(recent_all_messages, (list, tuple)):
@@ -532,7 +555,7 @@ def build_thought_prompt(
     expression_example_no  = {"new_expression": "no"}
     
     r = (rng or _random)
-    do_random = r.random() < float(random_thought_prob)
+    do_random = r.random() < float(random_thought_prob) if random_branch is None else random_branch
     
     body = f"""
         Task:
@@ -584,6 +607,22 @@ def build_thought_prompt(
             - {json.dumps(expression_example_no, ensure_ascii=False)}
         """
     
+    if not include_expression:
+        header = textwrap.dedent(f"""
+            You are {agent_name}.
+            - Recent messages: {recent_all_messages}
+            - Current time: {timestamp}
+            - Memory on your mind: {memory}
+        """)
+        task = (f"Ignore prior messages and memory; write a spontaneous, self-contained thought with this vibe: {thought_vibe}."
+                if do_random else "Write a distinct thought sparked by current messages, memory, or an outstanding concern. Return no if nothing new is salient.")
+        body = f"""
+            Task: {task}
+            Return one JSON object containing only thought.
+            Keep it brief, relaxed and natural, like a personal inner aside.
+            Do not provide step-by-step reasoning, technical commentary or discuss the format of your answer.
+            Avoid repeating previous thoughts without a new perspective. Use usernames when referring to people.
+        """
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_initiate_message_prompt(
@@ -633,7 +672,7 @@ def build_initiate_message_prompt(
         - A reminder or unresolved question blocking progress
         - Elapsed time since the last interaction where a check-in is helpful
         - A clarification or correction that affects next steps
-        If appropriate, compose messages (up to 5). If not, return an empty array.
+        If appropriate, compose messages (up to 3). If not, return an empty array.
 
         Output format (JSON object):
         {{
@@ -654,7 +693,7 @@ def build_initiate_message_prompt(
         - Emoticons only (no emojis). Examples: ˃.˂, :D, ૮ ˶ᵔ ᵕ ᵔ˶ ა, ♡, >⩊<.
         - Polite boundaries: don’t pressure; it’s okay to let the user opt out or reply later.
         - Anti-spam:
-            • Do not send more than 1 message per user in this pass (overall cap: 5 messages).
+            • Do not send more than 1 message per user in this pass (overall cap: 3 messages).
             • Do not repeat recent phrasing or punctuation habits.
             • If you have nothing new/valuable to add, return an empty array.
         - Do not reveal private/internal chain-of-thought.
@@ -679,6 +718,7 @@ def build_message_thought_prompt(
     *,
     context_section: Optional[str] = None,
     now: Optional[str] = None,
+    include_expression: bool = True,
 ) -> str:
     """
     Generate a structured prompt that determines whether the agent is currently
@@ -731,6 +771,13 @@ def build_message_thought_prompt(
         - {json.dumps(example_no, ensure_ascii=False)}
         """
     
+    if not include_expression:
+        body = """
+            Write a distinct, concise personal thought prompted by this interaction, or no if nothing new is salient.
+            Return one JSON object containing only thought. Do not repeat recent thoughts without a new perspective.
+            Use natural inner prose without technical commentary or discussion of the answer format.
+            Do not provide step-by-step reasoning. Use usernames when referring to people.
+        """
     return textwrap.dedent(header + "\n" + body).strip()
 
 def build_memory_worthiness_prompt(
